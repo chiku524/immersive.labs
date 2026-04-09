@@ -1,3 +1,4 @@
+import { DigitalProductShowcase } from "./components/DigitalProductShowcase";
 import { EngravedBackdrop } from "./components/EngravedBackdrop";
 import "./App.css";
 
@@ -12,6 +13,7 @@ export default function App() {
             Immersive Labs
           </a>
           <nav className="nav" aria-label="Primary">
+            <a href="#products">Products</a>
             <a href="#work">Work</a>
             <a href="#capabilities">Capabilities</a>
             <a href="#contact">Contact</a>
@@ -38,6 +40,8 @@ export default function App() {
               </a>
             </div>
           </section>
+
+          <DigitalProductShowcase />
 
           <section id="work" className="section">
             <h2 className="section-title">Selected work</h2>
