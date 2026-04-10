@@ -256,7 +256,7 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 
 **Typical split**
 
-1. **Build and deploy** `apps/web` to a static host (e.g. Vercel).
+1. **Build and deploy** `apps/web` to a static host (e.g. Vercel). This repo includes **`vercel.json`** at the monorepo root so the output directory is **`apps/web/dist`** (Vite’s build) and client-side routes (e.g. **`/studio`**) rewrite to **`index.html`**. In the Vercel dashboard, keep the project **root** at the repository root unless you move configuration; if you previously set **Output Directory** to `public`, remove that override so `vercel.json` applies.
 2. Set **`VITE_STUDIO_API_URL`** in that project to the **public worker URL** (HTTPS).
 3. Run **`immersive-studio serve`** (or gunicorn/uvicorn) on a **VM, container, or metal** with a **persistent volume** for `output/` (or equivalent for Postgres/Redis/S3 if you moved storage).
 
