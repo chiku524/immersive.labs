@@ -34,7 +34,7 @@ QueueWorkerConfig = qp.QueueWorkerConfig
 def _sqs_client():
     if boto3 is None:
         raise RuntimeError(
-            "boto3 is required for STUDIO_QUEUE_BACKEND=sqs (pip install 'immersive-studio-worker[s3]' or scale)"
+            "boto3 is required for STUDIO_QUEUE_BACKEND=sqs (pip install 'immersive-studio[s3]' or scale)"
         )
     kwargs: dict[str, Any] = {"region_name": aws_region()}
     ep = sqs_endpoint_url()

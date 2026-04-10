@@ -24,11 +24,11 @@ import random
 import sys
 from pathlib import Path
 
-# Repo layout: apps/studio-worker/blender/export_mesh.py → src on sys.path for shared PBR logic.
-_BLENDER_DIR = Path(__file__).resolve().parent
-_STUDIO_SRC = _BLENDER_DIR.parent / "src"
-if _STUDIO_SRC.is_dir() and str(_STUDIO_SRC) not in sys.path:
-    sys.path.insert(0, str(_STUDIO_SRC))
+# Shipped next to the studio_worker package; ensure site-packages (or src/) is importable.
+_here = Path(__file__).resolve().parent
+_site_packages = _here.parents[2]
+if _site_packages.is_dir() and str(_site_packages) not in sys.path:
+    sys.path.insert(0, str(_site_packages))
 
 try:
     from studio_worker.pbr_keys import (
@@ -38,7 +38,7 @@ try:
     )
 except ImportError as e:
     raise SystemExit(
-        "export_mesh.py requires the monorepo: add apps/studio-worker/src to PYTHONPATH "
+        "export_mesh.py must run with the immersive-studio package installed "
         f"(missing studio_worker.pbr_keys: {e})"
     ) from e
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,10 +12,38 @@ from studio_worker.paths import blender_export_script_path
 
 
 def resolve_blender_executable() -> str | None:
+    """
+    Resolve the Blender CLI: STUDIO_BLENDER_BIN, PATH (blender / blender.exe),
+    then common install locations on Windows and macOS.
+    """
     override = os.environ.get("STUDIO_BLENDER_BIN", "").strip()
     if override:
+        p = Path(override)
+        if p.is_file():
+            return str(p)
+        w = shutil.which(override)
+        if w:
+            return w
         return override
-    return shutil.which("blender")
+
+    for name in ("blender", "blender.exe"):
+        w = shutil.which(name)
+        if w:
+            return w
+
+    if sys.platform == "win32":
+        pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+        pattern = str(Path(pf) / "Blender Foundation" / "Blender *" / "blender.exe")
+        matches = sorted(glob.glob(pattern))
+        if matches:
+            return matches[-1]
+
+    if sys.platform == "darwin":
+        mac = Path("/Applications/Blender.app/Contents/MacOS/Blender")
+        if mac.is_file():
+            return str(mac)
+
+    return None
 
 
 def blender_timeout_s() -> float:

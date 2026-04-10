@@ -24,7 +24,7 @@ flowchart LR
 | `apps/web` | `@immersive/web` — Vite + React site; future **Studio UI** (job queue, prompts, previews) can grow here or under `apps/web/src/studio/`. |
 | `packages/studio-types` | `@immersive/studio-types` — shared TypeScript types for specs and manifests. |
 | `docs/studio/` | Planning and conventions (this folder). |
-| `apps/studio-worker` | Python package `immersive-studio-worker`: Ollama/mock spec generation, JSON Schema validation, pack writer, FastAPI for `/studio`, Blender stub script. |
+| `apps/studio-worker` | PyPI **`immersive-studio`** (CLI `immersive-studio`, import **`immersive_studio`**): Ollama/mock spec generation, JSON Schema validation, pack writer, FastAPI for `/studio`, Blender stub script. |
 | `packages/studio-unity` | UPM package `com.immersivelabs.studio`: Editor import wizard (textures → URP Lit materials). |
 
 Adding `apps/studio-worker` is deferred until implementation; the docs describe its responsibilities now so the first commit is not a blank slate.

@@ -3,11 +3,25 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "immersive-studio-worker"
+name = "immersive-studio"
 version = "0.1.0"
-description = "Video Game Generation Studio worker: spec generation, validation, and pack layout."
+description = "Immersive Studio CLI and SDK: spec generation, ComfyUI textures, Unity packs, and HTTP worker API."
 readme = "README.md"
 requires-python = ">=3.11"
+keywords = ["cli", "game-dev", "unity", "comfyui", "3d", "procedural"]
+authors = [{ name = "Immersive Labs" }]
+license = "MIT"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Games/Entertainment",
+  "Topic :: Multimedia :: Graphics :: 3D Modeling",
+]
 dependencies = [
   "fastapi>=0.115",
   "httpx>=0.27",
@@ -15,9 +29,6 @@ dependencies = [
   "stripe>=10.0",
   "uvicorn[standard]>=0.32",
 ]
-
-[project.scripts]
-immersive-studio = "studio_worker.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -40,8 +51,24 @@ scale = [
   "redis>=5.0",
 ]
 
+[project.scripts]
+immersive-studio = "studio_worker.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/immersive-labs/immersive.labs"
+Documentation = "https://github.com/immersive-labs/immersive.labs/tree/main/apps/studio-worker"
+Repository = "https://github.com/immersive-labs/immersive.labs"
+Issues = "https://github.com/immersive-labs/immersive.labs/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+studio_worker = [
+  "data/*.json",
+  "comfy_workflows/*.json",
+  "blender/*.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

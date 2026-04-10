@@ -36,7 +36,7 @@ Ordered phases with **deliverables** and **risks**. Adjust durations when `apps/
 
 **Deliverables:**
 
-- [x] Versioned ComfyUI workflows (API JSON) in repo: `comfy/workflows/sd15_albedo_v1.api.json`, `sdxl_albedo_v1.api.json` + `comfy/README.md`.  
+- [x] Versioned ComfyUI workflows (API JSON) in repo: `studio_worker/comfy_workflows/sd15_albedo_v1.api.json`, `sdxl_albedo_v1.api.json` + `comfy/README.md`.  
 - [x] Mapping from `material_slots` (albedo) to `{variant}_{slot}_albedo.png` under `Textures/<asset_id>/`.  
 - [ ] Smoke test matrix across two presets in CI (manual for now — requires GPU + ComfyUI).  
 
@@ -50,7 +50,7 @@ Ordered phases with **deliverables** and **risks**. Adjust durations when `apps/
 
 **Deliverables:**
 
-- [x] Blender batch script (placeholder mesh from spec: scaled cube → `.glb`): `apps/studio-worker/blender/export_mesh.py`.  
+- [x] Blender batch script (placeholder mesh from spec: scaled cube → `.glb`): `apps/studio-worker/src/studio_worker/blender/export_mesh.py`.  
 - [x] Worker integration: optional `export_mesh` on `run-job` / enqueue / UI; writes `Models/<asset_id>/<asset_id>.glb`, updates `manifest.json` `toolchain.mesh_pipeline`, env `STUDIO_BLENDER_BIN`, `STUDIO_EXPORT_MESH_DEFAULT`, `STUDIO_BLENDER_TIMEOUT_S`.  
 - [x] Unity importer copies `Models/<asset_id>/*.glb` next to imported textures.  
 - [x] Unity importer assigns generated Lit materials to imported glTF mesh renderers (preferred `{variant}_{slot}_Lit`).  

@@ -28,7 +28,7 @@ _BLOB_API = scale_config.vercel_blob_api_url()
 def _boto3_client() -> Any:
     if boto3 is None:
         raise RuntimeError(
-            "boto3 is required for STUDIO_JOB_ARTIFACTS=s3 (install optional extra: pip install 'immersive-studio-worker[s3]')"
+            "boto3 is required for STUDIO_JOB_ARTIFACTS=s3 (install optional extra: pip install 'immersive-studio[s3]')"
         )
     kwargs: dict[str, Any] = {"region_name": scale_config.s3_region()}
     ep = scale_config.s3_endpoint_url()

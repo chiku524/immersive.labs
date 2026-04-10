@@ -89,6 +89,7 @@ def _cmd_pack(args: argparse.Namespace) -> int:
 
 
 def _cmd_run_job(args: argparse.Namespace) -> int:
+    comfy_url = (args.comfy_url or "").strip() or None
     try:
         result = run_studio_job(
             user_prompt=args.prompt,
@@ -97,13 +98,51 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
             use_mock=args.mock,
             generate_textures=args.textures,
             unity_urp_hint=args.unity_urp,
-            comfy_base_url=None,
+            comfy_base_url=comfy_url,
             export_mesh=args.export_mesh,
         )
     except Exception as e:
         print(str(e), file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from studio_worker.comfy_client import comfy_reachability
+    from studio_worker.mesh_export import resolve_blender_executable
+
+    comfy_probe = (args.comfy_url or "").strip() or None
+    c = comfy_reachability(base_url=comfy_probe)
+    print(f"ComfyUI {c['url']}: ", end="")
+    if c["reachable"]:
+        print("reachable (system_stats OK)")
+    else:
+        print("not reachable")
+        print(f"  Detail: {c.get('detail')}")
+        print("  Fix: start ComfyUI (default port 8188) or set STUDIO_COMFY_URL to its base URL.")
+        print("  See: apps/studio-worker/comfy/README.md")
+
+    b = resolve_blender_executable()
+    print("Blender: ", end="")
+    if b:
+        print(b)
+    else:
+        print("not found")
+        print(
+            "  Fix: install Blender 3.x+ or set STUDIO_BLENDER_BIN to blender.exe "
+            "(Windows: often under Program Files\\Blender Foundation\\Blender *\\)."
+        )
+
+    issues = 0
+    if not c["reachable"]:
+        issues += 1
+    if not b:
+        issues += 1
+    if issues:
+        print(f"\n{issues} check(s) failed (full jobs need ComfyUI for textures + Blender for mesh export).")
+        return 1
+    print("\nAll local toolchain checks passed.")
     return 0
 
 
@@ -219,6 +258,17 @@ def main() -> None:
     )
     q.set_defaults(func=_cmd_queue_worker)
 
+    doc = sub.add_parser(
+        "doctor",
+        help="Verify ComfyUI and Blender are reachable for full jobs (textures + mesh export)",
+    )
+    doc.add_argument(
+        "--comfy-url",
+        default="",
+        help="Override ComfyUI base URL for this check (default: STUDIO_COMFY_URL or http://127.0.0.1:8188)",
+    )
+    doc.set_defaults(func=_cmd_doctor)
+
     j = sub.add_parser("run-job", help="Generate spec, write pack under output/jobs, optional ComfyUI textures, zip")
     j.add_argument("--prompt", required=True)
     j.add_argument(
@@ -242,6 +292,11 @@ def main() -> None:
         "--unity-urp",
         default="6000.0.x LTS (pin when smoke-tested)",
         dest="unity_urp",
+    )
+    j.add_argument(
+        "--comfy-url",
+        default="",
+        help="ComfyUI base URL for this run (overrides STUDIO_COMFY_URL for texture generation)",
     )
     j.set_defaults(func=_cmd_run_job)
 

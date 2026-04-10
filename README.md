@@ -10,7 +10,7 @@ Monorepo for **Immersive Labs**: the public marketing site and planning for the 
 |------|-------------|
 | `apps/web` | `@immersive/web` — Vite + React application (marketing site + **`/studio`** UI) |
 | `apps/studio-edge` | `@immersive/studio-edge` — Cloudflare Worker reverse proxy + optional KV health cache ([README](./apps/studio-edge/README.md)) |
-| `apps/studio-worker` | Python worker: spec generation, ComfyUI textures, jobs + zips, HTTP API |
+| `apps/studio-worker` | **`immersive-studio`** on PyPI — CLI + Python SDK (`immersive_studio`), spec generation, ComfyUI textures, jobs + zips, HTTP API ([README](./apps/studio-worker/README.md)) |
 | `packages/studio-types` | `@immersive/studio-types` — shared types for the studio pipeline |
 | `packages/studio-unity` | Unity UPM importer (`com.immersivelabs.studio`) for studio packs |
 | `docs/studio` | Planning docs for the video game generation studio |
@@ -32,7 +32,7 @@ With the dev server running, open **`http://localhost:5173/studio`** for the stu
 cd apps/studio-worker
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
-immersive-studio serve --host 127.0.0.1 --port 8787
+python -m studio_worker.cli serve --host 127.0.0.1 --port 8787
 ```
 
 Use **mock mode** in the UI if Ollama is not running. Enable **Generate albedo textures** when [ComfyUI](https://github.com/comfyanonymous/ComfyUI) is up and `STUDIO_COMFY_CHECKPOINT` matches a local checkpoint. See [apps/studio-worker/README.md](./apps/studio-worker/README.md) and [packages/studio-unity/README.md](./packages/studio-unity/README.md).

@@ -100,7 +100,7 @@ def write_pack(
         models.mkdir(parents=True, exist_ok=True)
         readme = models / "README.txt"
         readme.write_text(
-            "Export placeholder: `blender --background --python blender/export_mesh.py -- "
+            "Export placeholder: `blender --background --python <site-packages>/studio_worker/blender/export_mesh.py -- "
             f"--spec ../spec.json --output {aid}.glb`\n",
             encoding="utf-8",
         )

@@ -40,7 +40,7 @@ def _redis():
             import redis as redis_lib
         except ImportError as e:
             raise RuntimeError(
-                "redis package required for STUDIO_QUEUE_BACKEND=redis (pip install 'immersive-studio-worker[redis]')"
+                "redis package required for STUDIO_QUEUE_BACKEND=redis (pip install 'immersive-studio[redis]')"
             ) from e
         url = redis_url()
         if not url:

@@ -1,8 +1,81 @@
-# immersive-studio-worker
+# Immersive Studio (CLI + SDK)
 
-Python worker for the **Video Game Generation Studio**: spec generation (Ollama/mock), **ComfyUI albedo** passes, **Unity pack** layout with `manifest.json` + `spec.json`, **job index** + **`pack.zip`**, and an **HTTP API** for the `@immersive/web` `/studio` UI.
+Publishable **PyPI** package **`immersive-studio`**: the **`immersive-studio`** terminal command, importable Python SDK **`immersive_studio`**, and the same **FastAPI** worker used by the **Video Game Generation Studio** (`/studio` in `@immersive/web`). Features include Ollama/mock spec generation, **ComfyUI** texture passes, optional **Blender** placeholder `.glb`, **Unity** pack layout (`manifest.json`, `spec.json`, `pack.zip`), and the **HTTP API**.
 
-## Setup
+## Install (PyPI — like any other CLI)
+
+After the package is published on PyPI as **`immersive-studio`** (maintainers: see **Publishing** below), end users can install globally with [**pipx**](https://pipx.pypa.io/) so the executable lands on `PATH` without touching system Python:
+
+```bash
+pipx install immersive-studio
+immersive-studio doctor
+```
+
+Or into the active virtual environment:
+
+```bash
+pip install immersive-studio
+python -m studio_worker.cli doctor
+```
+
+**Optional extras:** `pip install immersive-studio[postgres]`, `[redis]`, `[s3]`, or `[scale]` for production-style backends (see Environment table below).
+
+> **Note:** The distribution was previously named `immersive-studio-worker`. Use **`immersive-studio`** going forward.
+
+## Python SDK
+
+```python
+from immersive_studio import __version__, run_studio_job
+
+result = run_studio_job(
+    user_prompt="wooden barrel",
+    category="prop",
+    style_preset="toon_bold",
+    use_mock=True,
+    generate_textures=False,
+    unity_urp_hint="6000.0.x LTS (pin when smoke-tested)",
+    export_mesh=False,
+)
+print(result["job_id"], result["zip_path"])
+```
+
+Public symbols: `__version__`, `run_studio_job`, `validate_asset_spec_file`, `generate_asset_spec_with_metadata`, `comfy_base_url`, `comfy_reachability`. Advanced integrations can import from the `studio_worker` package directly.
+
+## Publishing to PyPI
+
+I cannot create or “register” a PyPI project on your behalf (that requires you to sign in at [pypi.org](https://pypi.org) and complete the flow below). You already have an account — use it to create the project and trusted publisher.
+
+### Trusted publishing (GitHub Actions)
+
+1. On **PyPI**, open **Account settings → Publishing** (or your project → **Publishing** once the project exists) and add a **pending** trusted publisher for **GitHub** before the first successful upload from Actions.
+2. In the form, set **Repository name** to your GitHub repo exactly, e.g. `your-username/immersive.labs`.
+3. **Workflow name** must be the **workflow file name** under `.github/workflows/`, including the extension:
+
+   **`publish-immersive-studio.yml`**
+
+   If PyPI shows *“Workflow name must end with .yml or .yaml”*, you almost certainly pasted the workflow’s **display title** from the YAML (`name: …` inside the file) instead of the **filename**. Use **`publish-immersive-studio.yml`** only.
+
+4. **Environment name** can be left blank unless you use a GitHub **Environment** in the workflow (this repo’s publish workflow does not require one).
+
+5. Merge this workflow to your default branch, then run **Actions → “PyPI publish (immersive-studio package)” → Run workflow**, or publish a **GitHub Release** to trigger it.
+
+### Manual upload (API token)
+
+From `apps/studio-worker` with [build](https://pypi.org/project/build/) and [twine](https://twine.readthedocs.io/):
+
+```bash
+pip install build twine
+python -m build
+twine upload dist/*
+```
+
+Use a [PyPI API token](https://pypi.org/manage/account/token/) with upload scope; the first upload can create the project if the name is free.
+
+If the project name **`immersive-studio`** is already taken on PyPI, change `name` in `pyproject.toml` to an available name (for example `immersive-labs-studio`) and update install docs accordingly.
+
+When you change **`packages/studio-types/schema/studio-asset-spec-v0.1.schema.json`**, copy the file to **`src/studio_worker/data/studio-asset-spec-v0.1.schema.json`** before releasing so the wheel matches the canonical schema.
+
+## Setup (monorepo / contributors)
 
 From repository root:
 
@@ -13,6 +86,19 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
+**Invoking the CLI:** After `pip install -e .`, the `immersive-studio` command lives next to your Python interpreter (for example `.venv\Scripts\immersive-studio.exe`, or `%APPDATA%\Python\Python3xx\Scripts\immersive-studio.exe` when pip used a **user** install). If your shell says `command not found`, either add that `Scripts` folder to your **PATH**, or call the module directly (works from any directory once the package is installed):
+
+```bash
+python -m studio_worker.cli doctor
+```
+
+From this app directory you can also use the repo wrappers (no PATH change):
+
+```bash
+./scripts/immersive-studio.sh doctor          # Git Bash / MSYS
+scripts\immersive-studio.cmd doctor            # cmd.exe / PowerShell
+```
+
 Ensure [Ollama](https://ollama.com/) is running locally if you use LLM generation (default `http://127.0.0.1:11434`). Pull a JSON-capable model, for example:
 
 ```bash
@@ -20,6 +106,16 @@ ollama pull llama3.2
 ```
 
 For **texture generation**, run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (default `http://127.0.0.1:8188`) and install a checkpoint that matches `STUDIO_COMFY_CHECKPOINT`. See [`comfy/README.md`](./comfy/README.md).
+
+After installing ComfyUI and (for mesh export) [Blender](https://www.blender.org/), verify the worker can see both:
+
+```bash
+python -m studio_worker.cli doctor
+```
+
+Exit code `0` means ComfyUI answered at `STUDIO_COMFY_URL` (default `http://127.0.0.1:8188`) and Blender was resolved (PATH, `STUDIO_BLENDER_BIN`, or a standard Windows/macOS install path). Use `python -m studio_worker.cli doctor --comfy-url http://host:8188` to probe a different URL once.
+
+To launch ComfyUI from a git checkout once dependencies are installed, set **`COMFYUI_ROOT`** and run [`scripts/start-comfyui-dev.sh`](./scripts/start-comfyui-dev.sh) or [`scripts/start-comfyui-dev.ps1`](./scripts/start-comfyui-dev.ps1) (listens on `127.0.0.1:8188`).
 
 ## Docker (VM / production-shaped)
 
@@ -55,6 +151,8 @@ docker compose -f apps/studio-worker/docker-compose.yml up --build
 
 ## CLI
 
+In the examples below, `immersive-studio` is shorthand for **`python -m studio_worker.cli`** (or the `.exe` on your PATH after you add Python’s `Scripts` folder — see **Setup**).
+
 ```bash
 # Generate spec via Ollama (default model from env STUDIO_OLLAMA_MODEL or llama3.2)
 immersive-studio generate-spec --prompt "wooden crate with iron bands" --style-preset toon_bold --category prop
@@ -71,8 +169,14 @@ immersive-studio pack --spec ./spec.json --output ./out/MyPack
 # Full persisted job under output/jobs/ (spec + pack + zip + index); optional ComfyUI textures
 immersive-studio run-job --mock --prompt "wooden barrel" --textures
 
+# Optional: ComfyUI on a non-default URL for this run only
+immersive-studio run-job --mock --prompt "wooden barrel" --textures --comfy-url http://127.0.0.1:8188
+
 # Same, plus headless Blender placeholder `.glb` under Models/ (requires Blender on PATH or STUDIO_BLENDER_BIN)
 immersive-studio run-job --mock --prompt "crate" --export-mesh
+
+# Check ComfyUI + Blender before a full job
+immersive-studio doctor
 
 # HTTP API for the web UI (CORS allows Vite dev server)
 immersive-studio serve --host 127.0.0.1 --port 8787
@@ -118,7 +222,8 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
-| `STUDIO_REPO_ROOT` | auto-detected | Monorepo root (JSON Schema + output paths) |
+| `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
+| `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `http://127.0.0.1:8188` | ComfyUI server |
 | `STUDIO_COMFY_PROFILE` | `sd15` | `sd15` or `sdxl` (selects workflow + latent size) |
 | `STUDIO_COMFY_CHECKPOINT` | profile-specific | Checkpoint **file name** as shown in ComfyUI |
@@ -215,14 +320,14 @@ Full pipeline reference (env, CI, Unity): [docs/studio/essentials.md](../../docs
 Exports procedural placeholder geometry as `.glb` from a spec (placeholder until full kitbash lands):
 
 ```bash
-blender --background --python blender/export_mesh.py -- --spec path/to/spec.json --output path/to/out.glb
+blender --background --python path/to/site-packages/studio_worker/blender/export_mesh.py -- --spec path/to/spec.json --output path/to/out.glb
 ```
 
 Use `pack/spec.json` as the `--spec` argument when generating from a worker pack. Requires Blender 4.x on your `PATH`, or set **`STUDIO_BLENDER_BIN`**.
 
 **Integrated path:** `immersive-studio run-job … --export-mesh`, **`POST /api/studio/jobs/run`** / queue with **`export_mesh: true`**, or the **Export placeholder mesh** checkbox on `/studio`. Successful runs place **`Models/<asset_id>/<asset_id>.glb`** and set **`manifest.toolchain.mesh_pipeline`** (`blender:export_mesh.py+ok` or `+error`). Failures are non-fatal: the job still completes with textures/spec; check **`mesh_logs`** in the API response or job metadata.
 
-**Profiles:** `blender/export_mesh.py` picks a coarse shape from **`category`**: `prop` — stacked boxes with deterministic jitter; `environment_piece` — wide platform; `character_base` — two-block silhouette; `material_library` — small swatch cube; other categories fall back to a beveled cube scaled by **`target_height_m`**. PBR material names come from **`studio_worker/pbr_keys.py`** (same ordering as ComfyUI filenames and the Unity importer). The exported glTF material names are **`{variant_id}_{slot_id}`** per part so Unity can match them to **`{base}_Lit`** materials from textures.
+**Profiles:** `studio_worker/blender/export_mesh.py` picks a coarse shape from **`category`**: `prop` — stacked boxes with deterministic jitter; `environment_piece` — wide platform; `character_base` — two-block silhouette; `material_library` — small swatch cube; other categories fall back to a beveled cube scaled by **`target_height_m`**. PBR material names come from **`studio_worker/pbr_keys.py`** (same ordering as ComfyUI filenames and the Unity importer). The exported glTF material names are **`{variant_id}_{slot_id}`** per part so Unity can match them to **`{base}_Lit`** materials from textures.
 
 ## Unity import
 
@@ -236,14 +341,11 @@ Add the UPM package under [`../../packages/studio-unity`](../../packages/studio-
 | `src/studio_worker/billing_config.py` | Env mapping: Stripe Price id → entitlement tier |
 | `src/studio_worker/stripe_billing.py` | Webhook handlers, Checkout / Portal session builders |
 | `src/studio_worker/billing_routes.py` | FastAPI routes under `/api/studio/billing/*` |
-| `comfy/workflows/*.api.json` | ComfyUI `/prompt` graphs (SD1.5 + SDXL albedo v1) |
-| `blender/export_mesh.py` | Headless export stub |
-| `output/jobs/` | Persisted jobs (`index.json`, `job_*/pack.zip`) — gitignored |
-| `output/queue.sqlite` | Durable job queue (WAL) for `queue-worker` / enqueue API — gitignored with `output/` |
-| `output/tenants.sqlite` | Tenants, API key hashes, monthly credit usage — gitignored with `output/` |
-| `output/packs/<tenant>/…` | Ad-hoc packs when API auth is required |
+| `studio_worker/comfy_workflows/*.api.json` | ComfyUI `/prompt` graphs (SD1.5 + SDXL albedo v1) |
+| `studio_worker/blender/export_mesh.py` | Headless export stub |
+| `jobs/`, `queue.sqlite`, `tenants.sqlite`, `packs/…` | Writable state (default **`~/.immersive-studio/worker`** when `STUDIO_REPO_ROOT` is unset; otherwise **`apps/studio-worker/output/`** — gitignored in the monorepo) |
 
-JSON Schema: `packages/studio-types/schema/studio-asset-spec-v0.1.schema.json`.
+JSON Schema (runtime): `studio_worker/data/studio-asset-spec-v0.1.schema.json` (copy kept in sync with `packages/studio-types/schema/` in the monorepo).
 
 ### GPU / Comfy CI smoke test
 

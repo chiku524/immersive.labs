@@ -1,6 +1,6 @@
 # ComfyUI integration
 
-The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` endpoint) under `workflows/`:
+The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` endpoint) under **`studio_worker/comfy_workflows/`** in the Python package (bundled in the PyPI wheel).
 
 | File | Profile | Notes |
 |------|---------|--------|

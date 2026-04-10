@@ -106,7 +106,7 @@ The marketing site and `/studio` share the same app; routing is client-side (Vit
 - **CLI entrypoint:** `immersive-studio` — `generate-spec`, `validate-spec`, `pack`, `run-job`, **`serve`** (FastAPI + uvicorn), **`queue-worker`**, **`tenants`** (create/list/issue-key/set-tier when SaaS mode is on).
 - **Default data locations:** under repo **`output/`** (gitignored): `tenants.sqlite`, `queue.sqlite`, `jobs/`, `packs/` — unless overridden by env / path helpers ([`essentials.md`](./essentials.md) §1b).
 
-**ComfyUI workflows:** versioned JSON under `apps/studio-worker/comfy/workflows/` — see [comfy/README.md](../../apps/studio-worker/comfy/README.md).
+**ComfyUI workflows:** versioned JSON under `apps/studio-worker/src/studio_worker/comfy_workflows/` — see [comfy/README.md](../../apps/studio-worker/comfy/README.md).
 
 ---
 

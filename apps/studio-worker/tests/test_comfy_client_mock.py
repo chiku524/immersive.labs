@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from studio_worker.comfy_client import run_txt2image_workflow
+from studio_worker.comfy_client import comfy_reachability, run_txt2image_workflow
 
 
 @respx.mock
@@ -42,3 +42,23 @@ def test_run_txt2image_workflow_happy_path(monkeypatch: pytest.MonkeyPatch) -> N
     workflow = {"7": {"class_type": "SaveImage", "inputs": {}}}
     png = run_txt2image_workflow(workflow, base_url=base)
     assert png.startswith(b"\x89PNG")
+
+
+@respx.mock
+def test_comfy_reachability_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = "http://comfy.probe"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+    respx.get(f"{base}/system_stats").mock(return_value=httpx.Response(200, json={"system": {}}))
+    out = comfy_reachability()
+    assert out["reachable"] is True
+    assert out["url"] == base.rstrip("/")
+
+
+def test_comfy_reachability_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*_a: object, **_k: object) -> None:
+        raise httpx.ConnectError("refused", request=None)
+
+    monkeypatch.setattr("studio_worker.comfy_client.httpx.get", boom)
+    out = comfy_reachability(base_url="http://127.0.0.1:59999")
+    assert out["reachable"] is False
+    assert "refused" in (out.get("detail") or "")

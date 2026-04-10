@@ -1,0 +1,42 @@
+# Build and upload the immersive-studio wheel/sdist to PyPI.
+#
+# Trusted publishing on PyPI: "Workflow name" must be THIS FILE's basename — i.e.
+#   publish-immersive-studio.yml
+# (include the .yml suffix). Do not paste the human-readable `name:` below; PyPI rejects
+# strings that do not end in .yml or .yaml.
+
+name: PyPI publish (immersive-studio package)
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pypi:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/studio-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build --outdir dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: apps/studio-worker/dist

@@ -18,6 +18,19 @@ def comfy_base_url() -> str:
     return os.environ.get("STUDIO_COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
 
 
+def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
+    """
+    Probe ComfyUI HTTP API (same check as GET /api/studio/comfy-status).
+    """
+    base = (base_url or comfy_base_url()).rstrip("/")
+    try:
+        r = httpx.get(f"{base}/system_stats", timeout=5.0)
+        ok = r.status_code < 400
+        return {"reachable": ok, "url": base, "detail": None if ok else r.text[:200]}
+    except httpx.RequestError as e:
+        return {"reachable": False, "url": base, "detail": str(e)}
+
+
 def queue_prompt(prompt_graph: dict[str, Any], *, base_url: str | None = None) -> str:
     base = base_url or comfy_base_url()
     client_id = str(uuid.uuid4())

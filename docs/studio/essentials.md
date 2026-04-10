@@ -102,10 +102,10 @@ Typical folder (or zip contents):
 
 ---
 
-## 5. Blender mesh export (`blender/export_mesh.py`)
+## 5. Blender mesh export (`studio_worker/blender/export_mesh.py`)
 
 - **CLI**:  
-  `blender --background --python blender/export_mesh.py -- --spec <pack>/spec.json --output out.glb`
+  `blender --background --python <path-to>/studio_worker/blender/export_mesh.py -- --spec <pack>/spec.json --output out.glb`
 - **Shared PBR logic**: [`studio_worker/pbr_keys.py`](../../apps/studio-worker/src/studio_worker/pbr_keys.py) defines **`ordered_pbr_material_bases`**, **`primary_pbr_material_base`**, and **`mat_name_for_part`** (also used by ComfyUI role sets via `GENERATED_ROLES`). The Blender script prepends `apps/studio-worker/src` to `sys.path` and imports this module so keys stay aligned with Python and Unity.
 - **Profiles** (`category`): `prop` (stacked boxes + horizontal **cylinder band** between base and top), `environment_piece` (platform), `character_base` (legs + torso + **UV sphere head**), `material_library` (swatch), else a single beveled cube.
 - **Tags:** add `minimal_placeholder` or `single_stack` to **`tags`** on the spec to get a **two-part** prop (no band) for lighter GLBs.

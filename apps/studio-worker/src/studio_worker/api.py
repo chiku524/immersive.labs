@@ -4,14 +4,13 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
-import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.responses import FileResponse, RedirectResponse, Response
 
 from studio_worker import tenants_db
-from studio_worker.comfy_client import comfy_base_url
+from studio_worker.comfy_client import comfy_reachability
 from studio_worker.job_runner import run_studio_job
 from studio_worker.jobs_store import count_jobs, get_job_record, list_jobs
 from studio_worker.attribution import write_pack_attribution
@@ -23,6 +22,7 @@ from studio_worker.paths import (
     queue_db_path,
     studio_worker_root,
     tenants_db_path,
+    worker_writable_root,
 )
 from studio_worker.scale_config import (
     database_url,
@@ -147,13 +147,7 @@ def get_metrics(tenant: RequestTenant = Depends(get_request_tenant)) -> MetricsR
 
 @app.get("/api/studio/comfy-status")
 def comfy_status() -> dict[str, Any]:
-    base = comfy_base_url()
-    try:
-        r = httpx.get(f"{base}/system_stats", timeout=5.0)
-        ok = r.status_code < 400
-        return {"reachable": ok, "url": base, "detail": None if ok else r.text[:200]}
-    except httpx.RequestError as e:
-        return {"reachable": False, "url": base, "detail": str(e)}
+    return comfy_reachability()
 
 
 @app.get("/api/studio/usage")
@@ -456,6 +450,7 @@ def studio_paths(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[st
     return {
         "jobs_root": str(jobs_root().resolve()),
         "studio_worker_root": str(studio_worker_root().resolve()),
+        "worker_data_root": str(worker_writable_root().resolve()),
         "queue_db": str(queue_db_path().resolve()),
         "tenants_db": str(tenants_db_path().resolve()),
         "queue_backend": queue_backend(),
