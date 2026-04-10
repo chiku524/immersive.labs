@@ -103,6 +103,23 @@ button.studio-table-link:disabled {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.studio-cli-hint {
+  margin: -0.5rem 0 1.25rem;
+  color: #a8b0bf;
+  font-size: 0.9375rem;
+}
+
+.studio-cli-hint a {
+  color: #8ab4ff;
+}
+
+.studio-cli-hint code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .studio-health {
   margin-bottom: 1.5rem;
   padding: 0.75rem 1rem;

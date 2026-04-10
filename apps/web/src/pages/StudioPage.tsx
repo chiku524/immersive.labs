@@ -427,6 +427,13 @@ export function StudioPage() {
             <code className="studio-code-inline">docs/studio/essentials.md</code> (pipeline, env, queue idempotency,
             Blender CI).
           </p>
+          <p className="studio-cli-hint">
+            Install the open-source CLI from{" "}
+            <a href="https://pypi.org/project/immersive-studio/" target="_blank" rel="noopener noreferrer">
+              PyPI
+            </a>
+            : <code>pipx install immersive-studio</code> or <code>pip install immersive-studio</code>.
+          </p>
 
           {!STUDIO_API_READY ? (
             <div className="studio-health studio-health--error studio-config-banner" role="alert">
