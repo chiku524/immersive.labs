@@ -24,11 +24,12 @@ import random
 import sys
 from pathlib import Path
 
-# Shipped next to the studio_worker package; ensure site-packages (or src/) is importable.
+# Shipped under studio_worker/blender/; parent chain is …/studio_worker/blender → studio_worker → (src | site-packages).
+# We need the directory that *contains* the `studio_worker` package on sys.path (…/src or …/site-packages).
 _here = Path(__file__).resolve().parent
-_site_packages = _here.parents[2]
-if _site_packages.is_dir() and str(_site_packages) not in sys.path:
-    sys.path.insert(0, str(_site_packages))
+_import_root = _here.parents[1]
+if _import_root.is_dir() and str(_import_root) not in sys.path:
+    sys.path.insert(0, str(_import_root))
 
 try:
     from studio_worker.pbr_keys import (

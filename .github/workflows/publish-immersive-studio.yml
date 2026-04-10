@@ -1,9 +1,10 @@
 # Build and upload the immersive-studio wheel/sdist to PyPI.
 #
-# Trusted publishing on PyPI: "Workflow name" must be THIS FILE's basename — i.e.
-#   publish-immersive-studio.yml
-# (include the .yml suffix). Do not paste the human-readable `name:` below; PyPI rejects
-# strings that do not end in .yml or .yaml.
+# Trusted publishing on PyPI:
+# - Workflow name = this file's basename: publish-immersive-studio.yml
+# - Repository must match exactly (e.g. chiku524/immersive.labs).
+# - On PyPI, leave "Environment name" EMPTY unless you also use a GitHub Environment here.
+# - Optional: repo secret PYPI_API_TOKEN uploads via token (bypasses OIDC if set).
 
 name: PyPI publish (immersive-studio package)
 
@@ -40,3 +41,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: apps/studio-worker/dist
+          # When unset, empty string → action uses OIDC (trusted publishing).
+          password: ${{ secrets.PYPI_API_TOKEN }}

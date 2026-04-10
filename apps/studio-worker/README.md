@@ -59,6 +59,10 @@ I cannot create or “register” a PyPI project on your behalf (that requires y
 
 5. Merge this workflow to your default branch, then run **Actions → “PyPI publish (immersive-studio package)” → Run workflow**, or publish a **GitHub Release** to trigger it.
 
+6. If the workflow fails with **`invalid-publisher`** / “no corresponding publisher”, re-check the three strings on PyPI (**owner/repo**, **`publish-immersive-studio.yml`**, and **environment**). The OIDC token from GitHub includes `environment: MISSING` unless you add `environment: …` to the workflow job; on PyPI the **Environment name** field must be **empty** to match, unless you intentionally configure both sides to the same name.
+
+7. **Fastest unblock:** create a PyPI **API token** with upload scope, add a GitHub repository secret named **`PYPI_API_TOKEN`**, and re-run the workflow. The publish step passes `password: ${{ secrets.PYPI_API_TOKEN }}`; when the secret is set, uploads use the token (you can still keep trusted publishing configured for later).
+
 ### Manual upload (API token)
 
 From `apps/studio-worker` with [build](https://pypi.org/project/build/) and [twine](https://twine.readthedocs.io/):

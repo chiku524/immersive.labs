@@ -71,7 +71,7 @@ jobs:
           p = pathlib.Path(os.environ["SPEC"])
           p.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
           PY
-          "$BLENDER_BIN" --background --python apps/studio-worker/src/studio_worker/blender/export_mesh.py -- \
+          "$BLENDER_BIN" --background --python "${GITHUB_WORKSPACE}/apps/studio-worker/src/studio_worker/blender/export_mesh.py" -- \
             --spec "$SPEC" --output "$OUT"
           test -s "$OUT"
           ls -la "$OUT"
