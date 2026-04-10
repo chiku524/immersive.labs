@@ -1,0 +1,18 @@
+# Optional: locally managed named tunnel (instead of "service install" token).
+# After: cloudflared tunnel login && cloudflared tunnel create immersive-studio
+#
+# 1. Replace TUNNEL_UUID with output of `cloudflared tunnel list`
+# 2. Replace credentials-file with ~/.cloudflared/<uuid>.json from tunnel create
+# 3. Replace hostname with api.yourdomain.com (DNS must CNAME to <uuid>.cfargotunnel.com
+#    unless you use `cloudflared tunnel route dns` with Cloudflare DNS)
+#
+# Run: cloudflared tunnel --config /path/to/this.yml run
+# Or install as systemd unit (see Cloudflare docs).
+
+tunnel: TUNNEL_UUID
+credentials-file: /home/YOUR_USER/.cloudflared/TUNNEL_UUID.json
+
+ingress:
+  - hostname: api.example.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404

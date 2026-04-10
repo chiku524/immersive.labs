@@ -1,0 +1,18 @@
+# Context for: docker build -f apps/studio-worker/Dockerfile .
+.git
+.github
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/node_modules
+**/.next
+**/dist
+**/build
+*.log
+.env
+.env.*
+!.env.example
+apps/web
+packages/*/node_modules
+Unity
+**/*.unitypackage
