@@ -1,10 +1,11 @@
 # Build and upload the immersive-studio wheel/sdist to PyPI.
 #
-# Trusted publishing on PyPI:
-# - Workflow name = this file's basename: publish-immersive-studio.yml
-# - Repository must match exactly (e.g. chiku524/immersive.labs).
-# - On PyPI, leave "Environment name" EMPTY unless you also use a GitHub Environment here.
-# - Optional: repo secret PYPI_API_TOKEN uploads via token (bypasses OIDC if set).
+# Auth (pick one):
+# 1) Recommended for reliability: GitHub repo secret PYPI_API_TOKEN (PyPI API token with
+#    upload scope for project immersive-studio). Uses Twine token auth — no OIDC setup.
+# 2) OIDC trusted publishing: leave PYPI_API_TOKEN unset; configure PyPI pending publisher
+#    with your GitHub owner/repo, workflow publish-immersive-studio.yml, and leave
+#    Environment name EMPTY (matches GitHub claim environment: MISSING).
 
 name: PyPI publish (immersive-studio package)
 
@@ -37,9 +38,29 @@ jobs:
       - name: Build sdist and wheel
         run: python -m build --outdir dist
 
-      - name: Publish to PyPI
+      - name: Choose PyPI auth mode
+        id: auth
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -n "$PYPI_API_TOKEN" ]; then
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo "Using PYPI_API_TOKEN (Twine token upload)."
+          else
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            echo "Using OIDC trusted publishing (PYPI_API_TOKEN not set)."
+          fi
+
+      - name: Publish to PyPI (API token)
+        if: steps.auth.outputs.mode == 'token'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: apps/studio-worker/dist
-          # When unset, empty string → action uses OIDC (trusted publishing).
+          user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Publish to PyPI (trusted publishing / OIDC)
+        if: steps.auth.outputs.mode == 'oidc'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: apps/studio-worker/dist
