@@ -76,7 +76,7 @@ Use a [PyPI API token](https://pypi.org/manage/account/token/) with upload scope
 
 If the project name **`immersive-studio`** is already taken on PyPI, change `name` in `pyproject.toml` to an available name (for example `immersive-labs-studio`) and update install docs accordingly.
 
-When you change **`packages/studio-types/schema/studio-asset-spec-v0.1.schema.json`**, copy the file to **`src/studio_worker/data/studio-asset-spec-v0.1.schema.json`** before releasing so the wheel matches the canonical schema.
+When you change **`packages/studio-types/schema/studio-asset-spec-v0.1.schema.json`**, run **`python scripts/sync-studio-asset-schema.py`** from the monorepo root (or copy manually to **`src/studio_worker/data/studio-asset-spec-v0.1.schema.json`**). See **[docs/studio/releasing.md](../../docs/studio/releasing.md)** and root **[CHANGELOG.md](../../CHANGELOG.md)** for full release steps.
 
 ## Setup (monorepo / contributors)
 

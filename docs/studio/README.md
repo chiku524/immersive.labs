@@ -12,6 +12,7 @@ Engineers and collaborators implementing the studio worker, ComfyUI graphs, Blen
 |----------|---------|
 | **[platform-manual.md](./platform-manual.md)** | **Platform hub:** table of contents, end-to-end orientation, links to every studio doc + worker README |
 | **[essentials.md](./essentials.md)** | **Single reference:** env vars, **SQLite vs managed DB**, packs, Blender, Unity, CI, billing |
+| **[releasing.md](./releasing.md)** | **PyPI releases:** version bump, schema sync, tags, GitHub Release, TestPyPI |
 | [DECISIONS.md](./DECISIONS.md) | Phase 0 decisions (first preset, worker language, URP) |
 | [vision-and-scope.md](./vision-and-scope.md) | Goals, non-goals, realism and style targets (anime, toon, realistic HD) |
 | [architecture.md](./architecture.md) | System components, data flow, monorepo layout |

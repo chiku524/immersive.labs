@@ -102,7 +102,9 @@ The marketing site and `/studio` share the same app; routing is client-side (Vit
 
 ## Python worker
 
-- **Install:** `pip install -e .` from `apps/studio-worker` ([README](../../apps/studio-worker/README.md)).
+- **Install from PyPI:** `pipx install immersive-studio` or `pip install immersive-studio` ([PyPI](https://pypi.org/project/immersive-studio/)).
+- **Install from source (contributors):** `pip install -e .` from `apps/studio-worker` ([README](../../apps/studio-worker/README.md)).
+- **Releases (maintainers):** [releasing.md](./releasing.md) — version bump, schema sync, tags, PyPI.
 - **CLI entrypoint:** `immersive-studio` — `generate-spec`, `validate-spec`, `pack`, `run-job`, **`serve`** (FastAPI + uvicorn), **`queue-worker`**, **`tenants`** (create/list/issue-key/set-tier when SaaS mode is on).
 - **Default data locations:** under repo **`output/`** (gitignored): `tenants.sqlite`, `queue.sqlite`, `jobs/`, `packs/` — unless overridden by env / path helpers ([`essentials.md`](./essentials.md) §1b).
 

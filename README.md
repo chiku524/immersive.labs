@@ -15,6 +15,17 @@ Monorepo for **Immersive Labs**: the public marketing site and planning for the 
 | `packages/studio-unity` | Unity UPM importer (`com.immersivelabs.studio`) for studio packs |
 | `docs/studio` | Planning docs for the video game generation studio |
 
+## Install `immersive-studio` (from PyPI)
+
+The studio worker CLI/SDK is published as **[immersive-studio](https://pypi.org/project/immersive-studio/)**. To install globally with an isolated CLI on `PATH`:
+
+```bash
+pipx install immersive-studio
+immersive-studio doctor
+```
+
+Or in a virtual environment: `pip install immersive-studio`. See [apps/studio-worker/README.md](./apps/studio-worker/README.md) for ComfyUI, Blender, and environment variables. **Contributors** cloning the repo use `pip install -e .` under `apps/studio-worker` — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Scripts (from repository root)
 
 ```bash

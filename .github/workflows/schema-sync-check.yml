@@ -1,0 +1,25 @@
+# Fail if canonical Studio JSON Schema and bundled copy in studio_worker diverge.
+
+name: schema-sync-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify bundled schema matches canonical
+        run: python scripts/sync-studio-asset-schema.py --check
