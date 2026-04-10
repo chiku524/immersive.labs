@@ -1,0 +1,38 @@
+# Optional: ping public studio API health. Set repo secret STUDIO_PUBLIC_HEALTH_URL
+# (e.g. https://immersivelabs.space) — if unset, the job exits successfully without checking.
+
+name: studio-api-uptime
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check /api/studio/health
+        env:
+          BASE: ${{ secrets.STUDIO_PUBLIC_HEALTH_URL }}
+        run: |
+          if [ -z "$BASE" ]; then
+            echo "STUDIO_PUBLIC_HEALTH_URL not set — add repo secret to enable uptime checks."
+            exit 0
+          fi
+          url="${BASE%/}/api/studio/health"
+          echo "GET $url"
+          code=$(curl -sS -o /tmp/health.json -w "%{http_code}" --max-time 30 "$url")
+          if [ "$code" != "200" ]; then
+            echo "Expected HTTP 200, got $code"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, sys
+          with open("/tmp/health.json") as f:
+              j = json.load(f)
+          if j.get("status") != "ok":
+              print("status is not ok:", j)
+              sys.exit(1)
+          print("ok:", j)
+          PY

@@ -1,0 +1,736 @@
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { EngravedBackdrop } from "../components/EngravedBackdrop";
+import "../App.css";
+import "./StudioPage.css";
+
+const STUDIO_API = import.meta.env.VITE_STUDIO_API_URL ?? "http://127.0.0.1:8787";
+const API_KEY_STORAGE = "immersive_studio_api_key";
+
+type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
+type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
+
+type JobSummary = {
+  job_id: string;
+  folder: string;
+  created_at: string;
+  status: string;
+  summary: string;
+  has_textures: boolean;
+  error: string | null;
+};
+
+type UsageInfo = {
+  limits_enforced: boolean;
+  tier_id: string;
+  tier_name: string;
+  period: string | null;
+  credits_used: number;
+  credits_cap: number | null;
+  textures_allowed: boolean;
+  max_concurrent_jobs: number | null;
+};
+
+type BillingStatus = {
+  stripe_checkout_available: boolean;
+  checkout_tiers: string[];
+  portal_needs_customer?: boolean;
+  stripe_customer_linked: boolean;
+  stripe_subscription_id: string | null;
+  tier_id: string;
+};
+
+function formatApiDetail(detail: unknown): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return detail.map((d) => JSON.stringify(d)).join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return "Request failed";
+}
+
+export function StudioPage() {
+  const [prompt, setPrompt] = useState("");
+  const [category, setCategory] = useState<StudioCategory>("prop");
+  const [stylePreset, setStylePreset] = useState<StudioStyle>("toon_bold");
+  const [mock, setMock] = useState(true);
+  const [generateTextures, setGenerateTextures] = useState(false);
+  const [exportMesh, setExportMesh] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [packLoading, setPackLoading] = useState(false);
+  const [jobLoading, setJobLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [spec, setSpec] = useState<Record<string, unknown> | null>(null);
+  const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
+  const [packResult, setPackResult] = useState<{ output_dir: string; job_id: string } | null>(null);
+  const [jobResult, setJobResult] = useState<{
+    job_id: string;
+    zip_path: string;
+    errors: string[];
+    texture_logs: string[];
+    mesh_logs: string[];
+  } | null>(null);
+  const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
+  const [authRequired, setAuthRequired] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [comfy, setComfy] = useState<{ reachable: boolean; url: string; detail: string | null } | null>(null);
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [jobsRoot, setJobsRoot] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(API_KEY_STORAGE);
+      if (stored) {
+        setApiKey(stored);
+      }
+    } catch {
+      /* private mode */
+    }
+  }, []);
+
+  const authHeaders = useCallback((): Record<string, string> => {
+    const h: Record<string, string> = {};
+    const k = apiKey.trim();
+    if (k) {
+      h.Authorization = `Bearer ${k}`;
+    }
+    return h;
+  }, [apiKey]);
+
+  const persistApiKey = useCallback(() => {
+    try {
+      window.localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
+    } catch {
+      /* ignore */
+    }
+  }, [apiKey]);
+
+  const checkHealth = useCallback(() => {
+    setHealth("checking");
+    fetch(`${STUDIO_API}/api/studio/health`)
+      .then((r) => {
+        if (!r.ok) {
+          setHealth("error");
+          return;
+        }
+        return r.json() as Promise<{ auth_required?: boolean }>;
+      })
+      .then((j) => {
+        setHealth("ok");
+        setAuthRequired(Boolean(j?.auth_required));
+      })
+      .catch(() => setHealth("error"));
+  }, []);
+
+  const refreshUsage = useCallback(() => {
+    fetch(`${STUDIO_API}/api/studio/usage`, { headers: authHeaders() })
+      .then((r) => (r.ok ? (r.json() as Promise<UsageInfo>) : null))
+      .then((u) => setUsage(u))
+      .catch(() => setUsage(null));
+  }, [authHeaders]);
+
+  const refreshBilling = useCallback(() => {
+    fetch(`${STUDIO_API}/api/studio/billing/status`, { headers: authHeaders() })
+      .then((r) => (r.ok ? (r.json() as Promise<BillingStatus>) : null))
+      .then((b) => setBilling(b))
+      .catch(() => setBilling(null));
+  }, [authHeaders]);
+
+  const refreshComfy = useCallback(() => {
+    fetch(`${STUDIO_API}/api/studio/comfy-status`)
+      .then((r) => r.json() as Promise<{ reachable: boolean; url: string; detail: string | null }>)
+      .then(setComfy)
+      .catch(() => setComfy({ reachable: false, url: "", detail: "request failed" }));
+  }, []);
+
+  const refreshJobs = useCallback(() => {
+    fetch(`${STUDIO_API}/api/studio/jobs`, { headers: authHeaders() })
+      .then((r) => r.json() as Promise<{ jobs: JobSummary[]; jobs_root?: string }>)
+      .then((data) => {
+        setJobs(data.jobs ?? []);
+        if (data.jobs_root) {
+          setJobsRoot(data.jobs_root);
+        }
+      })
+      .catch(() => setJobs([]));
+  }, [authHeaders]);
+
+  useEffect(() => {
+    checkHealth();
+    refreshComfy();
+  }, [checkHealth, refreshComfy]);
+
+  useEffect(() => {
+    refreshJobs();
+    refreshUsage();
+    refreshBilling();
+    const t = window.setInterval(() => {
+      refreshJobs();
+      refreshUsage();
+      refreshBilling();
+    }, 5000);
+    return () => window.clearInterval(t);
+  }, [refreshBilling, refreshJobs, refreshUsage]);
+
+  async function onGenerate(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setPackResult(null);
+    setJobResult(null);
+    try {
+      const r = await fetch(`${STUDIO_API}/api/studio/generate-spec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          prompt,
+          category,
+          style_preset: stylePreset,
+          mock,
+        }),
+      });
+      const data = (await r.json()) as { detail?: unknown; spec?: Record<string, unknown>; meta?: Record<string, unknown> };
+      if (!r.ok) {
+        throw new Error(formatApiDetail(data.detail));
+      }
+      if (!data.spec) {
+        throw new Error("Response missing spec");
+      }
+      setSpec(data.spec);
+      setMeta(data.meta ?? null);
+    } catch (err) {
+      setSpec(null);
+      setMeta(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onWritePack() {
+    if (!spec) {
+      return;
+    }
+    setPackLoading(true);
+    setError(null);
+    setPackResult(null);
+    setJobResult(null);
+    try {
+      const outputName = `WebPack_${Date.now()}`;
+      const r = await fetch(`${STUDIO_API}/api/studio/pack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ spec, output_name: outputName }),
+      });
+      const data = (await r.json()) as {
+        detail?: unknown;
+        manifest?: { job_id: string };
+        output_dir?: string;
+      };
+      if (!r.ok) {
+        throw new Error(formatApiDetail(data.detail));
+      }
+      setPackResult({
+        job_id: data.manifest?.job_id ?? "?",
+        output_dir: data.output_dir ?? "",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPackLoading(false);
+    }
+  }
+
+  async function onRunJob() {
+    setJobLoading(true);
+    setError(null);
+    setPackResult(null);
+    setJobResult(null);
+    try {
+      const r = await fetch(`${STUDIO_API}/api/studio/jobs/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          prompt,
+          category,
+          style_preset: stylePreset,
+          mock,
+          generate_textures: generateTextures,
+          export_mesh: exportMesh,
+        }),
+      });
+      const data = (await r.json()) as {
+        detail?: unknown;
+        job_id?: string;
+        zip_path?: string;
+        errors?: string[];
+        texture_logs?: string[];
+        mesh_logs?: string[];
+        spec?: Record<string, unknown>;
+      };
+      if (!r.ok) {
+        throw new Error(formatApiDetail(data.detail));
+      }
+      setSpec(data.spec ?? null);
+      setJobResult({
+        job_id: data.job_id ?? "?",
+        zip_path: data.zip_path ?? "",
+        errors: data.errors ?? [],
+        texture_logs: data.texture_logs ?? [],
+        mesh_logs: data.mesh_logs ?? [],
+      });
+      refreshJobs();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setJobLoading(false);
+    }
+  }
+
+  async function startStripeCheckout(tier: "indie" | "team") {
+    setError(null);
+    try {
+      const r = await fetch(`${STUDIO_API}/api/studio/billing/checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ tier }),
+      });
+      const data = (await r.json()) as { url?: string; detail?: unknown };
+      if (!r.ok) {
+        throw new Error(formatApiDetail(data.detail));
+      }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function openStripePortal() {
+    setError(null);
+    try {
+      const r = await fetch(`${STUDIO_API}/api/studio/billing/portal-session`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = (await r.json()) as { url?: string; detail?: unknown };
+      if (!r.ok) {
+        throw new Error(formatApiDetail(data.detail));
+      }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function downloadJobZip(jobId: string) {
+    try {
+      const r = await fetch(`${STUDIO_API}/api/studio/jobs/${jobId}/download`, {
+        headers: authHeaders(),
+      });
+      if (!r.ok) {
+        const errBody = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+        throw new Error(formatApiDetail(errBody?.detail ?? r.statusText));
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `immersive-studio-${jobId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const texturesBlocked = Boolean(usage?.limits_enforced && !usage.textures_allowed);
+
+  return (
+    <>
+      <EngravedBackdrop />
+      <div className="page studio-page">
+        <header className="header">
+          <Link className="logo" to="/">
+            <img className="logo-mark-img" src="/brand-mark.png" alt="" width={32} height={32} />
+            Immersive Labs
+          </Link>
+          <nav className="nav" aria-label="Primary">
+            <Link to="/">Home</Link>
+            <Link to="/studio" className="nav-active">
+              Game studio
+            </Link>
+          </nav>
+        </header>
+
+        <main className="studio-main">
+          <p className="eyebrow">Video Game Generation Studio</p>
+          <h1 className="studio-title">Pipeline</h1>
+          <p className="studio-lede">
+            Generate a validated <code>StudioAssetSpec</code>, run a full persisted <strong>job</strong> (pack + zip +
+            index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in Unity via{" "}
+            <code>packages/studio-unity</code>. Operator reference: monorepo{" "}
+            <code className="studio-code-inline">docs/studio/essentials.md</code> (pipeline, env, queue idempotency,
+            Blender CI).
+          </p>
+
+          <div className={`studio-health studio-health--${health}`} role="status">
+            {health === "checking" && "Checking worker…"}
+            {health === "ok" && `Worker reachable at ${STUDIO_API}`}
+            {health === "error" && (
+              <>
+                Worker not reachable at {STUDIO_API}. Run{" "}
+                <code>immersive-studio serve</code> from <code>apps/studio-worker</code>{" "}
+                <button type="button" className="studio-retry" onClick={checkHealth}>
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="studio-api-key">
+            <label className="studio-label">
+              API key (shared studio / remote server)
+              <input
+                className="studio-input"
+                type="password"
+                autoComplete="off"
+                placeholder={
+                  authRequired ? "Required — paste key from immersive-studio tenants issue-key" : "Optional if server uses local dev mode"
+                }
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </label>
+            <div className="studio-api-key-actions">
+              <button type="button" className="btn btn-ghost" onClick={persistApiKey}>
+                Save in browser
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  refreshUsage();
+                  refreshJobs();
+                  refreshBilling();
+                }}
+              >
+                Refresh usage & jobs
+              </button>
+            </div>
+            {authRequired && !apiKey.trim() ? (
+              <p className="studio-api-key-warn">
+                This worker requires an API key (operator set <code>STUDIO_API_AUTH_REQUIRED=1</code>).
+              </p>
+            ) : null}
+            {usage ? (
+              <p className="studio-usage" role="status">
+                <strong>Plan:</strong> {usage.tier_name} ({usage.tier_id}
+                {usage.limits_enforced && usage.credits_cap != null
+                  ? `) — credits ${usage.credits_used} / ${usage.credits_cap} this month`
+                  : ") — local dev limits off"}
+                {usage.limits_enforced ? (
+                  <>
+                    {" "}
+                    · textures {usage.textures_allowed ? "allowed" : "not included"}
+                    {usage.max_concurrent_jobs != null ? ` · max ${usage.max_concurrent_jobs} concurrent jobs` : null}
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+            {billing?.stripe_checkout_available && usage?.limits_enforced ? (
+              <div className="studio-billing">
+                <p className="studio-billing-title">Stripe billing</p>
+                <p className="studio-billing-hint">
+                  Opens Stripe Checkout. After payment, webhooks update your tier automatically.
+                </p>
+                <div className="studio-billing-actions">
+                  {billing.checkout_tiers.includes("indie") ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => void startStripeCheckout("indie")}
+                    >
+                      Subscribe — Indie
+                    </button>
+                  ) : null}
+                  {billing.checkout_tiers.includes("team") ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => void startStripeCheckout("team")}
+                    >
+                      Subscribe — Small team
+                    </button>
+                  ) : null}
+                  {billing.stripe_customer_linked ? (
+                    <button type="button" className="btn btn-primary" onClick={() => void openStripePortal()}>
+                      Manage billing
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {comfy ? (
+            <div
+              className={`studio-health ${comfy.reachable ? "studio-health--ok" : "studio-health--error"}`}
+              role="status"
+            >
+              ComfyUI at <code>{comfy.url}</code>: {comfy.reachable ? "reachable" : "not reachable"}
+              {comfy.detail ? ` — ${comfy.detail}` : null}
+              <button type="button" className="studio-retry" onClick={refreshComfy}>
+                Refresh
+              </button>
+            </div>
+          ) : null}
+
+          {jobsRoot ? (
+            <p className="studio-jobs-root">
+              Jobs folder: <code>{jobsRoot}</code>
+            </p>
+          ) : null}
+
+          <section className="studio-queue-hint" aria-labelledby="queue-hint-title">
+            <h3 id="queue-hint-title" className="studio-queue-hint-title">
+              Async queue (optional)
+            </h3>
+            <p className="studio-queue-hint-body">
+              POST <code>/api/studio/queue/jobs</code> with the same fields as a full job. Send{" "}
+              <code>idempotency_key</code> (≤128 chars) to reuse an existing <code>queue_id</code> without spending
+              credits again. Response includes <code>deduplicated: true</code> when matched.
+            </p>
+          </section>
+
+          <form
+            className="studio-form"
+            onSubmit={onGenerate}
+            aria-busy={loading || jobLoading || packLoading}
+          >
+            <label className="studio-label">
+              Creative brief
+              <textarea
+                className="studio-input studio-textarea"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={4}
+                placeholder="e.g. Wooden crate with iron bands, slightly worn…"
+                required
+              />
+            </label>
+
+            <div className="studio-row">
+              <label className="studio-label">
+                Category
+                <select
+                  className="studio-input"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as StudioCategory)}
+                >
+                  <option value="prop">prop</option>
+                  <option value="environment_piece">environment_piece</option>
+                  <option value="character_base">character_base</option>
+                  <option value="material_library">material_library</option>
+                </select>
+              </label>
+              <label className="studio-label">
+                Style preset
+                <select
+                  className="studio-input"
+                  value={stylePreset}
+                  onChange={(e) => setStylePreset(e.target.value as StudioStyle)}
+                >
+                  <option value="toon_bold">toon_bold</option>
+                  <option value="anime_stylized">anime_stylized</option>
+                  <option value="realistic_hd_pbr">realistic_hd_pbr</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="studio-check">
+              <input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} />
+              Mock mode (no Ollama — deterministic spec for wiring)
+            </label>
+
+            <label className="studio-check">
+              <input
+                type="checkbox"
+                checked={generateTextures}
+                disabled={texturesBlocked}
+                onChange={(e) => setGenerateTextures(e.target.checked)}
+              />
+              Generate albedo textures via ComfyUI (requires running ComfyUI + checkpoint env — see worker README)
+              {texturesBlocked ? (
+                <span className="studio-check-note"> — not included on your current plan.</span>
+              ) : null}
+            </label>
+
+            <label className="studio-check">
+              <input type="checkbox" checked={exportMesh} onChange={(e) => setExportMesh(e.target.checked)} />
+              Export placeholder mesh (Blender GLB — set{" "}
+              <code>STUDIO_BLENDER_BIN</code> or install Blender on PATH)
+            </label>
+
+            <div className="studio-actions">
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? "Generating…" : "Generate spec"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={!spec || packLoading}
+                onClick={() => void onWritePack()}
+              >
+                {packLoading ? "Writing pack…" : "Write pack (ad-hoc)"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={jobLoading || !prompt.trim()}
+                onClick={() => void onRunJob()}
+              >
+                {jobLoading ? "Running job…" : "Run full job"}
+              </button>
+            </div>
+          </form>
+
+          {error ? <pre className="studio-error">{error}</pre> : null}
+
+          {meta ? (
+            <p className="studio-meta">
+              <strong>Meta:</strong> <code>{JSON.stringify(meta)}</code>
+            </p>
+          ) : null}
+
+          {spec ? (
+            <pre className="studio-json" tabIndex={0}>
+              {JSON.stringify(spec, null, 2)}
+            </pre>
+          ) : null}
+
+          {packResult ? (
+            <p className="studio-pack-result">
+              Pack written. Job <code>{packResult.job_id}</code>
+              <br />
+              <code className="studio-path">{packResult.output_dir}</code>
+            </p>
+          ) : null}
+
+          {jobResult ? (
+            <div className="studio-job-result">
+              <p>
+                Job <code>{jobResult.job_id}</code> — zip: <code className="studio-path">{jobResult.zip_path}</code>
+              </p>
+              {jobResult.errors.length > 0 ? (
+                <p className="studio-job-warn">Job reported issues: {jobResult.errors.join(" · ")}</p>
+              ) : null}
+              {jobResult.texture_logs.length > 0 ? (
+                <details className="studio-log-details">
+                  <summary>Texture pipeline log ({jobResult.texture_logs.length} lines)</summary>
+                  <ul className="studio-log-list">
+                    {jobResult.texture_logs.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              {jobResult.mesh_logs.length > 0 ? (
+                <details className="studio-log-details">
+                  <summary>Mesh export log ({jobResult.mesh_logs.length} lines)</summary>
+                  <ul className="studio-log-list">
+                    {jobResult.mesh_logs.map((line) => (
+                      <li key={`mesh-${line}`}>{line}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-primary studio-download"
+                onClick={() => void downloadJobZip(jobResult.job_id)}
+              >
+                Download pack.zip
+              </button>
+            </div>
+          ) : null}
+
+          <section className="studio-jobs" aria-labelledby="jobs-heading">
+            <div className="studio-jobs-header">
+              <h2 id="jobs-heading" className="studio-jobs-title">
+                Recent jobs
+              </h2>
+              <button type="button" className="studio-retry" onClick={refreshJobs}>
+                Refresh now
+              </button>
+            </div>
+            {jobs.length === 0 ? (
+              <p className="studio-jobs-empty">No jobs yet. Run a full job to populate the index.</p>
+            ) : (
+              <div className="studio-table-wrap">
+                <table className="studio-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Created</th>
+                      <th scope="col">Summary</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Textures</th>
+                      <th scope="col">Download</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.map((j) => (
+                      <tr key={j.job_id}>
+                        <td>
+                          <code className="studio-table-mono">{j.created_at}</code>
+                        </td>
+                        <td>
+                          <code>{j.summary}</code>
+                          <div className="studio-table-sub">{j.job_id}</div>
+                        </td>
+                        <td>
+                          {j.status}
+                          {j.error ? <div className="studio-table-err">{j.error}</div> : null}
+                        </td>
+                        <td>{j.has_textures ? "yes" : "no"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="studio-table-link"
+                            onClick={() => void downloadJobZip(j.job_id)}
+                          >
+                            ZIP
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </main>
+
+        <footer className="footer">
+          <span>© {new Date().getFullYear()} Immersive Labs</span>
+            <span className="footer-meta">
+            <Link to="/">Marketing site</Link>
+            <span> · </span>
+            <code>docs/studio/essentials.md</code>
+          </span>
+        </footer>
+      </div>
+    </>
+  );
+}

@@ -1,0 +1,77 @@
+# Headless Blender: pinned Linux build + export_mesh.py smoke test.
+# Cache speeds up reruns; first run downloads ~335MB.
+
+name: studio-worker-blender
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apps/studio-worker/blender/**"
+      - "apps/studio-worker/src/studio_worker/pbr_keys.py"
+      - ".github/workflows/studio-worker-blender.yml"
+  pull_request:
+    paths:
+      - "apps/studio-worker/blender/**"
+      - "apps/studio-worker/src/studio_worker/pbr_keys.py"
+      - ".github/workflows/studio-worker-blender.yml"
+
+env:
+  BLENDER_VER: "4.2.3"
+  BLENDER_TAR: "blender-4.2.3-linux-x64.tar.xz"
+  BLENDER_DIR: "blender-4.2.3-linux-x64"
+
+jobs:
+  blender-export-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Blender ${{ env.BLENDER_VER }}
+        id: blender-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/${{ env.BLENDER_DIR }}
+          key: ${{ env.BLENDER_TAR }}
+
+      - name: Download Blender ${{ env.BLENDER_VER }}
+        if: steps.blender-cache.outputs.cache-hit != 'true'
+        env:
+          BLENDER_URL: https://download.blender.org/release/Blender4.2/${{ env.BLENDER_TAR }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/$BLENDER_TAR" "$BLENDER_URL"
+          tar -xf "$RUNNER_TEMP/$BLENDER_TAR" -C "$RUNNER_TEMP"
+
+      - name: Minimal StudioAssetSpec + GLB export
+        env:
+          SPEC: ${{ runner.temp }}/studio_smoke_spec.json
+          OUT: ${{ runner.temp }}/studio_smoke_out.glb
+          BLENDER_BIN: ${{ runner.temp }}/${{ env.BLENDER_DIR }}/blender
+        run: |
+          "$BLENDER_BIN" --version
+          python3 << 'PY'
+          import json, os, pathlib
+          spec = {
+              "spec_version": "0.1",
+              "asset_id": "ci_smoke_crate",
+              "display_name": "CI Smoke",
+              "category": "prop",
+              "style_preset": "toon_bold",
+              "poly_budget_tris": 500,
+              "target_height_m": 1.0,
+              "tags": ["ci"],
+              "material_slots": [
+                  {"id": "body", "role": "albedo", "resolution_hint": 512},
+                  {"id": "trim", "role": "albedo", "resolution_hint": 512},
+              ],
+              "variants": [{"variant_id": "default", "label": "A", "seed": 1}],
+              "generation": {"source_prompt": "ci smoke test"},
+              "unity": {"import_subfolder": "CI", "collider": "box"},
+          }
+          p = pathlib.Path(os.environ["SPEC"])
+          p.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
+          PY
+          "$BLENDER_BIN" --background --python apps/studio-worker/blender/export_mesh.py -- \
+            --spec "$SPEC" --output "$OUT"
+          test -s "$OUT"
+          ls -la "$OUT"

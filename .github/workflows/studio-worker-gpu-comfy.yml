@@ -1,0 +1,50 @@
+# Opt-in ComfyUI GPU tests. GitHub-hosted runners have no GPU — pick "self-hosted"
+# on workflow_dispatch after registering a machine with ComfyUI + checkpoint.
+
+name: studio-worker-gpu-comfy
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner (use self-hosted for a machine with GPU + ComfyUI)"
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+        default: ubuntu-latest
+      comfy_url:
+        description: "Optional ComfyUI URL override (otherwise use STUDIO_COMFY_URL secret)"
+        required: false
+        default: ""
+
+jobs:
+  integration:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dev deps
+        working-directory: apps/studio-worker
+        run: pip install -e ".[dev]"
+      - name: GPU / Comfy integration (opt-in)
+        working-directory: apps/studio-worker
+        env:
+          STUDIO_RUN_GPU_COMFY_TESTS: ${{ secrets.STUDIO_RUN_GPU_COMFY_TESTS }}
+          STUDIO_COMFY_CHECKPOINT: ${{ secrets.STUDIO_COMFY_CHECKPOINT }}
+          INPUT_COMFY_URL: ${{ inputs.comfy_url }}
+          SECRET_COMFY_URL: ${{ secrets.STUDIO_COMFY_URL }}
+        run: |
+          if [ "${{ inputs.runner }}" = "ubuntu-latest" ]; then
+            echo "Note: ubuntu-latest has no local GPU; tests skip unless STUDIO_COMFY_URL reaches a real ComfyUI host."
+          else
+            echo "self-hosted: ensure ComfyUI is running and STUDIO_COMFY_CHECKPOINT matches a checkpoint on that host."
+          fi
+          if [ -n "$INPUT_COMFY_URL" ]; then
+            export STUDIO_COMFY_URL="$INPUT_COMFY_URL"
+          else
+            export STUDIO_COMFY_URL="$SECRET_COMFY_URL"
+          fi
+          python -m pytest -m gpu_comfy -v

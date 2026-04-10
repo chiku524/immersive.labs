@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://immersive.labs/schemas/studio-asset-spec-v0.1.json",
+  "title": "StudioAssetSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_version",
+    "asset_id",
+    "display_name",
+    "category",
+    "style_preset",
+    "poly_budget_tris",
+    "tags",
+    "material_slots",
+    "variants",
+    "generation",
+    "unity"
+  ],
+  "properties": {
+    "spec_version": { "const": "0.1" },
+    "asset_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "display_name": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": ["prop", "environment_piece", "character_base", "material_library"]
+    },
+    "style_preset": {
+      "type": "string",
+      "enum": ["realistic_hd_pbr", "anime_stylized", "toon_bold"]
+    },
+    "poly_budget_tris": { "type": "integer", "minimum": 1 },
+    "target_height_m": { "type": "number", "exclusiveMinimum": 0 },
+    "palette": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "material_slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "resolution_hint"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "role": {
+            "type": "string",
+            "enum": ["albedo", "normal", "orm", "emissive", "mask"]
+          },
+          "resolution_hint": {
+            "type": "integer",
+            "enum": [512, 1024, 2048, 4096]
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["variant_id", "label"],
+        "properties": {
+          "variant_id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "seed": { "type": "integer" }
+        }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_prompt"],
+      "properties": {
+        "source_prompt": { "type": "string", "minLength": 1 },
+        "negative_prompt": { "type": "string" },
+        "reference_assets": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "unity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["import_subfolder", "collider"],
+      "properties": {
+        "import_subfolder": { "type": "string", "minLength": 1 },
+        "collider": {
+          "type": "string",
+          "enum": ["box", "capsule", "mesh_convex", "none"]
+        }
+      }
+    }
+  }
+}

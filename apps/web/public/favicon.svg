@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Unused in index.html. Live favicon: /favicon.png from `npm run build:brand-assets` (source: public/use this.png). -->
+  <defs>
+    <linearGradient
+      id="il-stone"
+      gradientUnits="objectBoundingBox"
+      x1="0"
+      y1="0"
+      x2="1"
+      y2="1"
+      gradientTransform="rotate(168 0.5 0.5)"
+    >
+      <stop offset="0%" stop-color="#06080c" />
+      <stop offset="42%" stop-color="#0c1018" />
+      <stop offset="100%" stop-color="#121a24" />
+    </linearGradient>
+    <radialGradient id="il-vein" cx="18%" cy="0%" r="95%" fx="18%" fy="-8%">
+      <stop offset="0%" stop-color="rgba(55,68,88,0.35)" />
+      <stop offset="55%" stop-color="rgba(55,68,88,0)" />
+    </radialGradient>
+    <radialGradient id="il-amb" cx="78%" cy="88%" r="75%">
+      <stop offset="0%" stop-color="rgba(74,159,232,0.28)" />
+      <stop offset="100%" stop-color="rgba(74,159,232,0)" />
+    </radialGradient>
+    <pattern id="il-hatch" width="3" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-18 1.5 4)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(0,0,0,0.07)" stroke-width="0.6" />
+    </pattern>
+    <clipPath id="il-round">
+      <rect width="32" height="32" rx="8" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#il-round)">
+    <rect width="32" height="32" fill="url(#il-stone)" />
+    <rect width="32" height="32" fill="url(#il-vein)" />
+    <rect width="32" height="32" fill="url(#il-amb)" />
+    <rect width="32" height="32" fill="url(#il-hatch)" opacity="0.5" />
+  </g>
+  <!-- IL monogram -->
+  <path
+    d="M7 10h6M10 10v12M7 22h6"
+    stroke="#5ab0ff"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M15 10v12h9"
+    stroke="#7c6cf0"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

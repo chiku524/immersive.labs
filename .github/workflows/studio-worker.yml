@@ -1,0 +1,29 @@
+name: studio-worker
+
+on:
+  push:
+    paths:
+      - "apps/studio-worker/**"
+      - "packages/studio-types/schema/**"
+      - ".github/workflows/studio-worker.yml"
+  pull_request:
+    paths:
+      - "apps/studio-worker/**"
+      - "packages/studio-types/schema/**"
+      - ".github/workflows/studio-worker.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/studio-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package (dev extras)
+        run: pip install -e ".[dev]"
+      - name: Pytest
+        run: python -m pytest -v

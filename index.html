@@ -2,84 +2,250 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#06080c" />
     <meta
       name="description"
-      content="Immersive Labs is a digital product studio. We design and ship software with clarity, motion, and craft—from prototype to production."
+      content="immersive.labs monorepo: the Immersive Labs marketing site and the Video Game Generation Studio planning pipeline."
     />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://immersive.labs/" />
-
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Immersive Labs" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:url" content="https://immersive.labs/" />
-    <meta property="og:title" content="Immersive Labs — Digital Product Studio" />
-    <meta
-      property="og:description"
-      content="Products that feel immersive. Design, UX, and frontend engineering from first prototype to production."
-    />
-    <meta property="og:image" content="https://immersive.labs/social/og-image.png" />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="Immersive Labs logo and wordmark on a dark background"
-    />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Immersive Labs — Digital Product Studio" />
-    <meta
-      name="twitter:description"
-      content="Products that feel immersive. Design, UX, and frontend engineering from first prototype to production."
-    />
-    <meta name="twitter:image" content="https://immersive.labs/social/og-image.png" />
-    <meta
-      name="twitter:image:alt"
-      content="Immersive Labs logo and wordmark on a dark background"
-    />
-
-    <title>Immersive Labs — Digital Product Studio</title>
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "@id": "https://immersive.labs/#website",
-            "url": "https://immersive.labs/",
-            "name": "Immersive Labs",
-            "description": "Digital product studio designing and shipping immersive software experiences.",
-            "publisher": { "@id": "https://immersive.labs/#organization" }
-          },
-          {
-            "@type": "Organization",
-            "@id": "https://immersive.labs/#organization",
-            "name": "Immersive Labs",
-            "url": "https://immersive.labs/",
-            "logo": {
-              "@type": "ImageObject",
-              "url": "https://immersive.labs/favicon.svg"
-            },
-            "email": "hello@immersive.labs",
-            "sameAs": []
-          }
-        ]
-      }
-    </script>
+    <title>immersive.labs — monorepo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        font-family: Outfit, system-ui, sans-serif;
+        font-weight: 400;
+        line-height: 1.6;
+        color: #e8ecf4;
+        background: #06080c;
+        background-image:
+          radial-gradient(ellipse 120% 80% at 50% -20%, rgba(88, 120, 200, 0.12), transparent 55%),
+          radial-gradient(ellipse 60% 50% at 100% 50%, rgba(140, 90, 180, 0.06), transparent 50%);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: clamp(2rem, 5vw, 4rem) clamp(1.25rem, 4vw, 2rem) 3rem;
+      }
+
+      header {
+        margin-bottom: 2.5rem;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #8b95a8;
+      }
+
+      h1 {
+        margin: 0 0 0.75rem;
+        font-family: Syne, Outfit, system-ui, sans-serif;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+
+      .lede {
+        margin: 0;
+        max-width: 38rem;
+        font-size: 1.05rem;
+        color: #b4bcc9;
+      }
+
+      .grid {
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      @media (min-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 1.5rem;
+        }
+      }
+
+      article {
+        padding: 1.35rem 1.4rem 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.02);
+        transition: border-color 0.2s ease, background 0.2s ease;
+      }
+
+      article:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      article h2 {
+        margin: 0 0 0.65rem;
+        font-family: Syne, Outfit, system-ui, sans-serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      article p {
+        margin: 0 0 1rem;
+        font-size: 0.9375rem;
+        color: #a8b0bf;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: center;
+      }
+
+      a.primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.55rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #06080c;
+        background: #e8ecf4;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      a.primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 24px rgba(232, 236, 244, 0.12);
+      }
+
+      a.primary:focus-visible {
+        outline: 2px solid #8ba3e8;
+        outline-offset: 2px;
+      }
+
+      a.secondary {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #c5cdd8;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      a.secondary:hover {
+        color: #e8ecf4;
+      }
+
+      .hint {
+        margin: 1rem 0 0;
+        padding-top: 0.85rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 0.8125rem;
+        color: #7a8496;
+      }
+
+      code {
+        font-family: ui-monospace, monospace;
+        font-size: 0.8em;
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #d0d8e6;
+      }
+
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 0.8125rem;
+        color: #6d7688;
+      }
+
+      footer a {
+        color: #9aa3b5;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      footer a:hover {
+        color: #c5cdd8;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="wrap">
+      <header>
+        <p class="eyebrow">Monorepo</p>
+        <h1>immersive.labs</h1>
+        <p class="lede">
+          This repository hosts the Immersive Labs marketing site and the planning foundation for a
+          text-to-Unity 3D asset pipeline—the Video Game Generation Studio.
+        </p>
+      </header>
+
+      <main class="grid">
+        <article>
+          <h2>Immersive Web</h2>
+          <p>
+            The public digital product studio: design, motion, and frontend craft. Built with Vite
+            and React in <code>apps/web</code> (<code>@immersive/web</code>).
+          </p>
+          <div class="actions">
+            <a class="primary" href="https://immersive.labs/">Visit immersive.labs</a>
+            <a class="secondary" href="./apps/web/">Browse app source</a>
+          </div>
+          <p class="hint">
+            Run locally from the repo root: <code>npm install</code> then <code>npm run dev</code>
+            (serves the Vite app in <code>apps/web</code>).
+          </p>
+        </article>
+
+        <article>
+          <h2>Video Game Generation Studio</h2>
+          <p>
+            Planning and technical design for a local-first pipeline: natural language to validated
+            specs, textures, meshes, and Unity-friendly packs. Shared types live in
+            <code>@immersive/studio-types</code>.
+          </p>
+          <div class="actions">
+            <a class="primary" href="./docs/studio/README.md">Studio documentation</a>
+            <a class="secondary" href="./packages/studio-types/">Browse shared types</a>
+          </div>
+          <p class="hint">
+            Start with the <a class="secondary" href="./docs/studio/phased-roadmap.md">phased roadmap</a>
+            for implementation status and next steps.
+          </p>
+        </article>
+      </main>
+
+      <footer>
+        <p style="margin: 0">
+          Repository overview: <a href="./README.md">README.md</a>
+          · Web package: <a href="./apps/README.md">apps/README.md</a>
+          · Packages: <a href="./packages/README.md">packages/README.md</a>
+        </p>
+      </footer>
+    </div>
   </body>
 </html>

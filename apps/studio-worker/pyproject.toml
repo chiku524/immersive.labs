@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "immersive-studio-worker"
+version = "0.1.0"
+description = "Video Game Generation Studio worker: spec generation, validation, and pack layout."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "httpx>=0.27",
+  "jsonschema>=4.21",
+  "stripe>=10.0",
+  "uvicorn[standard]>=0.32",
+]
+
+[project.scripts]
+immersive-studio = "studio_worker.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "respx>=0.21.0",
+  "fakeredis>=2.23",
+]
+postgres = [
+  "psycopg[binary]>=3.2",
+]
+redis = [
+  "redis>=5.0",
+]
+s3 = [
+  "boto3>=1.34",
+]
+scale = [
+  "psycopg[binary]>=3.2",
+  "boto3>=1.34",
+  "redis>=5.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "gpu_comfy: requires live ComfyUI (STUDIO_RUN_GPU_COMFY_TESTS=1)",
+]
