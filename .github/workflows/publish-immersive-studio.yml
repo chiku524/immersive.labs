@@ -1,11 +1,11 @@
 # Build and upload the immersive-studio wheel/sdist to PyPI.
 #
 # Auth (pick one):
-# 1) Recommended for reliability: GitHub repo secret PYPI_API_TOKEN (PyPI API token with
-#    upload scope for project immersive-studio). Uses Twine token auth — no OIDC setup.
-# 2) OIDC trusted publishing: leave PYPI_API_TOKEN unset; configure PyPI pending publisher
-#    with your GitHub owner/repo, workflow publish-immersive-studio.yml, and leave
-#    Environment name EMPTY (matches GitHub claim environment: MISSING).
+# 1) Recommended: GitHub repository secret PYPI_API_TOKEN (PyPI API token with upload
+#    scope for project immersive-studio). Upload uses `twine` on the runner — no OIDC,
+#    no Docker publish action (avoids spurious trusted-publishing calls).
+# 2) OIDC: leave PYPI_API_TOKEN unset; configure PyPI trusted publisher (repo, workflow
+#    publish-immersive-studio.yml, empty environment name).
 
 name: PyPI publish (immersive-studio package)
 
@@ -45,22 +45,28 @@ jobs:
         run: |
           if [ -n "$PYPI_API_TOKEN" ]; then
             echo "mode=token" >> "$GITHUB_OUTPUT"
-            echo "Using PYPI_API_TOKEN (Twine token upload)."
+            echo "Using PYPI_API_TOKEN (twine upload on runner)."
           else
             echo "mode=oidc" >> "$GITHUB_OUTPUT"
-            echo "Using OIDC trusted publishing (PYPI_API_TOKEN not set)."
+            echo "Using OIDC (PYPI_API_TOKEN empty — configure trusted publishing on PyPI)."
           fi
 
-      - name: Publish to PyPI (API token)
+      - name: Show selected auth mode
+        run: echo "Selected PyPI auth mode=${{ steps.auth.outputs.mode }}"
+
+      - name: Publish to PyPI (API token via twine)
         if: steps.auth.outputs.mode == 'token'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: apps/studio-worker/dist
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install twine
+          python -m twine check dist/*
+          python -m twine upload --non-interactive dist/*
 
       - name: Publish to PyPI (trusted publishing / OIDC)
         if: steps.auth.outputs.mode == 'oidc'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: apps/studio-worker/dist
+          attestations: "false"
