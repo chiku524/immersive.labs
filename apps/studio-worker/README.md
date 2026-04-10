@@ -43,25 +43,24 @@ Public symbols: `__version__`, `run_studio_job`, `validate_asset_spec_file`, `ge
 
 ## Publishing to PyPI
 
-I cannot create or “register” a PyPI project on your behalf (that requires you to sign in at [pypi.org](https://pypi.org) and complete the flow below). You already have an account — use it to create the project and trusted publisher.
+I cannot create or “register” a PyPI project on your behalf (that requires you to sign in at [pypi.org](https://pypi.org)). Use an API token as below to upload from CI or your laptop.
 
-### Trusted publishing (GitHub Actions)
+### GitHub Actions publish (this repo)
 
-1. On **PyPI**, open **Account settings → Publishing** (or your project → **Publishing** once the project exists) and add a **pending** trusted publisher for **GitHub** before the first successful upload from Actions.
-2. In the form, set **Repository name** to your GitHub repo exactly, e.g. `your-username/immersive.labs`.
-3. **Workflow name** must be the **workflow file name** under `.github/workflows/`, including the extension:
+The workflow **`.github/workflows/publish-immersive-studio.yml`** uploads with **`twine`** only. It **does not** use OIDC or `pypa/gh-action-pypi-publish`, so you will not see **`invalid-publisher`** from that path.
 
-   **`publish-immersive-studio.yml`**
+1. Create a PyPI **API token** with **upload** scope for **`immersive-studio`** ([PyPI → API tokens](https://pypi.org/manage/account/token/)).
+2. In GitHub: **Settings → Secrets and variables → Actions** → **Repository secrets** → **New repository secret**.  
+   - **Name:** `PYPI_API_TOKEN` (exact spelling, all caps).  
+   - **Value:** the token string (often starts with `pypi-`).  
+   Do **not** put it under *Dependabot* or *Codespaces* only; it must be a **repository** secret for this repo.
+3. Run **Actions → “PyPI publish (immersive-studio package)” → Run workflow** on **`main`**, or publish a **GitHub Release** to trigger it. Use a **new** run after changing secrets (re-running a very old failed job can still use old workflow YAML).
 
-   If PyPI shows *“Workflow name must end with .yml or .yaml”*, you almost certainly pasted the workflow’s **display title** from the YAML (`name: …` inside the file) instead of the **filename**. Use **`publish-immersive-studio.yml`** only.
+If the job fails immediately with **“PYPI_API_TOKEN is missing or empty”**, GitHub did not inject the secret (wrong name, empty value, or workflow running from a fork without secrets).
 
-4. **Environment name** can be left blank unless you use a GitHub **Environment** in the workflow (this repo’s publish workflow does not require one).
+### Optional: PyPI trusted publishing (OIDC)
 
-5. Merge this workflow to your default branch, then run **Actions → “PyPI publish (immersive-studio package)” → Run workflow**, or publish a **GitHub Release** to trigger it.
-
-6. If the workflow fails with **`invalid-publisher`** / “no corresponding publisher”, re-check the three strings on PyPI (**owner/repo**, **`publish-immersive-studio.yml`**, and **environment**). The OIDC token from GitHub includes `environment: MISSING` unless you add `environment: …` to the workflow job; on PyPI the **Environment name** field must be **empty** to match, unless you intentionally configure both sides to the same name.
-
-7. **Recommended for CI:** create a PyPI **API token** with upload scope for **`immersive-studio`**, add a GitHub repository secret **`PYPI_API_TOKEN`** (exact name), and run the workflow from the **latest `main`** (a “Re-run failed job” on an old run still uses the old workflow). When the secret is non-empty, CI runs **`twine upload`** on the runner (no `gh-action-pypi-publish` Docker step), so **no OIDC** is involved and `invalid-publisher` from trusted publishing cannot occur. The log line **`Selected PyPI auth mode=token`** confirms that path; if you see **`oidc`**, the secret was not visible to the workflow (wrong name, empty value, or fork PR). Leave the secret unset only if you intend to use OIDC alone.
+OIDC is **not** used by the publish workflow above. To use trusted publishing instead, upload from your machine with `twine` or configure a **separate** workflow; PyPI’s form needs your **owner/repo**, workflow filename **`publish-immersive-studio.yml`**, and an **empty** environment name unless you add a matching GitHub Environment.
 
 ### Manual upload (API token)
 
