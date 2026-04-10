@@ -226,12 +226,39 @@ Open **`/studio`** on Vercel; health should show the worker reachable.
 | [`install-cloudflared-debian.sh`](../../scripts/studio-cloudflare-tunnel/install-cloudflared-debian.sh) | VM | Install **cloudflared** |
 | [`cloudflared-service-install.sh`](../../scripts/studio-cloudflare-tunnel/cloudflared-service-install.sh) | VM as **root** | `cloudflared service install <token>` |
 | [`cloudflared-config.yml.example`](../../scripts/studio-cloudflare-tunnel/cloudflared-config.yml.example) | Reference | Optional locally managed tunnel |
+| [`studio-cors-origins.txt`](../../scripts/studio-cloudflare-tunnel/studio-cors-origins.txt) | Laptop | **Production** CORS list for `gcloud --metadata-from-file=STUDIO_CORS_ORIGINS=…` |
+| [`setup-cloudflare-dns-for-studio.ps1`](../../scripts/studio-cloudflare-tunnel/setup-cloudflare-dns-for-studio.ps1) | Laptop (PowerShell) | **API:** create `api` → `<tunnel-id>.cfargotunnel.com` in the correct Cloudflare zone. Defaults to **proxied (orange cloud)** so IPv4 clients get Cloudflare anycast; grey-cloud-only chains often break **Windows / IPv4-only** resolution. Needs **`CLOUDFLARE_API_TOKEN`** (**Zone → DNS → Edit**). |
+| [`import-zone-to-cloudflare.ps1`](../../scripts/studio-cloudflare-tunnel/import-zone-to-cloudflare.ps1) | Laptop (PowerShell) | **API:** add **`immersivelabs.space`** to your Cloudflare account (`POST /zones`, `jump_start`). Needs token with **Zone → Zone → Create** + **Account → Account Settings → Read** (or set **`CLOUDFLARE_ACCOUNT_ID`**). You must still **change nameservers at the registrar** (e.g. Vercel) to the printed `*.ns.cloudflare.com` pair. |
+| [`setup-cloudflare-vercel-dns.ps1`](../../scripts/studio-cloudflare-tunnel/setup-cloudflare-vercel-dns.ps1) | Laptop (PowerShell) | After the zone is on Cloudflare: **apex `A` → Vercel** (`76.76.21.21`) + **`www` CNAME → `cname.vercel-dns.com`** (grey cloud). Without these, **`immersivelabs.space` / `www` do not resolve** (only `api` existed). Confirm values in **Vercel → Domains** if your project shows different targets. |
 
 ---
 
 ## 11. Full runbook (all commands in order)
 
 Use this as a single path from “nothing on the VM” to “HTTPS worker + Vercel”. Replace placeholders before pasting.
+
+<a id="gce-metadata-studio-cors-origins"></a>
+
+### GCE metadata: `STUDIO_CORS_ORIGINS` (comma-safe)
+
+`gcloud --metadata=...` treats **commas** as separators between keys, so use **`--metadata-from-file`** for multi-origin CORS.
+
+This repo keeps the **production** Immersive Labs origins in one line (no placeholders):
+
+**[`scripts/studio-cloudflare-tunnel/studio-cors-origins.txt`](../../scripts/studio-cloudflare-tunnel/studio-cors-origins.txt)**
+
+From the **monorepo root** on your laptop:
+
+```bash
+gcloud compute instances add-metadata immersive-studio-worker \
+  --zone=us-central1-a \
+  --project=immersive-labs-studio \
+  --metadata-from-file=STUDIO_CORS_ORIGINS=scripts/studio-cloudflare-tunnel/studio-cors-origins.txt
+```
+
+If you add or remove a public site URL, **edit that file** (one comma-separated line, no spaces unless inside a URL), commit, then re-run the command above and **reset** the VM (or recreate the container over SSH).
+
+---
 
 | Placeholder | Example |
 |-------------|---------|
@@ -402,6 +429,197 @@ docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .
 docker stop studio-worker && docker rm studio-worker
 # re-run the same docker run ... as in step 7
 ```
+
+---
+
+## 12. Operator guide — what you do after a VM reset (elaborated)
+
+Use this when the VM runs the [GCE startup script](../../scripts/studio-cloudflare-tunnel/vm-bootstrap-gce-startup.sh): install swap/Docker, clone/build once, then start **`studio-worker`** only if **`STUDIO_CORS_ORIGINS`** instance metadata is set.
+
+**On your laptop you need:** [Google Cloud SDK](https://cloud.google.com/sdk/docs/install), this repo cloned, and a shell where **`gcloud auth login`** already succeeded for the right Google account.
+
+**Names below** match the example in [§11](#gce-metadata-studio-cors-origins): VM **`immersive-studio-worker`**, zone **`us-central1-a`**, project **`immersive-labs-studio`**. Change them if yours differ.
+
+<a id="op-12-cors-metadata"></a>
+
+### 12.1 Set `STUDIO_CORS_ORIGINS` on the instance (laptop, before or between resets)
+
+**Why:** The startup script reads **instance metadata** (not a file on the VM). Comma-separated origins break **`gcloud --metadata=KEY=val1,val2`** because commas separate keys — so use **`--metadata-from-file`**.
+
+**What you do:**
+
+1. Open a terminal on your **laptop**.
+2. **`cd`** to the **monorepo root** (the folder that contains **`scripts/`** and **`apps/`**), e.g. `cd ~/Desktop/vibe-code/immersive.labs`.
+3. Open [`studio-cors-origins.txt`](../../scripts/studio-cloudflare-tunnel/studio-cors-origins.txt) in an editor. Confirm the **single line** lists **every** browser origin you use (scheme + host, **no** path, **no** trailing slash). Production values are already there; edit only if you add/remove a public URL.
+4. Run (paths are relative to monorepo root):
+
+   ```bash
+   gcloud compute instances add-metadata immersive-studio-worker \
+     --zone=us-central1-a \
+     --project=immersive-labs-studio \
+     --metadata-from-file=STUDIO_CORS_ORIGINS=scripts/studio-cloudflare-tunnel/studio-cors-origins.txt
+   ```
+
+5. **Success:** `gcloud` prints **Updated** / **metadata** without errors. **Failure:** if you see **file not found**, you are not in the repo root or the path is wrong — fix **`cd`** or the path after **`=`**.
+
+**Note:** **`add-metadata`** **merges** keys; it does not delete unrelated metadata. You can run it again after editing the text file.
+
+<a id="op-12-reset-vm"></a>
+
+### 12.2 Reset the VM (laptop)
+
+**Why:** Startup metadata is read **at boot** (and the long bootstrap path runs on early boots). A **reset** is a clean way to re-run startup after you set CORS.
+
+**What you do:**
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → **Compute Engine** → **VM instances** → your VM → **Reset** (confirm), **or** from the laptop:
+
+   ```bash
+   gcloud compute instances reset immersive-studio-worker \
+     --zone=us-central1-a \
+     --project=immersive-labs-studio
+   ```
+
+2. Expect the instance to go **off** briefly and come back **Running** within **1–2 minutes**.
+
+---
+
+### 12.3 Wait (laptop — patience)
+
+**First-ever bootstrap** (no prior successful **`Bootstrap complete`** on this disk): the script may install packages, **clone**, and **`docker build`** — often **10–20+ minutes** on **`e2-micro`** (swap helps).
+
+**Already bootstrapped** (file **`/var/lib/immersive-studio-bootstrapped`** exists on the VM): the script takes a **fast path** — start Docker and **`docker start studio-worker`** — usually **1–3 minutes** after SSH port responds.
+
+**Rule of thumb:** after reset, wait **at least 3 minutes** before concluding failure; if you know a full build is running, wait **15–20 minutes**.
+
+---
+
+### 12.4 Read serial port output (laptop)
+
+**Why:** Startup logs go to the serial console; you can see **build finished**, **CORS missing**, or **errors** without SSH.
+
+**What you do:**
+
+1. Stay on the laptop; monorepo root is optional for this command.
+
+2. **Filter** (high signal):
+
+   ```bash
+   gcloud compute instances get-serial-port-output immersive-studio-worker \
+     --zone=us-central1-a \
+     --project=immersive-labs-studio \
+     --port=1 | grep -iE "Docker image built|Bootstrap complete|STUDIO_CORS|startup-script|failed|ERROR"
+   ```
+
+3. **Interpret:**
+
+   - **`Docker image built.`** — image build finished at least once.
+   - **`Bootstrap complete; studio-worker running.`** — container should be up with CORS from metadata.
+   - **`STUDIO_CORS_ORIGINS is not set in instance metadata.`** — metadata empty or wrong key; do [§12.1](#op-12-cors-metadata) again, then [§12.2](#op-12-reset-vm).
+   - **`startup-script`**, **`failed`**, **`ERROR`** — get **more context**:
+
+     ```bash
+     gcloud compute instances get-serial-port-output immersive-studio-worker \
+       --zone=us-central1-a \
+       --project=immersive-labs-studio \
+       --port=1 | tail -n 200
+     ```
+
+4. Optional: on the VM, **`sudo tail -f /var/log/immersive-studio-bootstrap.log`** repeats the same bootstrap log to a file.
+
+---
+
+### 12.5 SSH into the VM and verify the worker locally (VM console)
+
+**Why:** Confirm Docker and **`127.0.0.1:8787`** before Cloudflare or Vercel.
+
+**What you do:**
+
+1. **SSH — pick one:**
+   - **Browser (good on Windows):** Console → **Compute Engine** → **VM instances** → **SSH** next to the instance.
+   - **Laptop terminal:** `gcloud compute ssh immersive-studio-worker --zone=us-central1-a --project=immersive-labs-studio`
+
+2. **Docker running and container present:**
+
+   ```bash
+   sudo docker ps -a --filter name=studio-worker
+   ```
+
+   - **Running:** **STATUS** shows **Up** (often with a health or uptime). **Exited** means the container crashed — check **`sudo docker logs studio-worker`**.
+   - If **no container** and serial said CORS was missing, fix metadata and reset again.
+
+3. **Health on loopback** (tunnel and firewall are irrelevant here):
+
+   ```bash
+   curl -sS http://127.0.0.1:8787/api/studio/health
+   ```
+
+   **Success:** JSON including something like **`"status":"ok"`** (exact shape may vary by worker version). **Connection refused:** nothing listening — container not running or wrong port. **Timeout:** unusual on localhost; recheck **`docker ps`**.
+
+---
+
+### 12.6 Cloudflare Tunnel (if you have not finished it yet)
+
+**Why:** Browsers need **HTTPS** to call your API from Vercel; the worker listens on **HTTP** on **localhost** only. **Cloudflare Tunnel** exposes **`https://api.yourdomain/...`** and forwards to **`http://127.0.0.1:8787`**.
+
+**What you do (summary — full commands in [§11.C](#c-cloudflare-tunnel-dashboard--vm)):**
+
+1. In a browser: [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → **Create tunnel** → get a **connector install** token (**Debian**).
+2. On the **VM** (SSH): install **`cloudflared`**, then **`sudo cloudflared service install 'YOUR_TOKEN'`**, **`sudo systemctl enable --now cloudflared`**, **`sudo systemctl status cloudflared`** — **active (running)**.
+3. In the tunnel UI → **Public hostname**: subdomain **`api`** (or yours), **HTTP** → **`http://127.0.0.1:8787`**.
+
+Do **not** open GCP firewall **8787** to the world; the tunnel reaches localhost from inside the VM.
+
+---
+
+### 12.7 DNS for `api` (your domain / Vercel)
+
+**What you do:**
+
+1. In Cloudflare tunnel details, find the **CNAME target** (often **`<TUNNEL_ID>.cfargotunnel.com`**).
+2. **If the domain’s DNS is on Vercel:** Vercel → **Project** (or Domains) → **Domains** → your domain → **DNS** → add **CNAME**: **name** `api` (or your API subdomain), **value** the tunnel hostname.
+3. **If DNS is on Cloudflare:** use the tunnel UI **Configure DNS** when offered, or create the same CNAME there.
+4. **Propagation:** can be **minutes to hours**. Check with **`nslookup api.yourdomain.com`** or an online DNS checker until it resolves to Cloudflare/tunnel-related targets.
+
+---
+
+### 12.8 Verify HTTPS from your laptop
+
+**What you do:**
+
+```bash
+curl -sS "https://api.YOURDOMAIN/api/studio/health"
+```
+
+Use your real API host (e.g. **`api.immersivelabs.space`**). **Success:** same JSON as localhost health. **SSL or DNS errors:** fix tunnel + DNS first. **404 from Cloudflare:** wrong **Public hostname** path or tunnel route.
+
+---
+
+### 12.9 Vercel — point the frontend at the worker
+
+**What you do:**
+
+1. [Vercel Dashboard](https://vercel.com/dashboard) → your **web** project → **Settings** → **Environment Variables**.
+2. **Production:** add or edit **`VITE_STUDIO_API_URL`** = **`https://api.YOURDOMAIN`** (**no** trailing slash). Save.
+3. **Deployments** → latest **Production** deployment → **⋯** → **Redeploy** (or push a commit). **Why:** Vite bakes this value in at **build** time; changing the variable alone does not change an old deployment.
+
+---
+
+### 12.10 Browser check (each real origin)
+
+**What you do:**
+
+1. Open **`https://immersivelabs.vercel.app/studio`** (and each custom domain you use), matching [studio-cors-origins.txt](../../scripts/studio-cloudflare-tunnel/studio-cors-origins.txt).
+2. Confirm the Studio UI loads and any **worker health** / connection indicator matches **OK**.
+3. If the browser shows **CORS** errors in **DevTools → Network / Console**, the **`Origin`** of the page must **exactly** match one entry in **`STUDIO_CORS_ORIGINS`** on the running container (scheme + host; **`www`** vs apex are different origins).
+
+---
+
+### 12.11 Changing CORS **after** the VM has already reached “Bootstrap complete”
+
+The startup script’s **fast path** (after **`/var/lib/immersive-studio-bootstrapped`** exists) only runs **`docker start studio-worker`** on boot — it does **not** re-read **`STUDIO_CORS_ORIGINS`** from metadata. So **editing metadata + reset** alone **does not** update an already-created container’s environment.
+
+**What you do:** SSH to the VM, then **recreate** the container with the new **`STUDIO_CORS_ORIGINS`** (same pattern as [§11](#11-full-runbook-all-commands-in-order) step **7** / [checklist](#complete-setup-checklist-gcp--cloudflare-tunnel) step **8**), or temporarily use the **`docker run`** line from the runbook with your updated comma-separated origins.
 
 ---
 

@@ -9,6 +9,7 @@ Monorepo for **Immersive Labs**: the public marketing site and planning for the 
 | Path | Description |
 |------|-------------|
 | `apps/web` | `@immersive/web` — Vite + React application (marketing site + **`/studio`** UI) |
+| `apps/studio-edge` | `@immersive/studio-edge` — Cloudflare Worker reverse proxy + optional KV health cache ([README](./apps/studio-edge/README.md)) |
 | `apps/studio-worker` | Python worker: spec generation, ComfyUI textures, jobs + zips, HTTP API |
 | `packages/studio-types` | `@immersive/studio-types` — shared types for the studio pipeline |
 | `packages/studio-unity` | Unity UPM importer (`com.immersivelabs.studio`) for studio packs |
@@ -21,6 +22,8 @@ npm install
 npm run dev
 npm run build
 npm run preview
+# optional: Cloudflare Worker in front of the Python API
+npm run dev:studio-edge
 ```
 
 With the dev server running, open **`http://localhost:5173/studio`** for the studio UI. In another terminal:

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
+import { STUDIO_API_BASE, STUDIO_API_READY } from "../studioApiConfig";
 import "../App.css";
 import "./StudioPage.css";
 
-const STUDIO_API = import.meta.env.VITE_STUDIO_API_URL ?? "http://127.0.0.1:8787";
 const API_KEY_STORAGE = "immersive_studio_api_key";
 
 type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
@@ -112,8 +112,12 @@ export function StudioPage() {
   }, [apiKey]);
 
   const checkHealth = useCallback(() => {
+    if (!STUDIO_API_READY) {
+      setHealth("error");
+      return;
+    }
     setHealth("checking");
-    fetch(`${STUDIO_API}/api/studio/health`)
+    fetch(`${STUDIO_API_BASE}/api/studio/health`)
       .then((r) => {
         if (!r.ok) {
           setHealth("error");
@@ -129,28 +133,42 @@ export function StudioPage() {
   }, []);
 
   const refreshUsage = useCallback(() => {
-    fetch(`${STUDIO_API}/api/studio/usage`, { headers: authHeaders() })
+    if (!STUDIO_API_READY) {
+      return;
+    }
+    fetch(`${STUDIO_API_BASE}/api/studio/usage`, { headers: authHeaders() })
       .then((r) => (r.ok ? (r.json() as Promise<UsageInfo>) : null))
       .then((u) => setUsage(u))
       .catch(() => setUsage(null));
   }, [authHeaders]);
 
   const refreshBilling = useCallback(() => {
-    fetch(`${STUDIO_API}/api/studio/billing/status`, { headers: authHeaders() })
+    if (!STUDIO_API_READY) {
+      return;
+    }
+    fetch(`${STUDIO_API_BASE}/api/studio/billing/status`, { headers: authHeaders() })
       .then((r) => (r.ok ? (r.json() as Promise<BillingStatus>) : null))
       .then((b) => setBilling(b))
       .catch(() => setBilling(null));
   }, [authHeaders]);
 
   const refreshComfy = useCallback(() => {
-    fetch(`${STUDIO_API}/api/studio/comfy-status`)
+    if (!STUDIO_API_READY) {
+      setComfy(null);
+      return;
+    }
+    fetch(`${STUDIO_API_BASE}/api/studio/comfy-status`)
       .then((r) => r.json() as Promise<{ reachable: boolean; url: string; detail: string | null }>)
       .then(setComfy)
       .catch(() => setComfy({ reachable: false, url: "", detail: "request failed" }));
   }, []);
 
   const refreshJobs = useCallback(() => {
-    fetch(`${STUDIO_API}/api/studio/jobs`, { headers: authHeaders() })
+    if (!STUDIO_API_READY) {
+      setJobs([]);
+      return;
+    }
+    fetch(`${STUDIO_API_BASE}/api/studio/jobs`, { headers: authHeaders() })
       .then((r) => r.json() as Promise<{ jobs: JobSummary[]; jobs_root?: string }>)
       .then((data) => {
         setJobs(data.jobs ?? []);
@@ -162,11 +180,18 @@ export function StudioPage() {
   }, [authHeaders]);
 
   useEffect(() => {
+    if (!STUDIO_API_READY) {
+      setHealth("error");
+      return;
+    }
     checkHealth();
     refreshComfy();
   }, [checkHealth, refreshComfy]);
 
   useEffect(() => {
+    if (!STUDIO_API_READY) {
+      return;
+    }
     refreshJobs();
     refreshUsage();
     refreshBilling();
@@ -180,12 +205,16 @@ export function StudioPage() {
 
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();
+    if (!STUDIO_API_READY) {
+      setError("Worker URL is not configured. Set VITE_STUDIO_API_URL and rebuild, or run the dev server locally.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setPackResult(null);
     setJobResult(null);
     try {
-      const r = await fetch(`${STUDIO_API}/api/studio/generate-spec`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/generate-spec`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
@@ -214,7 +243,7 @@ export function StudioPage() {
   }
 
   async function onWritePack() {
-    if (!spec) {
+    if (!spec || !STUDIO_API_READY) {
       return;
     }
     setPackLoading(true);
@@ -223,7 +252,7 @@ export function StudioPage() {
     setJobResult(null);
     try {
       const outputName = `WebPack_${Date.now()}`;
-      const r = await fetch(`${STUDIO_API}/api/studio/pack`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/pack`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ spec, output_name: outputName }),
@@ -248,12 +277,16 @@ export function StudioPage() {
   }
 
   async function onRunJob() {
+    if (!STUDIO_API_READY) {
+      setError("Worker URL is not configured.");
+      return;
+    }
     setJobLoading(true);
     setError(null);
     setPackResult(null);
     setJobResult(null);
     try {
-      const r = await fetch(`${STUDIO_API}/api/studio/jobs/run`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/jobs/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
@@ -294,9 +327,12 @@ export function StudioPage() {
   }
 
   async function startStripeCheckout(tier: "indie" | "team") {
+    if (!STUDIO_API_READY) {
+      return;
+    }
     setError(null);
     try {
-      const r = await fetch(`${STUDIO_API}/api/studio/billing/checkout-session`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/billing/checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ tier }),
@@ -314,9 +350,12 @@ export function StudioPage() {
   }
 
   async function openStripePortal() {
+    if (!STUDIO_API_READY) {
+      return;
+    }
     setError(null);
     try {
-      const r = await fetch(`${STUDIO_API}/api/studio/billing/portal-session`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/billing/portal-session`, {
         method: "POST",
         headers: authHeaders(),
       });
@@ -333,8 +372,12 @@ export function StudioPage() {
   }
 
   async function downloadJobZip(jobId: string) {
+    if (!STUDIO_API_READY) {
+      setError("Worker URL is not configured.");
+      return;
+    }
     try {
-      const r = await fetch(`${STUDIO_API}/api/studio/jobs/${jobId}/download`, {
+      const r = await fetch(`${STUDIO_API_BASE}/api/studio/jobs/${jobId}/download`, {
         headers: authHeaders(),
       });
       if (!r.ok) {
@@ -385,19 +428,38 @@ export function StudioPage() {
             Blender CI).
           </p>
 
-          <div className={`studio-health studio-health--${health}`} role="status">
-            {health === "checking" && "Checking worker…"}
-            {health === "ok" && `Worker reachable at ${STUDIO_API}`}
-            {health === "error" && (
-              <>
-                Worker not reachable at {STUDIO_API}. Run{" "}
-                <code>immersive-studio serve</code> from <code>apps/studio-worker</code>{" "}
-                <button type="button" className="studio-retry" onClick={checkHealth}>
-                  Retry
-                </button>
-              </>
-            )}
-          </div>
+          {!STUDIO_API_READY ? (
+            <div className="studio-health studio-health--error studio-config-banner" role="alert">
+              <strong>Worker URL is not configured for this build.</strong> The browser cannot call{" "}
+              <code>127.0.0.1:8787</code> from a deployed site or from another machine. Set{" "}
+              <code>VITE_STUDIO_API_URL</code> to your public worker base URL (no trailing slash), then rebuild.
+              <br />
+              <span className="studio-config-banner-sub">
+                <strong>Vercel:</strong> Project → Settings → Environment Variables → add{" "}
+                <code>VITE_STUDIO_API_URL</code> = <code>https://your-worker.example.com</code> → redeploy.
+                <br />
+                <strong>Local dev:</strong> run <code>npm run dev</code> (defaults to{" "}
+                <code>http://127.0.0.1:8787</code>) or put the same value in{" "}
+                <code>apps/web/.env.development.local</code>.
+              </span>
+            </div>
+          ) : (
+            <div className={`studio-health studio-health--${health}`} role="status">
+              {health === "checking" && "Checking worker…"}
+              {health === "ok" && `Worker reachable at ${STUDIO_API_BASE}`}
+              {health === "error" && (
+                <>
+                  Worker not reachable at {STUDIO_API_BASE}. Run{" "}
+                  <code>immersive-studio serve --host 127.0.0.1 --port 8787</code> from{" "}
+                  <code>apps/studio-worker</code>, or fix <code>VITE_STUDIO_API_URL</code> if it points at the wrong
+                  host.{" "}
+                  <button type="button" className="studio-retry" onClick={checkHealth}>
+                    Retry
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="studio-api-key">
             <label className="studio-label">
@@ -420,6 +482,7 @@ export function StudioPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
+                disabled={!STUDIO_API_READY}
                 onClick={() => {
                   refreshUsage();
                   refreshJobs();
@@ -486,11 +549,20 @@ export function StudioPage() {
 
           {comfy ? (
             <div
-              className={`studio-health ${comfy.reachable ? "studio-health--ok" : "studio-health--error"}`}
+              className={`studio-health ${
+                comfy.reachable ? "studio-health--ok" : "studio-health--optional"
+              }`}
               role="status"
             >
-              ComfyUI at <code>{comfy.url}</code>: {comfy.reachable ? "reachable" : "not reachable"}
+              ComfyUI at <code>{comfy.url}</code>: {comfy.reachable ? "reachable" : "not running"}
               {comfy.detail ? ` — ${comfy.detail}` : null}
+              {!comfy.reachable ? (
+                <span className="studio-comfy-hint">
+                  {" "}
+                  (optional — only required if you enable <strong>Generate albedo textures</strong>. On the worker VM,
+                  run ComfyUI on port 8188 or set <code>STUDIO_COMFY_URL</code>.)
+                </span>
+              ) : null}
               <button type="button" className="studio-retry" onClick={refreshComfy}>
                 Refresh
               </button>
@@ -584,13 +656,17 @@ export function StudioPage() {
             </label>
 
             <div className="studio-actions">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading || !STUDIO_API_READY}
+              >
                 {loading ? "Generating…" : "Generate spec"}
               </button>
               <button
                 type="button"
                 className="btn btn-ghost"
-                disabled={!spec || packLoading}
+                disabled={!spec || packLoading || !STUDIO_API_READY}
                 onClick={() => void onWritePack()}
               >
                 {packLoading ? "Writing pack…" : "Write pack (ad-hoc)"}
@@ -598,7 +674,7 @@ export function StudioPage() {
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={jobLoading || !prompt.trim()}
+                disabled={jobLoading || !prompt.trim() || !STUDIO_API_READY}
                 onClick={() => void onRunJob()}
               >
                 {jobLoading ? "Running job…" : "Run full job"}
@@ -659,6 +735,7 @@ export function StudioPage() {
               <button
                 type="button"
                 className="btn btn-primary studio-download"
+                disabled={!STUDIO_API_READY}
                 onClick={() => void downloadJobZip(jobResult.job_id)}
               >
                 Download pack.zip
@@ -671,7 +748,7 @@ export function StudioPage() {
               <h2 id="jobs-heading" className="studio-jobs-title">
                 Recent jobs
               </h2>
-              <button type="button" className="studio-retry" onClick={refreshJobs}>
+              <button type="button" className="studio-retry" disabled={!STUDIO_API_READY} onClick={refreshJobs}>
                 Refresh now
               </button>
             </div>
@@ -708,6 +785,7 @@ export function StudioPage() {
                           <button
                             type="button"
                             className="studio-table-link"
+                            disabled={!STUDIO_API_READY}
                             onClick={() => void downloadJobZip(j.job_id)}
                           >
                             ZIP

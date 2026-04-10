@@ -1,0 +1,8 @@
+tunnel: 52513248-a776-4f3d-b6fb-7e17c3858b2b
+credentials-file: /etc/cloudflared/52513248-a776-4f3d-b6fb-7e17c3858b2b.json
+
+# Only api-origin hits the tunnel. Public `api` is served by the Cloudflare Worker (see apps/studio-edge).
+ingress:
+  - hostname: api-origin.immersivelabs.space
+    service: http://127.0.0.1:8787
+  - service: http_status:404

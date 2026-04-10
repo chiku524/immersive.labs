@@ -23,7 +23,7 @@ Search your host logs for those strings or ship logs to your usual aggregator (D
 
 This does **not** prove Stripe can deliver webhooks (firewall, path, signing still matter), but it complements Dashboard delivery logs.
 
-**GitHub Actions:** The repo includes [`.github/workflows/studio-api-uptime.yml`](../../.github/workflows/studio-api-uptime.yml). Add a repository **secret** `STUDIO_PUBLIC_HEALTH_URL` with your public API origin (no trailing slash), e.g. `https://immersivelabs.space`. The workflow runs on a schedule and fails if health is not HTTP 200 or `status` is not `ok`.
+**GitHub Actions:** The repo includes [`.github/workflows/studio-api-uptime.yml`](../../.github/workflows/studio-api-uptime.yml). Add a repository **secret** `STUDIO_PUBLIC_HEALTH_URL` with the **public API origin** (no trailing slash), e.g. `https://api.immersivelabs.space`. You can also paste the full health URL (`https://api.immersivelabs.space/api/studio/health`); the workflow strips `/api/studio/health` before appending it so you do not get a doubled path and a FastAPI **`{"detail":"Not Found"}`** from `/api/studio/health/api/studio/health`. **`GET https://api…/`** (root only) is not the health route — use **`/api/studio/health`**. Do **not** use a bare apex like `https://immersivelabs.space` unless that hostname actually serves the health path. Avoid a trailing newline when pasting the secret. The workflow runs on a schedule and fails if health is not HTTP 200 or `status` is not `ok`.
 
 ## 3. Trial ending — Stripe’s customer emails (recommended)
 

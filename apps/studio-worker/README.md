@@ -21,6 +21,38 @@ ollama pull llama3.2
 
 For **texture generation**, run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (default `http://127.0.0.1:8188`) and install a checkpoint that matches `STUDIO_COMFY_CHECKPOINT`. See [`comfy/README.md`](./comfy/README.md).
 
+## Docker (VM / production-shaped)
+
+The image copies **`packages/studio-types/schema`** and **`apps/studio-worker`** into a layout that matches `STUDIO_REPO_ROOT` (defaults to **`/repo`** in the image).
+
+**Build** (from **monorepo root**):
+
+```bash
+docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .
+```
+
+**Run** (set CORS to every **browser origin** that loads `/studio` — comma-separated, no trailing slashes):
+
+```bash
+docker run -d --name studio-worker --restart unless-stopped \
+  -p 8787:8787 \
+  -e STUDIO_CORS_ORIGINS='https://YOUR-APP.vercel.app,https://www.yourdomain.com,https://yourdomain.com' \
+  -v studio-output:/repo/apps/studio-worker/output \
+  immersive-studio-worker:local
+```
+
+If you only use the default Vercel hostname, a single origin is enough: `https://YOUR-APP.vercel.app`. Trailing slashes in the env var are ignored.
+
+On a cloud VM behind **Cloudflare Tunnel**, bind Docker to localhost only: **`-p 127.0.0.1:8787:8787`** (see [deploy-gcp-free-vm.md](../../docs/studio/deploy-gcp-free-vm.md)).
+
+**Compose** (dev smoke test; overrides `STUDIO_CORS_ORIGINS` as needed):
+
+```bash
+docker compose -f apps/studio-worker/docker-compose.yml up --build
+```
+
+**Free GCP VM + HTTPS + Vercel:** [docs/studio/deploy-gcp-free-vm.md](../../docs/studio/deploy-gcp-free-vm.md) (includes **`scripts/studio-cloudflare-tunnel/`** for `gcloud` + **Cloudflare Tunnel**).
+
 ## CLI
 
 ```bash

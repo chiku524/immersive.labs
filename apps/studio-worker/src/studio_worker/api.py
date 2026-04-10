@@ -51,7 +51,16 @@ def _cors_allow_origins() -> list[str]:
     if raw == "*":
         return ["*"]
     if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
+        out: list[str] = []
+        for o in raw.split(","):
+            x = o.strip()
+            if not x:
+                continue
+            # Browsers send Origin without a trailing slash; tolerate misconfigured env.
+            if x != "*":
+                x = x.rstrip("/")
+            out.append(x)
+        return out
     return [
         "http://127.0.0.1:5173",
         "http://localhost:5173",

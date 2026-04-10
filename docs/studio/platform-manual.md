@@ -260,6 +260,8 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 2. Set **`VITE_STUDIO_API_URL`** in that project to the **public worker URL** (HTTPS).
 3. Run **`immersive-studio serve`** (or gunicorn/uvicorn) on a **VM, container, or metal** with a **persistent volume** for `output/` (or equivalent for Postgres/Redis/S3 if you moved storage).
 
+**Zero-cost VM path (GCP):** step-by-step **`e2-micro`**, Docker image from this repo, HTTPS (Cloudflare Tunnel or Caddy), and Vercel env vars — [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md).
+
 **Checklist**
 
 - [ ] Worker URL reachable from browsers (CORS).
@@ -292,6 +294,8 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 | [json-schema-spec.md](./json-schema-spec.md) | Spec/manifest draft notes |
 | [unity-export-conventions.md](./unity-export-conventions.md) | Units, folders, colliders |
 | [hardening.md](./hardening.md) | Moderation, quotas, attribution, CI |
+| [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) | Free GCP `e2-micro`, Docker worker, HTTPS, Vercel |
+| [cloudflare-edge-and-storage.md](./cloudflare-edge-and-storage.md) | Workers / R2 / D1 / KV vs Python VM; **R2** via existing env |
 | [stripe-monitoring-and-emails.md](./stripe-monitoring-and-emails.md) | Billing operations |
 | [apps/studio-worker/README.md](../../apps/studio-worker/README.md) | CLI, full HTTP table, **full env table**, Stripe setup, Blender |
 | [apps/studio-worker/comfy/README.md](../../apps/studio-worker/comfy/README.md) | ComfyUI workflows and checkpoints |

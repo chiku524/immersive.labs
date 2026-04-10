@@ -1,0 +1,36 @@
+# Cloudflare Worker: reverse proxy to the Python studio API + optional KV cache for /api/studio/health.
+# See apps/studio-edge/README.md for production DNS (avoid fetch loops).
+
+name = "immersive-studio-edge"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+account_id = "10374f367672f4d19db430601db0926b"
+
+# Route Worker on public API hostname (zone must be on Cloudflare).
+routes = [
+  { pattern = "api.immersivelabs.space/*", zone_name = "immersivelabs.space" },
+]
+
+# Public URL where the Python worker is reachable (no trailing slash).
+# Local: wrangler dev uses this to reach docker / localhost:8787
+# Production: use a hostname that does NOT go through this Worker (e.g. api-origin… → tunnel).
+# ORIGIN_URL: set in production with `wrangler secret put ORIGIN_URL` (e.g. https://api-origin.immersivelabs.space).
+# For local dev, use `.dev.vars` (see README).
+[vars]
+# Milliseconds to treat cached health JSON as fresh (KV write uses 60s TTL).
+HEALTH_CACHE_TTL_MS = "5000"
+
+[[kv_namespaces]]
+binding = "STUDIO_KV"
+id = "155442cbef05433489d804d604f74594"
+
+# Edge object store / SQL (optional in code; use for signed URLs, edge-only tables, etc.).
+[[r2_buckets]]
+binding = "STUDIO_R2"
+bucket_name = "immersive-studio-edge-r2"
+
+[[d1_databases]]
+binding = "STUDIO_D1"
+database_name = "immersive-studio-edge-meta"
+database_id = "aca954e7-230c-4266-aaf7-e3781c5a4e58"
+migrations_dir = "migrations"

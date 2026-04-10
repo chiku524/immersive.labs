@@ -21,6 +21,8 @@ Engineers and collaborators implementing the studio worker, ComfyUI graphs, Blen
 | [unity-export-conventions.md](./unity-export-conventions.md) | Folder layout, units, materials, colliders |
 | [phased-roadmap.md](./phased-roadmap.md) | Phased delivery plan with deliverables and risks |
 | [hardening.md](./hardening.md) | Moderation, quotas, attribution, CI notes (Phase 6) |
+| [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) | **Free-tier GCP VM:** Docker worker, HTTPS, Vercel `VITE_STUDIO_API_URL` |
+| [cloudflare-edge-and-storage.md](./cloudflare-edge-and-storage.md) | **Workers + R2 + D1 + KV:** what fits the edge vs the Python VM, **R2 already wired** (`STUDIO_JOB_ARTIFACTS=r2`), phased migration |
 
 ## Shared types
 

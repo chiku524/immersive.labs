@@ -64,6 +64,12 @@ button.studio-table-link {
   font: inherit;
 }
 
+button.studio-table-link:disabled {
+  color: #5a6578;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .studio-page .nav a.nav-active {
   color: #e8ecf4;
   text-decoration: underline;
@@ -113,6 +119,28 @@ button.studio-table-link {
 .studio-health--error {
   border-color: rgba(220, 120, 120, 0.35);
   color: #e0b4b4;
+}
+
+/* Optional dependency (e.g. ComfyUI) not running — not a broken core API */
+.studio-health--optional {
+  border-color: rgba(200, 170, 100, 0.28);
+  color: #c9c4b8;
+}
+
+.studio-comfy-hint {
+  font-size: 0.8125rem;
+  color: #a8acb8;
+}
+
+.studio-config-banner {
+  line-height: 1.5;
+}
+
+.studio-config-banner-sub {
+  display: block;
+  margin-top: 0.65rem;
+  font-size: 0.8125rem;
+  color: #c4c8d4;
 }
 
 .studio-retry {

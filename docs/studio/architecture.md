@@ -70,6 +70,7 @@ Adding `apps/studio-worker` is deferred until implementation; the docs describe 
 - **Optional LAN:** worker binds to localhost or LAN for a single-team setup.
 - **Static site + API split:** The Vite app (`apps/web`) can be deployed to **Vercel**, **Netlify**, **Cloudflare Pages**, or any static host. That host does **not** run the worker or store SQLite — set `VITE_STUDIO_API_URL` to your worker’s public URL. The worker runs on a **VM, container, or bare metal** where `output/*.sqlite` and `output/jobs/` live on a **persistent disk** (serverless functions cannot replace the worker without architectural changes).
 - **Horizontal scale (optional):** Multiple API replicas can set **`DATABASE_URL`** plus **`STUDIO_TENANTS_BACKEND=postgres`**, **`STUDIO_QUEUE_BACKEND=postgres`** (DB polling + `SKIP LOCKED`), **`STUDIO_QUEUE_BACKEND=redis`** (managed Redis: **`STUDIO_REDIS_QUEUE_ENGINE=zset`** or **`streams`** / `XREADGROUP`), or **`STUDIO_QUEUE_BACKEND=sqs`** (SQS long-poll + Postgres for queue rows). Use **`STUDIO_JOB_ARTIFACTS`** (`s3` / `r2` / `vercel_blob`) for remote zips. Details: [essentials.md](./essentials.md) §1b and [apps/studio-worker/README.md](../../apps/studio-worker/README.md).
+- **Cloudflare edge (Workers, R2, D1, KV):** the Python worker stays on a compute host for Blender/Comfy/long jobs; R2 is already supported for artifacts; Workers/KV/D1 fit a **gateway + cache + new edge-only** layer — see [cloudflare-edge-and-storage.md](./cloudflare-edge-and-storage.md).
 
 ## Technology choices (defaults)
 
