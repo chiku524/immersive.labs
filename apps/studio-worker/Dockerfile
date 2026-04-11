@@ -14,7 +14,8 @@ ARG BLENDER_DIR=blender-4.2.9-linux-x64
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     STUDIO_REPO_ROOT=/repo \
-    STUDIO_BLENDER_BIN=/usr/local/bin/blender
+    STUDIO_BLENDER_BIN=/usr/local/bin/blender \
+    STUDIO_EMBEDDED_QUEUE_WORKER=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

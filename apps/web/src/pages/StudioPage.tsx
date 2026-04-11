@@ -53,6 +53,41 @@ function formatApiDetail(detail: unknown): string {
   return "Request failed";
 }
 
+/** Parse JSON bodies; proxies often return HTML 502 pages which break `response.json()`. */
+async function readApiJson<T>(r: Response): Promise<T> {
+  const text = await r.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const t = text.trim();
+    const snippet = t.slice(0, 220).replace(/\s+/g, " ");
+    const html =
+      t.startsWith("<!") || t.toLowerCase().startsWith("<html")
+        ? " The response was HTML (typical of a gateway 502/504 or CDN timeout), not JSON."
+        : "";
+    throw new Error(`HTTP ${r.status}: invalid JSON.${html}${snippet ? ` Body: ${snippet}` : ""}`);
+  }
+}
+
+const STUDIO_QUEUE_POLL_MS = 2000;
+const STUDIO_QUEUE_MAX_WAIT_MS = 45 * 60 * 1000;
+
+type QueueJobRow = {
+  status: string;
+  last_error?: string | null;
+  result?: {
+    job_id?: string;
+    folder?: string;
+    manifest?: Record<string, unknown>;
+    spec?: Record<string, unknown>;
+    output_dir?: string;
+    zip_path?: string;
+    texture_logs?: string[];
+    mesh_logs?: string[];
+    errors?: string[];
+  } | null;
+};
+
 export function StudioPage() {
   const [prompt, setPrompt] = useState("");
   const [category, setCategory] = useState<StudioCategory>("prop");
@@ -118,16 +153,18 @@ export function StudioPage() {
     }
     setHealth("checking");
     fetch(`${STUDIO_API_BASE}/api/studio/health`)
-      .then((r) => {
+      .then(async (r) => {
         if (!r.ok) {
           setHealth("error");
           return;
         }
-        return r.json() as Promise<{ auth_required?: boolean }>;
-      })
-      .then((j) => {
-        setHealth("ok");
-        setAuthRequired(Boolean(j?.auth_required));
+        try {
+          const j = await readApiJson<{ auth_required?: boolean }>(r);
+          setHealth("ok");
+          setAuthRequired(Boolean(j?.auth_required));
+        } catch {
+          setHealth("error");
+        }
       })
       .catch(() => setHealth("error"));
   }, []);
@@ -137,7 +174,16 @@ export function StudioPage() {
       return;
     }
     fetch(`${STUDIO_API_BASE}/api/studio/usage`, { headers: authHeaders() })
-      .then((r) => (r.ok ? (r.json() as Promise<UsageInfo>) : null))
+      .then(async (r) => {
+        if (!r.ok) {
+          return null;
+        }
+        try {
+          return await readApiJson<UsageInfo>(r);
+        } catch {
+          return null;
+        }
+      })
       .then((u) => setUsage(u))
       .catch(() => setUsage(null));
   }, [authHeaders]);
@@ -147,7 +193,16 @@ export function StudioPage() {
       return;
     }
     fetch(`${STUDIO_API_BASE}/api/studio/billing/status`, { headers: authHeaders() })
-      .then((r) => (r.ok ? (r.json() as Promise<BillingStatus>) : null))
+      .then(async (r) => {
+        if (!r.ok) {
+          return null;
+        }
+        try {
+          return await readApiJson<BillingStatus>(r);
+        } catch {
+          return null;
+        }
+      })
       .then((b) => setBilling(b))
       .catch(() => setBilling(null));
   }, [authHeaders]);
@@ -158,7 +213,13 @@ export function StudioPage() {
       return;
     }
     fetch(`${STUDIO_API_BASE}/api/studio/comfy-status`)
-      .then((r) => r.json() as Promise<{ reachable: boolean; url: string; detail: string | null }>)
+      .then(async (r) => {
+        try {
+          return await readApiJson<{ reachable: boolean; url: string; detail: string | null }>(r);
+        } catch {
+          return { reachable: false, url: "", detail: "request failed" };
+        }
+      })
       .then(setComfy)
       .catch(() => setComfy({ reachable: false, url: "", detail: "request failed" }));
   }, []);
@@ -169,7 +230,13 @@ export function StudioPage() {
       return;
     }
     fetch(`${STUDIO_API_BASE}/api/studio/jobs`, { headers: authHeaders() })
-      .then((r) => r.json() as Promise<{ jobs: JobSummary[]; jobs_root?: string }>)
+      .then(async (r) => {
+        try {
+          return await readApiJson<{ jobs: JobSummary[]; jobs_root?: string }>(r);
+        } catch {
+          return { jobs: [] as JobSummary[] };
+        }
+      })
       .then((data) => {
         setJobs(data.jobs ?? []);
         if (data.jobs_root) {
@@ -224,7 +291,11 @@ export function StudioPage() {
           mock,
         }),
       });
-      const data = (await r.json()) as { detail?: unknown; spec?: Record<string, unknown>; meta?: Record<string, unknown> };
+      const data = await readApiJson<{
+        detail?: unknown;
+        spec?: Record<string, unknown>;
+        meta?: Record<string, unknown>;
+      }>(r);
       if (!r.ok) {
         throw new Error(formatApiDetail(data.detail));
       }
@@ -257,11 +328,11 @@ export function StudioPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ spec, output_name: outputName }),
       });
-      const data = (await r.json()) as {
+      const data = await readApiJson<{
         detail?: unknown;
         manifest?: { job_id: string };
         output_dir?: string;
-      };
+      }>(r);
       if (!r.ok) {
         throw new Error(formatApiDetail(data.detail));
       }
@@ -286,7 +357,13 @@ export function StudioPage() {
     setPackResult(null);
     setJobResult(null);
     try {
-      const r = await fetch(`${STUDIO_API_BASE}/api/studio/jobs/run`, {
+      // Enqueue + poll: Cloudflare Worker → origin fetch times out on long synchronous /jobs/run
+      // (textures + mesh). Short requests stay under proxy limits.
+      const idem =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `web-${Date.now()}`;
+      const enqRes = await fetch(`${STUDIO_API_BASE}/api/studio/queue/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
@@ -296,29 +373,55 @@ export function StudioPage() {
           mock,
           generate_textures: generateTextures,
           export_mesh: exportMesh,
+          unity_urp_hint: "6000.0.x LTS (pin when smoke-tested)",
+          max_attempts: 3,
+          idempotency_key: idem,
         }),
       });
-      const data = (await r.json()) as {
-        detail?: unknown;
-        job_id?: string;
-        zip_path?: string;
-        errors?: string[];
-        texture_logs?: string[];
-        mesh_logs?: string[];
-        spec?: Record<string, unknown>;
-      };
-      if (!r.ok) {
-        throw new Error(formatApiDetail(data.detail));
+      const enq = await readApiJson<{ queue_id?: string; detail?: unknown }>(enqRes);
+      if (!enqRes.ok) {
+        throw new Error(formatApiDetail(enq.detail));
       }
-      setSpec(data.spec ?? null);
-      setJobResult({
-        job_id: data.job_id ?? "?",
-        zip_path: data.zip_path ?? "",
-        errors: data.errors ?? [],
-        texture_logs: data.texture_logs ?? [],
-        mesh_logs: data.mesh_logs ?? [],
-      });
-      refreshJobs();
+      const queueId = enq.queue_id;
+      if (!queueId) {
+        throw new Error("Enqueue response missing queue_id");
+      }
+
+      const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
+      let lastStatus = "unknown";
+      while (Date.now() < deadline) {
+        const pr = await fetch(`${STUDIO_API_BASE}/api/studio/queue/jobs/${queueId}`, {
+          headers: authHeaders(),
+        });
+        const row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
+        if (!pr.ok) {
+          throw new Error(formatApiDetail(row.detail));
+        }
+        lastStatus = row.status;
+        if (row.status === "completed") {
+          const data = row.result;
+          if (!data) {
+            throw new Error("Job completed without result payload");
+          }
+          setSpec(data.spec ?? null);
+          setJobResult({
+            job_id: data.job_id ?? "?",
+            zip_path: data.zip_path ?? "",
+            errors: data.errors ?? [],
+            texture_logs: data.texture_logs ?? [],
+            mesh_logs: data.mesh_logs ?? [],
+          });
+          refreshJobs();
+          return;
+        }
+        if (row.status === "dead") {
+          throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
+        }
+        await new Promise((res) => window.setTimeout(res, STUDIO_QUEUE_POLL_MS));
+      }
+      throw new Error(
+        `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -337,7 +440,7 @@ export function StudioPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ tier }),
       });
-      const data = (await r.json()) as { url?: string; detail?: unknown };
+      const data = await readApiJson<{ url?: string; detail?: unknown }>(r);
       if (!r.ok) {
         throw new Error(formatApiDetail(data.detail));
       }
@@ -359,7 +462,7 @@ export function StudioPage() {
         method: "POST",
         headers: authHeaders(),
       });
-      const data = (await r.json()) as { url?: string; detail?: unknown };
+      const data = await readApiJson<{ url?: string; detail?: unknown }>(r);
       if (!r.ok) {
         throw new Error(formatApiDetail(data.detail));
       }

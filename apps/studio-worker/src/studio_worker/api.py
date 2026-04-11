@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -39,6 +40,7 @@ from studio_worker.sqlite_queue import (
     get_queue_job,
     init_schema as init_queue_schema,
     list_queue_jobs,
+    run_worker_loop,
 )
 from studio_worker.billing_config import stripe_webhook_secret
 from studio_worker.billing_routes import router as billing_router
@@ -67,10 +69,34 @@ def _cors_allow_origins() -> list[str]:
     ]
 
 
+def _embedded_queue_worker_enabled() -> bool:
+    """
+    When true, a daemon thread runs the SQLite/Redis/Postgres queue consumer inside the API process.
+    Default ON for sqlite-only deployments (single Docker container on GCE). Set STUDIO_EMBEDDED_QUEUE_WORKER=0
+    if you run a dedicated `immersive-studio queue-worker` process.
+    """
+    raw = os.environ.get("STUDIO_EMBEDDED_QUEUE_WORKER", "").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    return queue_backend() == "sqlite"
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     tenants_db.init_tenants_schema()
     init_queue_schema()
+    if _embedded_queue_worker_enabled():
+
+        def _consume_queue() -> None:
+            run_worker_loop(worker_id="api-embedded", poll_interval_s=1.0)
+
+        threading.Thread(
+            target=_consume_queue,
+            name="studio-queue-consumer",
+            daemon=True,
+        ).start()
     yield
 
 
