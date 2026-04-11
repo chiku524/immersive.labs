@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from studio_worker.jobs_store import load_index, save_index
+from studio_worker.jobs_store import mutate_job_index
 from studio_worker.paths import job_pack_dir, jobs_root
 
 
@@ -47,28 +47,29 @@ def prune_oldest_jobs(*, max_count: int | None = None, max_total_bytes: int | No
     max_count = max_count if max_count is not None else max_jobs_count()
     max_total_bytes = max_total_bytes if max_total_bytes is not None else max_jobs_total_bytes()
 
-    data = load_index()
-    jobs: list[dict[str, Any]] = list(data.get("jobs", []))
-    removed: list[str] = []
+    def _prune(data: dict[str, Any]) -> list[str]:
+        jobs: list[dict[str, Any]] = list(data.get("jobs", []))
+        removed: list[str] = []
 
-    def delete_last() -> None:
-        if not jobs:
-            return
-        old = jobs.pop()
-        folder = str(old.get("folder") or "")
-        if folder:
-            _delete_job_folder(folder)
-            removed.append(folder)
+        def delete_last() -> None:
+            if not jobs:
+                return
+            old = jobs.pop()
+            folder = str(old.get("folder") or "")
+            if folder:
+                _delete_job_folder(folder)
+                removed.append(folder)
 
-    while len(jobs) > max_count:
-        delete_last()
+        while len(jobs) > max_count:
+            delete_last()
 
-    while jobs and jobs_total_bytes() > max_total_bytes:
-        delete_last()
+        while jobs and jobs_total_bytes() > max_total_bytes:
+            delete_last()
 
-    data["jobs"] = jobs
-    save_index(data)
-    return removed
+        data["jobs"] = jobs
+        return removed
+
+    return mutate_job_index(_prune)
 
 
 def enforce_quota_before_new_job() -> None:

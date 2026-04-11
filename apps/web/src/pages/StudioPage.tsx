@@ -262,13 +262,15 @@ export function StudioPage() {
     refreshJobs();
     refreshUsage();
     refreshBilling();
+    // Full jobs (textures + mesh) saturate a small VM; fewer concurrent polls reduces pressure on tunnel/origin.
+    const pollMs = jobLoading ? 30_000 : 5000;
     const t = window.setInterval(() => {
       refreshJobs();
       refreshUsage();
       refreshBilling();
-    }, 5000);
+    }, pollMs);
     return () => window.clearInterval(t);
-  }, [refreshBilling, refreshJobs, refreshUsage]);
+  }, [refreshBilling, refreshJobs, refreshUsage, jobLoading]);
 
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();

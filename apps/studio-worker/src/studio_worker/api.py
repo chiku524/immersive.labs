@@ -146,7 +146,7 @@ class MetricsResponse(BaseModel):
 
 
 @app.get("/api/studio/health", response_model=HealthResponse)
-def health() -> HealthResponse:
+async def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         auth_required=api_auth_required(),

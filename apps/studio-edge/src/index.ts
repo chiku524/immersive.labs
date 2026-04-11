@@ -150,6 +150,46 @@ async function proxyToOrigin(request: Request, env: Env): Promise<Response> {
   return fetch(new Request(target, init));
 }
 
+/**
+ * Cloudflare / tunnel often answer 5xx with an HTML error page. The /studio UI expects JSON;
+ * rewrite so readApiJson shows a structured detail instead of "Unexpected token '<'".
+ */
+async function coerceJsonForStudioApiHtmlErrors(
+  request: Request,
+  proxied: Response,
+): Promise<Response> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/studio/")) {
+    return proxied;
+  }
+  if (proxied.status < 500 || proxied.status > 599) {
+    return proxied;
+  }
+  const ct = (proxied.headers.get("content-type") || "").toLowerCase();
+  if (!ct.includes("text/html") && !ct.includes("text/plain")) {
+    return proxied;
+  }
+  const text = await proxied.text();
+  const t = text.trimStart();
+  if (!t.startsWith("<!") && !t.toLowerCase().startsWith("<html")) {
+    return new Response(text, {
+      status: proxied.status,
+      statusText: proxied.statusText,
+      headers: proxied.headers,
+    });
+  }
+  const body = JSON.stringify({
+    detail:
+      "Gateway or tunnel returned HTML instead of JSON (origin unreachable, overloaded, or timed out).",
+    gateway_status: proxied.status,
+  });
+  return new Response(body, {
+    status: proxied.status,
+    statusText: proxied.statusText,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
 async function cachedHealth(request: Request, env: Env): Promise<Response | null> {
   const kv = env.STUDIO_KV;
   if (!kv) {
@@ -235,7 +275,8 @@ export default {
         return fetchAndStoreHealth(request, env, env.STUDIO_KV);
       }
       const proxied = await proxyToOrigin(request, env);
-      return mergeCors(request, proxied, allowed);
+      const normalized = await coerceJsonForStudioApiHtmlErrors(request, proxied);
+      return mergeCors(request, normalized, allowed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const o = pickAllowOrigin(request, allowed);

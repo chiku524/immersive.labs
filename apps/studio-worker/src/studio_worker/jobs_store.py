@@ -4,12 +4,17 @@ import json
 import os
 import re
 import shutil
+import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 from studio_worker.paths import job_pack_dir, jobs_root
+
+_index_lock = threading.RLock()
+
+T = TypeVar("T")
 
 
 def _index_path() -> Path:
@@ -22,7 +27,7 @@ def utc_now_iso() -> str:
     return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def load_index() -> dict[str, Any]:
+def _load_index_unlocked() -> dict[str, Any]:
     path = _index_path()
     if not path.is_file():
         return {"jobs": []}
@@ -35,9 +40,31 @@ def load_index() -> dict[str, Any]:
     return data
 
 
-def save_index(data: dict[str, Any]) -> None:
+def _save_index_unlocked(data: dict[str, Any]) -> None:
     path = _index_path()
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def load_index() -> dict[str, Any]:
+    with _index_lock:
+        return _load_index_unlocked()
+
+
+def save_index(data: dict[str, Any]) -> None:
+    with _index_lock:
+        _save_index_unlocked(data)
+
+
+def mutate_job_index(mutator: Callable[[dict[str, Any]], T]) -> T:
+    """
+    Read index.json, run mutator (in-place edits to the dict), write back, all under one lock.
+    Used by quota pruning so load/save cannot interleave with register_job_entry / list_jobs.
+    """
+    with _index_lock:
+        data = _load_index_unlocked()
+        out = mutator(data)
+        _save_index_unlocked(data)
+        return out
 
 
 def new_job_folder_name(job_id: str) -> str:
@@ -75,19 +102,20 @@ def register_job_entry(
         entry["pack_zip_url"] = pack_zip_url
     if pack_artifacts_backend:
         entry["pack_artifacts_backend"] = pack_artifacts_backend
-    data = load_index()
-    jobs: list[dict[str, Any]] = data["jobs"]
-    jobs.insert(0, entry)
-    max_keep = max(1, int(os.environ.get("STUDIO_JOBS_MAX_COUNT", "200")))
-    if len(jobs) > max_keep:
-        dropped = jobs[max_keep:]
-        for old in dropped:
-            f = str(old.get("folder") or "")
-            if f:
-                shutil.rmtree(job_pack_dir(f), ignore_errors=True)
-        jobs = jobs[:max_keep]
-    data["jobs"] = jobs
-    save_index(data)
+    with _index_lock:
+        data = _load_index_unlocked()
+        jobs: list[dict[str, Any]] = data["jobs"]
+        jobs.insert(0, entry)
+        max_keep = max(1, int(os.environ.get("STUDIO_JOBS_MAX_COUNT", "200")))
+        if len(jobs) > max_keep:
+            dropped = jobs[max_keep:]
+            for old in dropped:
+                f = str(old.get("folder") or "")
+                if f:
+                    shutil.rmtree(job_pack_dir(f), ignore_errors=True)
+            jobs = jobs[:max_keep]
+        data["jobs"] = jobs
+        _save_index_unlocked(data)
     return entry
 
 
@@ -110,7 +138,8 @@ def list_jobs(
     tenant_id: str | None = None,
     include_legacy_unscoped: bool = False,
 ) -> list[dict[str, Any]]:
-    jobs: list[dict[str, Any]] = list(load_index().get("jobs", []))
+    with _index_lock:
+        jobs: list[dict[str, Any]] = list(_load_index_unlocked().get("jobs", []))
     if tenant_id is None:
         return jobs
     out: list[dict[str, Any]] = []
@@ -129,15 +158,11 @@ def get_job_record(
     tenant_id: str | None = None,
     include_legacy_unscoped: bool = False,
 ) -> dict[str, Any] | None:
-    for j in list_jobs():
-        if j.get("job_id") != job_id:
-            continue
-        tid = j.get("tenant_id")
-        if tenant_id is None:
-            return j
-        if tid == tenant_id:
-            return j
-        if include_legacy_unscoped and tid is None:
+    for j in list_jobs(
+        tenant_id=tenant_id,
+        include_legacy_unscoped=include_legacy_unscoped,
+    ):
+        if j.get("job_id") == job_id:
             return j
     return None
 
@@ -148,15 +173,11 @@ def find_job_folder(
     tenant_id: str | None = None,
     include_legacy_unscoped: bool = False,
 ) -> str | None:
-    for j in list_jobs():
-        if j.get("job_id") != job_id:
-            continue
-        tid = j.get("tenant_id")
-        if tenant_id is None:
-            return str(j.get("folder") or "")
-        if tid == tenant_id:
-            return str(j.get("folder") or "")
-        if include_legacy_unscoped and tid is None:
+    for j in list_jobs(
+        tenant_id=tenant_id,
+        include_legacy_unscoped=include_legacy_unscoped,
+    ):
+        if j.get("job_id") == job_id:
             return str(j.get("folder") or "")
     return None
 
