@@ -1,6 +1,6 @@
 # Immersive Studio Import (Unity)
 
-UPM-style package for importing **Video Game Generation Studio** output folders into a Unity project.
+UPM-style package for importing **Video Game Generation Studio** output folders into a Unity project. End-user pipeline overview: **`/docs`** on the marketing site (`apps/web`).
 
 ## Install
 

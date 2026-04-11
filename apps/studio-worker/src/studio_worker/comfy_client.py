@@ -12,10 +12,16 @@ class ComfyUIError(RuntimeError):
     pass
 
 
+# Default when STUDIO_COMFY_URL is unset: hosted ComfyUI (Immersive Labs). Override with
+# STUDIO_COMFY_URL=http://127.0.0.1:8188 for a local ComfyUI, or http://127.0.0.1:8188 on the
+# worker VM when ComfyUI runs on the same machine (see GCE instance metadata).
+DEFAULT_COMFY_BASE_URL = "https://comfy.immersivelabs.space"
+
+
 def comfy_base_url() -> str:
     import os
 
-    return os.environ.get("STUDIO_COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
+    return os.environ.get("STUDIO_COMFY_URL", DEFAULT_COMFY_BASE_URL).rstrip("/")
 
 
 def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:

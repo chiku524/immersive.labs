@@ -24,6 +24,9 @@
     $env:CLOUDFLARE_API_TOKEN = 'your_token'
     .\setup-cloudflare-dns-for-studio.ps1
 
+    # ComfyUI hostname (same tunnel id): same token, different -ApiHost
+    .\setup-cloudflare-dns-for-studio.ps1 -ApiHost comfy
+
     .\setup-cloudflare-dns-for-studio.ps1 -ApiToken 'your_token' -WhatIf
 
 #>

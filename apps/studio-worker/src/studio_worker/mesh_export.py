@@ -24,7 +24,7 @@ def resolve_blender_executable() -> str | None:
         w = shutil.which(override)
         if w:
             return w
-        return override
+        # Ignore stale or wrong STUDIO_BLENDER_BIN (e.g. old image); fall through to PATH / defaults.
 
     for name in ("blender", "blender.exe"):
         w = shutil.which(name)
@@ -42,6 +42,12 @@ def resolve_blender_executable() -> str | None:
         mac = Path("/Applications/Blender.app/Contents/MacOS/Blender")
         if mac.is_file():
             return str(mac)
+
+    # Linux (Docker / GCE): distro packages and common install paths
+    if sys.platform.startswith("linux"):
+        for p in ("/usr/bin/blender", "/usr/local/bin/blender"):
+            if Path(p).is_file():
+                return p
 
     return None
 

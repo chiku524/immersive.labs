@@ -18,7 +18,9 @@ def test_run_blender_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     spec = tmp_path / "spec.json"
     spec.write_text('{"asset_id": "test_crate", "target_height_m": 1}', encoding="utf-8")
     out_glb = tmp_path / "out.glb"
-    monkeypatch.setenv("STUDIO_BLENDER_BIN", "/fake/blender")
+    fake_blender = tmp_path / "blender_stub"
+    fake_blender.write_bytes(b"")
+    monkeypatch.setenv("STUDIO_BLENDER_BIN", str(fake_blender))
 
     def run_side_effect(cmd: list[str], **kwargs: object) -> MagicMock:
         out_i = cmd.index("--output") + 1
@@ -42,7 +44,9 @@ def test_try_export_pack_integration(monkeypatch: pytest.MonkeyPatch, tmp_path: 
         '{"asset_id": "prop_01", "target_height_m": 1.2}',
         encoding="utf-8",
     )
-    monkeypatch.setenv("STUDIO_BLENDER_BIN", "/fake/blender")
+    fake_blender = tmp_path / "blender_stub2"
+    fake_blender.write_bytes(b"")
+    monkeypatch.setenv("STUDIO_BLENDER_BIN", str(fake_blender))
 
     def run_side_effect(cmd: list[str], **kwargs: object) -> MagicMock:
         out_i = cmd.index("--output") + 1

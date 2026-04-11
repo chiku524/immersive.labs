@@ -108,8 +108,25 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
     return 0
 
 
+def _doctor_comfy_dns_hint(detail: str | None) -> None:
+    """Extra help when ComfyUI URL fails due to DNS (common on laptops without the public record)."""
+    if not detail:
+        return
+    dlow = detail.lower()
+    if (
+        "getaddrinfo" in dlow
+        or "name or service not known" in dlow
+        or "11001" in detail
+        or "errno 11001" in dlow
+    ):
+        print(
+            "  Hint: DNS could not resolve that host — the name may be missing in your DNS, or you are offline. "
+            "For ComfyUI on this machine only, use STUDIO_COMFY_URL=http://127.0.0.1:8188."
+        )
+
+
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    from studio_worker.comfy_client import comfy_reachability
+    from studio_worker.comfy_client import DEFAULT_COMFY_BASE_URL, comfy_reachability
     from studio_worker.mesh_export import resolve_blender_executable
 
     comfy_probe = (args.comfy_url or "").strip() or None
@@ -120,29 +137,34 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     else:
         print("not reachable")
         print(f"  Detail: {c.get('detail')}")
-        print("  Fix: start ComfyUI (default port 8188) or set STUDIO_COMFY_URL to its base URL.")
+        _doctor_comfy_dns_hint(c.get("detail"))
+        print(
+            "  Fix: set STUDIO_COMFY_URL to a reachable ComfyUI base URL (default when unset: "
+            f"{DEFAULT_COMFY_BASE_URL}), or run ComfyUI locally and use STUDIO_COMFY_URL=http://127.0.0.1:8188."
+        )
         print("  See: apps/studio-worker/comfy/README.md")
 
     b = resolve_blender_executable()
     print("Blender: ", end="")
     if b:
-        print(b)
+        print(f"{b} (mesh export)")
     else:
-        print("not found")
+        print("not found on this machine")
         print(
-            "  Fix: install Blender 3.x+ or set STUDIO_BLENDER_BIN to blender.exe "
-            "(Windows: often under Program Files\\Blender Foundation\\Blender *\\)."
+            "  Note: End users of the hosted service do not install Blender — it is bundled in the "
+            "studio-worker Docker image. For local mesh export, install Blender or set STUDIO_BLENDER_BIN."
         )
 
-    issues = 0
     if not c["reachable"]:
-        issues += 1
-    if not b:
-        issues += 1
-    if issues:
-        print(f"\n{issues} check(s) failed (full jobs need ComfyUI for textures + Blender for mesh export).")
+        print("\nComfyUI unreachable — texture jobs will fail until the URL above responds.")
         return 1
-    print("\nAll local toolchain checks passed.")
+    if args.strict and not b:
+        print("\nStrict mode: Blender required but not found (use default doctor without --strict for dev laptops).")
+        return 1
+    if not b:
+        print("\nComfyUI OK. Blender skipped (optional unless you pass --strict or enable mesh export on a host without Blender).")
+    else:
+        print("\nComfyUI and Blender OK for full jobs on this machine.")
     return 0
 
 
@@ -260,12 +282,17 @@ def main() -> None:
 
     doc = sub.add_parser(
         "doctor",
-        help="Verify ComfyUI and Blender are reachable for full jobs (textures + mesh export)",
+        help="Verify ComfyUI is reachable (required). Blender is optional unless --strict.",
     )
     doc.add_argument(
         "--comfy-url",
         default="",
-        help="Override ComfyUI base URL for this check (default: STUDIO_COMFY_URL or http://127.0.0.1:8188)",
+        help="Override ComfyUI base URL (default: STUDIO_COMFY_URL or hosted default)",
+    )
+    doc.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also require Blender on PATH (for CI or full local toolchain checks)",
     )
     doc.set_defaults(func=_cmd_doctor)
 

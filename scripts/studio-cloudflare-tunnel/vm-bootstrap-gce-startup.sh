@@ -84,11 +84,19 @@ if [[ -z "${CORS}" ]]; then
   exit 0
 fi
 
+# ComfyUI HTTP API (textures). The worker runs INSIDE Docker: http://127.0.0.1:8188 is the *container*
+# loopback, NOT the VM host — use the public URL (tunnel → host:8188) unless ComfyUI is in the same
+# container network. Default matches studio_worker (https://comfy.immersivelabs.space). Override via
+# instance metadata STUDIO_COMFY_URL (e.g. http://host.docker.internal:8188 if you add --add-host).
+COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
+COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
+
 docker stop studio-worker 2>/dev/null || true
 docker rm studio-worker 2>/dev/null || true
 docker run -d --name studio-worker --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
   -e STUDIO_CORS_ORIGINS="${CORS}" \
+  -e STUDIO_COMFY_URL="${COMFY_URL}" \
   -v studio-output:/repo/apps/studio-worker/output \
   immersive-studio-worker:local
 

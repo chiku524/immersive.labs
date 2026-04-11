@@ -75,7 +75,7 @@ If the worker URL is wrong or the worker is down, the `/studio` page shows a hea
 |----------|---------|
 | `STUDIO_REPO_ROOT` | Monorepo root (auto-detected if unset) |
 | `STUDIO_OLLAMA_URL` / `STUDIO_OLLAMA_MODEL` | LLM for spec generation |
-| `STUDIO_COMFY_URL` / `STUDIO_COMFY_CHECKPOINT` / `STUDIO_COMFY_PROFILE` | ComfyUI (`sd15` / `sdxl`) |
+| `STUDIO_COMFY_URL` / `STUDIO_COMFY_CHECKPOINT` / `STUDIO_COMFY_PROFILE` | ComfyUI (`sd15` / `sdxl`). **When unset, defaults to `https://comfy.immersivelabs.space`.** If the worker runs **in Docker** and ComfyUI on the **host**, do **not** use `http://127.0.0.1:8188` (that is the container, not the host) — use the **public HTTPS URL** or `http://host.docker.internal:8188` with Docker’s host gateway. For ComfyUI on the **same machine as the Python process** (no Docker), `http://127.0.0.1:8188` is fine. |
 | `STUDIO_TEXTURE_MAX_IMAGES` | Cap ComfyUI images per job |
 | `STUDIO_JOBS_MAX_COUNT` / `STUDIO_JOBS_MAX_TOTAL_BYTES` | Job store quotas |
 | `STUDIO_API_AUTH_REQUIRED` | `1` → API keys + tenant isolation |

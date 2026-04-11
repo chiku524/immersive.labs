@@ -1,5 +1,7 @@
 # ComfyUI integration
 
+**Operator overview (deploy, URLs, checkpoints):** see **`/docs`** on the marketing site (`apps/web`) and **`docs/studio/essentials.md`** in the monorepo.
+
 The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` endpoint) under **`studio_worker/comfy_workflows/`** in the Python package (bundled in the PyPI wheel).
 
 | File | Profile | Notes |
@@ -9,13 +11,13 @@ The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` e
 
 ## Requirements
 
-1. Run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) locally (default URL `http://127.0.0.1:8188`).
+1. Run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and ensure the worker can reach its HTTP API. Local default: `http://127.0.0.1:8188`. Production (Immersive Labs): set `STUDIO_COMFY_URL=https://comfy.immersivelabs.space` on the studio worker.
 2. Install a matching checkpoint into ComfyUI’s `models/checkpoints` folder.
 3. Point the worker at your checkpoint name:
 
 | Env var | Default (sd15) | Default (sdxl) |
 |---------|----------------|----------------|
-| `STUDIO_COMFY_URL` | `http://127.0.0.1:8188` | same |
+| `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (code default when unset) | `http://127.0.0.1:8188` for local / same-VM ComfyUI |
 | `STUDIO_COMFY_PROFILE` | `sd15` | set to `sdxl` |
 | `STUDIO_COMFY_CHECKPOINT` | `v1-5-pruned-emaonly.ckpt` | `sd_xl_base_1.0.safetensors` |
 

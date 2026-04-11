@@ -1,14 +1,23 @@
 # Build from monorepo root (paths expect apps/studio-worker + packages/studio-types):
 #   docker build -f apps/studio-worker/Dockerfile .
 #
-# Runtime: STUDIO_CORS_ORIGINS = comma-separated browser origins for /studio (Vercel + custom domain), e.g.:
-#   https://your-app.vercel.app,https://www.example.com
+# Runtime env (see apps/studio-worker/.env.example):
+#   STUDIO_CORS_ORIGINS — comma-separated browser origins for /studio
+#   STUDIO_COMFY_URL — ComfyUI base URL (default in code: https://comfy.immersivelabs.space; same-VM: http://127.0.0.1:8188)
+# Blender is installed below so mesh export works without end-user installs.
 
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    STUDIO_REPO_ROOT=/repo
+    STUDIO_REPO_ROOT=/repo \
+    STUDIO_BLENDER_BIN=/usr/bin/blender
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    blender \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /repo
 

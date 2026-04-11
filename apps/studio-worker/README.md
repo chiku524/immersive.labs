@@ -1,6 +1,6 @@
 # Immersive Studio (CLI + SDK)
 
-Publishable **PyPI** package **`immersive-studio`**: the **`immersive-studio`** terminal command, importable Python SDK **`immersive_studio`**, and the same **FastAPI** worker used by the **Video Game Generation Studio** (`/studio` in `@immersive/web`). Features include Ollama/mock spec generation, **ComfyUI** texture passes, optional **Blender** placeholder `.glb`, **Unity** pack layout (`manifest.json`, `spec.json`, `pack.zip`), and the **HTTP API**.
+Publishable **PyPI** package **`immersive-studio`**: the **`immersive-studio`** terminal command, importable Python SDK **`immersive_studio`**, and the same **FastAPI** worker used by the **Video Game Generation Studio** (`/studio` in `@immersive/web`). End-user orientation (deploy, ComfyUI, Blender, GCP + Cloudflare): **`/docs`** on the marketing site (`apps/web/src/pages/DocsPage.tsx`). Features include Ollama/mock spec generation, **ComfyUI** texture passes, optional **Blender** placeholder `.glb`, **Unity** pack layout (`manifest.json`, `spec.json`, `pack.zip`), and the **HTTP API**.
 
 ## Install (PyPI — like any other CLI)
 
@@ -108,15 +108,17 @@ Ensure [Ollama](https://ollama.com/) is running locally if you use LLM generatio
 ollama pull llama3.2
 ```
 
-For **texture generation**, run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (default `http://127.0.0.1:8188`) and install a checkpoint that matches `STUDIO_COMFY_CHECKPOINT`. See [`comfy/README.md`](./comfy/README.md).
+For **texture generation**, the worker calls ComfyUI at **`STUDIO_COMFY_URL`**. When unset, the default is **`https://comfy.immersivelabs.space`** (override with `http://127.0.0.1:8188` for local ComfyUI). Match `STUDIO_COMFY_CHECKPOINT` to a checkpoint on that host. See [`comfy/README.md`](./comfy/README.md).
 
-After installing ComfyUI and (for mesh export) [Blender](https://www.blender.org/), verify the worker can see both:
+**Why there is no `blender.immersivelabs.space`:** ComfyUI exposes an **HTTP API** (`/prompt`, `/system_stats`), so a public URL makes sense. Mesh export runs **Blender as a subprocess** on the worker host (`blender --background --python …`); it is not a remote URL. The **Docker image** installs Blender so operators do not rely on end-user installs. A future “remote Blender service” would need its own HTTP API — not the same knob as `STUDIO_COMFY_URL`.
+
+After installing ComfyUI and (optional, for local mesh) [Blender](https://www.blender.org/), verify the worker can reach ComfyUI:
 
 ```bash
 python -m studio_worker.cli doctor
 ```
 
-Exit code `0` means ComfyUI answered at `STUDIO_COMFY_URL` (default `http://127.0.0.1:8188`) and Blender was resolved (PATH, `STUDIO_BLENDER_BIN`, or a standard Windows/macOS install path). Use `python -m studio_worker.cli doctor --comfy-url http://host:8188` to probe a different URL once.
+Exit code `0` means ComfyUI answered at `STUDIO_COMFY_URL` (default when unset: **`https://comfy.immersivelabs.space`**). **Blender is optional** unless you pass **`doctor --strict`** (CI / full local toolchain). The **Docker image** installs Blender for mesh export without end-user installs. Use `doctor --comfy-url …` to probe a URL once.
 
 To launch ComfyUI from a git checkout once dependencies are installed, set **`COMFYUI_ROOT`** and run [`scripts/start-comfyui-dev.sh`](./scripts/start-comfyui-dev.sh) or [`scripts/start-comfyui-dev.ps1`](./scripts/start-comfyui-dev.ps1) (listens on `127.0.0.1:8188`).
 
@@ -227,7 +229,7 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
-| `STUDIO_COMFY_URL` | `http://127.0.0.1:8188` | ComfyUI server |
+| `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |
 | `STUDIO_COMFY_PROFILE` | `sd15` | `sd15` or `sdxl` (selects workflow + latent size) |
 | `STUDIO_COMFY_CHECKPOINT` | profile-specific | Checkpoint **file name** as shown in ComfyUI |
 | `STUDIO_TEXTURE_MAX_IMAGES` | `32` | Cap variant×slot ComfyUI renders per job (albedo/normal/orm) |

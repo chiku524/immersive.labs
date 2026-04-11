@@ -11,7 +11,7 @@
 1. [What this platform is](#what-this-platform-is)
 2. [Monorepo layout](#monorepo-layout)
 3. [Local development (quick path)](#local-development-quick-path)
-4. [Web application](#web-application)
+4. [Web application](#web-application) (includes **`/docs`** hub)
 5. [Studio UI](#studio-ui)
 6. [Python worker](#python-worker)
 7. [HTTP API reference](#http-api-reference)
@@ -81,10 +81,11 @@ The worker and the static site are **separate deployables**: the UI does not emb
 
 - **Stack:** Vite + React (`@immersive/web`).
 - **Studio API base URL:** **`VITE_STUDIO_API_URL`** — must match where **`immersive-studio serve`** (or production worker) is reachable. Wrong URL → health errors in `/studio`.
+- **Documentation hub:** **`/docs`** — semantic, operator-oriented overview (quick start, worker, ComfyUI, Blender, GCP + Cloudflare Tunnel, Unity pointers). Source: `apps/web/src/pages/DocsPage.tsx`. Keep in sync when behavior or deploy paths change.
 - **Build output:** static files suitable for **Vercel**, Netlify, Cloudflare Pages, or any static host.
 - **CORS:** worker allows origins from **`STUDIO_CORS_ORIGINS`** (comma-separated or `*` for dev-only caution).
 
-The marketing site and `/studio` share the same app; routing is client-side (Vite SPA).
+The marketing site, **`/studio`**, and **`/docs`** share the same app; routing is client-side (Vite SPA). **`vercel.json`** rewrites unknown paths to **`index.html`** so deep links work.
 
 ---
 
@@ -284,8 +285,10 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 
 | Document | What you get |
 |----------|----------------|
+| **Web `/docs`** (see [Web application](#web-application)) | User-facing hub: overview, deploy, ComfyUI, Blender, Unity — **apps/web** |
 | **This manual** | End-to-end platform map + TOC |
 | [essentials.md](./essentials.md) | Operator “single sheet”: storage, env highlights, Blender, Unity, API surface |
+| [scripts/studio-cloudflare-tunnel/README.md](../../scripts/studio-cloudflare-tunnel/README.md) | GCE + Cloudflare script index, `STUDIO_COMFY_URL` notes |
 | [architecture.md](./architecture.md) | Components, data flow, scale options |
 | [README.md](./README.md) | Short planning folder intro + doc map |
 | [vision-and-scope.md](./vision-and-scope.md) | Goals and non-goals |

@@ -50,6 +50,17 @@ docker run -d --name studio-worker --restart unless-stopped \
 
 9. On the VM, verify: **`curl -sS http://127.0.0.1:8787/api/studio/health`**
 
+### ComfyUI and `STUDIO_COMFY_URL` (textures)
+
+The worker calls ComfyUI’s HTTP API at **`STUDIO_COMFY_URL`** (no trailing slash). **Important for same-VM setups:**
+
+- If the worker runs **inside Docker** and ComfyUI runs on the **VM host** (typical), **do not** set `STUDIO_COMFY_URL=http://127.0.0.1:8188` — that is the container’s own loopback and will get **connection refused**. Use **`https://comfy.immersivelabs.space`** (tunnel to host `127.0.0.1:8188`) or **`http://host.docker.internal:8188`** with `docker run --add-host=host.docker.internal:host-gateway`. The GCE startup script now defaults to the **HTTPS** public URL.
+- Add a **second tunnel public hostname** (e.g. **`comfy.yourdomain.com`**) → **`http://127.0.0.1:8188`** only if you need **external** HTTPS access to ComfyUI; that is separate from the worker’s loopback URL.
+- The GCE startup script [`vm-bootstrap-gce-startup.sh`](../../scripts/studio-cloudflare-tunnel/vm-bootstrap-gce-startup.sh) reads **`STUDIO_COMFY_URL`** from instance metadata (default **`http://127.0.0.1:8188`** when unset). Set metadata or recreate the container after changes.
+- Script index and tunnel notes: [`scripts/studio-cloudflare-tunnel/README.md`](../../scripts/studio-cloudflare-tunnel/README.md).
+
+**User-facing summary:** the deployed site includes **`/docs`** (`apps/web`) describing this split (loopback vs public hostname).
+
 ### Cloudflare Tunnel
 
 10. In [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → **Create tunnel**.

@@ -414,6 +414,7 @@ export function StudioPage() {
             <Link to="/studio" className="nav-active">
               Game studio
             </Link>
+            <Link to="/docs">Docs</Link>
           </nav>
         </header>
 
@@ -423,9 +424,10 @@ export function StudioPage() {
           <p className="studio-lede">
             Generate a validated <code>StudioAssetSpec</code>, run a full persisted <strong>job</strong> (pack + zip +
             index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in Unity via{" "}
-            <code>packages/studio-unity</code>. Operator reference: monorepo{" "}
-            <code className="studio-code-inline">docs/studio/essentials.md</code> (pipeline, env, queue idempotency,
-            Blender CI).
+            <code>packages/studio-unity</code>. Start with the on-site{" "}
+            <Link to="/docs">documentation hub</Link> (overview, deployment, ComfyUI, Blender, Unity); deep reference:{" "}
+            <code className="studio-code-inline">docs/studio/essentials.md</code> and{" "}
+            <code className="studio-code-inline">docs/studio/platform-manual.md</code>.
           </p>
           <p className="studio-cli-hint">
             Install the open-source CLI from{" "}
@@ -566,8 +568,9 @@ export function StudioPage() {
               {!comfy.reachable ? (
                 <span className="studio-comfy-hint">
                   {" "}
-                  (optional — only required if you enable <strong>Generate albedo textures</strong>. On the worker VM,
-                  run ComfyUI on port 8188 or set <code>STUDIO_COMFY_URL</code>.)
+                  (optional — only required if you enable <strong>Generate albedo textures</strong>. Set{" "}
+                  <code>STUDIO_COMFY_URL</code> on the worker to your ComfyUI base URL, e.g.{" "}
+                  <code>https://comfy.immersivelabs.space</code>, or run ComfyUI locally on port 8188.)
                 </span>
               ) : null}
               <button type="button" className="studio-retry" onClick={refreshComfy}>

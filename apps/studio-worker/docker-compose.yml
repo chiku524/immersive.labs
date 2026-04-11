@@ -2,7 +2,10 @@
 #   docker compose -f apps/studio-worker/docker-compose.yml up --build
 #
 # STUDIO_CORS_ORIGINS: comma-separated. Dev default below; production example:
-#   https://your-app.vercel.app,https://www.yourdomain.com
+#   https://immersivelabs.space,https://www.immersivelabs.space
+#
+# STUDIO_COMFY_URL: hosted ComfyUI for texture jobs. Override for local ComfyUI:
+#   STUDIO_COMFY_URL=http://127.0.0.1:8188 docker compose -f apps/studio-worker/docker-compose.yml up
 
 services:
   studio-worker:
@@ -12,6 +15,7 @@ services:
     ports:
       - "8787:8787"
     environment:
+      STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-https://comfy.immersivelabs.space}
       STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
     volumes:
       - studio_output:/repo/apps/studio-worker/output

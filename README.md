@@ -50,9 +50,13 @@ Use **mock mode** in the UI if Ollama is not running. Enable **Generate albedo t
 
 ## Studio documentation
 
+**On the deployed site:** open **`/docs`** for the documentation hub (overview, worker, ComfyUI, Blender, GCP + Cloudflare Tunnel, Unity) — source: [`apps/web/src/pages/DocsPage.tsx`](./apps/web/src/pages/DocsPage.tsx).
+
 **Full platform manual (table of contents, deployment, APIs, scaling, links to all docs):** [docs/studio/platform-manual.md](./docs/studio/platform-manual.md)
 
 **Operational reference (packs, Blender, Unity, CI, env):** [docs/studio/essentials.md](./docs/studio/essentials.md)  
+
+**GCE + Cloudflare scripts index:** [scripts/studio-cloudflare-tunnel/README.md](./scripts/studio-cloudflare-tunnel/README.md)
 
 **Deploying the web app (e.g. Vercel):** the UI is static/build output; **SQLite and jobs live on the Python worker host**, not on Vercel — set `VITE_STUDIO_API_URL` to your worker. Details: [docs/studio/essentials.md](./docs/studio/essentials.md) (storage / Vercel subsection).
 
