@@ -19,6 +19,9 @@ routes = [
 [vars]
 # Milliseconds to treat cached health JSON as fresh (KV write uses 60s TTL).
 HEALTH_CACHE_TTL_MS = "5000"
+# Must cover every browser origin that calls the Worker (Authorization triggers preflight).
+# Keep in sync with GCE STUDIO_CORS_ORIGINS / apps/studio-worker.
+STUDIO_CORS_ORIGINS = "https://immersivelabs.vercel.app,https://www.immersivelabs.space,https://immersivelabs.space"
 
 [[kv_namespaces]]
 binding = "STUDIO_KV"

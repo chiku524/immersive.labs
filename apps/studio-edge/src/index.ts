@@ -1,6 +1,10 @@
 /**
  * Studio edge Worker: proxy all traffic to the Python studio API origin.
  * Optional KV binding `STUDIO_KV` caches GET /api/studio/health for a few seconds.
+ *
+ * CORS: upstream FastAPI sets ACAO when healthy, but 502/HTML error pages and Worker
+ * catch paths often omit it — browsers then report a CORS failure. We answer OPTIONS
+ * here and inject ACAO on responses when Origin is in STUDIO_CORS_ORIGINS.
  */
 
 const HEALTH_PATH = "/api/studio/health";
@@ -9,6 +13,8 @@ const HEALTH_KV_TTL_SECONDS = 60;
 
 export interface Env {
   ORIGIN_URL: string;
+  /** Comma-separated browser origins (scheme + host, no path). Mirrors STUDIO_CORS_ORIGINS on the Python worker. */
+  STUDIO_CORS_ORIGINS?: string;
   /** Milliseconds; optional wrangler var, default 5000 */
   HEALTH_CACHE_TTL_MS?: string;
   /** Optional — enable short-lived health cache */
@@ -31,6 +37,84 @@ function healthCacheTtlMs(env: Env): number {
   const raw = env.HEALTH_CACHE_TTL_MS ?? "5000";
   const n = Number.parseInt(String(raw), 10);
   return Number.isFinite(n) && n >= 0 ? Math.min(n, 60_000) : 5000;
+}
+
+/** Same shape as studio_worker.api._cors_allow_origins defaults + production marketing origins. */
+function parseCorsOrigins(env: Env): string[] {
+  const raw = (env.STUDIO_CORS_ORIGINS ?? "").trim();
+  if (raw === "*") {
+    return ["*"];
+  }
+  if (!raw) {
+    return [
+      "https://www.immersivelabs.space",
+      "https://immersivelabs.space",
+      "https://immersivelabs.vercel.app",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
+    ];
+  }
+  const out: string[] = [];
+  for (const o of raw.split(",")) {
+    const x = o.trim().replace(/\/$/, "");
+    if (x) {
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+function normalizeOrigin(origin: string | null): string {
+  return (origin ?? "").trim().replace(/\/$/, "");
+}
+
+function pickAllowOrigin(request: Request, allowed: string[]): string | null {
+  const origin = normalizeOrigin(request.headers.get("Origin"));
+  if (!origin) {
+    return null;
+  }
+  if (allowed.includes("*")) {
+    return "*";
+  }
+  return allowed.includes(origin) ? origin : null;
+}
+
+function corsPreflightHeaders(request: Request, allowOrigin: string): Headers {
+  const h = new Headers();
+  h.set("Access-Control-Allow-Origin", allowOrigin);
+  h.set("Access-Control-Allow-Credentials", "true");
+  h.set("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
+  const reqHdrs = request.headers.get("Access-Control-Request-Headers");
+  if (reqHdrs) {
+    h.set("Access-Control-Allow-Headers", reqHdrs);
+  } else {
+    h.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  }
+  h.set("Access-Control-Max-Age", "86400");
+  return h;
+}
+
+function mergeCors(request: Request, response: Response, allowed: string[]): Response {
+  const o = pickAllowOrigin(request, allowed);
+  if (!o || o === "*") {
+    return response;
+  }
+  const headers = new Headers(response.headers);
+  if (!headers.has("Access-Control-Allow-Origin")) {
+    headers.set("Access-Control-Allow-Origin", o);
+    headers.set("Access-Control-Allow-Credentials", "true");
+    const vary = headers.get("Vary");
+    if (!vary) {
+      headers.set("Vary", "Origin");
+    } else if (!vary.split(",").map((x) => x.trim()).includes("Origin")) {
+      headers.set("Vary", `${vary}, Origin`);
+    }
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /** Strip headers that should not be blindly forwarded to origin. */
@@ -85,12 +169,18 @@ async function cachedHealth(request: Request, env: Env): Promise<Response | null
   if (typeof entry.t !== "number" || Date.now() - entry.t > ttlMs) {
     return null;
   }
+  const allowed = parseCorsOrigins(env);
   const headers = new Headers({
     "Content-Type": "application/json",
     "X-Studio-Edge-Cache": "HIT",
   });
-  if (entry.acao) {
+  const o = pickAllowOrigin(request, allowed);
+  if (o) {
+    headers.set("Access-Control-Allow-Origin", o);
+    headers.set("Access-Control-Allow-Credentials", "true");
+  } else if (entry.acao) {
     headers.set("Access-Control-Allow-Origin", entry.acao);
+    headers.set("Access-Control-Allow-Credentials", "true");
   }
   return new Response(JSON.stringify(entry.body), { status: 200, headers });
 }
@@ -104,9 +194,11 @@ async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace):
   try {
     bodyJson = JSON.parse(text) as unknown;
   } catch {
+    const allowed = parseCorsOrigins(env);
     const out = new Headers(upstream.headers);
     out.set("X-Studio-Edge-Cache", "MISS");
-    return new Response(text, { status: upstream.status, statusText: upstream.statusText, headers: out });
+    const r = new Response(text, { status: upstream.status, statusText: upstream.statusText, headers: out });
+    return mergeCors(request, r, allowed);
   }
   const acao = upstream.headers.get("Access-Control-Allow-Origin");
   await kv.put(
@@ -114,13 +206,25 @@ async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace):
     JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
     { expirationTtl: HEALTH_KV_TTL_SECONDS },
   );
+  const allowed = parseCorsOrigins(env);
   const out = new Headers(upstream.headers);
   out.set("X-Studio-Edge-Cache", "MISS");
-  return new Response(JSON.stringify(bodyJson), { status: upstream.status, headers: out });
+  const r = new Response(JSON.stringify(bodyJson), { status: upstream.status, headers: out });
+  return mergeCors(request, r, allowed);
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const allowed = parseCorsOrigins(env);
+
+    if (request.method === "OPTIONS") {
+      const o = pickAllowOrigin(request, allowed);
+      if (!o) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 204, headers: corsPreflightHeaders(request, o) });
+    }
+
     try {
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === HEALTH_PATH && env.STUDIO_KV) {
@@ -130,12 +234,19 @@ export default {
         }
         return fetchAndStoreHealth(request, env, env.STUDIO_KV);
       }
-      return await proxyToOrigin(request, env);
+      const proxied = await proxyToOrigin(request, env);
+      return mergeCors(request, proxied, allowed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      const o = pickAllowOrigin(request, allowed);
+      const headers = new Headers({ "Content-Type": "application/json" });
+      if (o) {
+        headers.set("Access-Control-Allow-Origin", o);
+        headers.set("Access-Control-Allow-Credentials", "true");
+      }
       return new Response(JSON.stringify({ error: "studio-edge", detail: msg }), {
         status: 502,
-        headers: { "Content-Type": "application/json" },
+        headers,
       });
     }
   },
