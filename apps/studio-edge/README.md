@@ -100,6 +100,23 @@ This repo sets **`workers_dev = true`** and **`preview_urls = true`** in **`wran
 
 Production traffic still uses **`api.immersivelabs.space`** via the zone route; **`immersive-studio-edge.<subdomain>.workers.dev`** is optional for testing the Worker without custom DNS.
 
+## When `api.…` shows an old `worker_version` but the VM is updated
+
+Responses from the Worker include **`X-Studio-Edge-Origin-Host`** (hostname parsed from **`ORIGIN_URL`**, no path or secrets). Use it to confirm the edge is calling the intended origin (usually **`api-origin.immersivelabs.space`**, not **`api.…`** — that would be a fetch loop).
+
+If **`X-Studio-Edge-Origin-Host: api-origin.immersivelabs.space`** but the JSON **`worker_version`** is **older** than `curl http://127.0.0.1:8787/api/studio/health` on the VM:
+
+1. **Same tunnel, multiple connectors** — In [Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → your tunnel → **Connectors**, you should see **only** the host that should serve traffic (e.g. the GCE VM). A second laptop or old VM still running **`cloudflared`** with the same tunnel token will receive a share of requests; remove or stop stale connectors.
+2. **Remotely managed ingress** — If public hostnames are edited in the dashboard, they can **override** `/etc/cloudflared/config.yml` on the VM. Ensure **`api-origin.immersivelabs.space` → `http://127.0.0.1:8787`** (or the correct connector service) matches what you expect.
+3. **KV health cache** — After fixing origin, purge once:  
+   `npx wrangler kv key delete --remote --binding=STUDIO_KV studio:health:v1`
+
+**`ORIGIN_URL` secret:** must be the tunnel hostname (e.g. `https://api-origin.immersivelabs.space`), set with:
+
+```bash
+printf '%s' 'https://api-origin.immersivelabs.space' | npx wrangler secret put ORIGIN_URL
+```
+
 ## Deploy
 
 ```bash

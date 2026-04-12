@@ -33,6 +33,15 @@ function originBase(env: Env): string {
   return raw.replace(/\/$/, "");
 }
 
+/** Hostname only — helps verify Worker → origin wiring (see README / tunnel DNS). */
+function originHostname(env: Env): string {
+  try {
+    return new URL(originBase(env)).hostname;
+  } catch {
+    return "?";
+  }
+}
+
 function healthCacheTtlMs(env: Env): number {
   const raw = env.HEALTH_CACHE_TTL_MS ?? "5000";
   const n = Number.parseInt(String(raw), 10);
@@ -213,6 +222,7 @@ async function cachedHealth(request: Request, env: Env): Promise<Response | null
   const headers = new Headers({
     "Content-Type": "application/json",
     "X-Studio-Edge-Cache": "HIT",
+    "X-Studio-Edge-Origin-Host": originHostname(env),
   });
   const o = pickAllowOrigin(request, allowed);
   if (o) {
@@ -249,6 +259,7 @@ async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace):
   const allowed = parseCorsOrigins(env);
   const out = new Headers(upstream.headers);
   out.set("X-Studio-Edge-Cache", "MISS");
+  out.set("X-Studio-Edge-Origin-Host", originHostname(env));
   const r = new Response(JSON.stringify(bodyJson), { status: upstream.status, headers: out });
   return mergeCors(request, r, allowed);
 }
@@ -276,7 +287,16 @@ export default {
       }
       const proxied = await proxyToOrigin(request, env);
       const normalized = await coerceJsonForStudioApiHtmlErrors(request, proxied);
-      return mergeCors(request, normalized, allowed);
+      const withOriginHint = new Response(normalized.body, {
+        status: normalized.status,
+        statusText: normalized.statusText,
+        headers: (() => {
+          const h = new Headers(normalized.headers);
+          h.set("X-Studio-Edge-Origin-Host", originHostname(env));
+          return h;
+        })(),
+      });
+      return mergeCors(request, withOriginHint, allowed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const o = pickAllowOrigin(request, allowed);
