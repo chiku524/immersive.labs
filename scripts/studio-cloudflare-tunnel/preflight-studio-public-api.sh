@@ -11,10 +11,22 @@
 #   export CF_TUNNEL_ID='52513248-a776-4f3d-b6fb-7e17c3858b2b' # immersive-labs-studio-api
 #   bash scripts/studio-cloudflare-tunnel/preflight-studio-public-api.sh
 #
+# If repo-root `.env` exists (gitignored), it is sourced automatically for the above.
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+if [[ -f "$REPO_ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$REPO_ROOT/.env"
+  set +a
+fi
+
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/_cf_api_auth.sh"
 
 STUDIO_EDGE="$REPO_ROOT/apps/studio-edge"
 # STUDIO_KV id from apps/studio-edge/wrangler.toml
@@ -65,17 +77,17 @@ curl -fsS --max-time 20 "${API_BASE}/" | python -c "import json,sys; d=json.load
   || curl -fsS --max-time 20 "${API_BASE}/" | head -c 200
 echo ""
 
-if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+if [[ -n "${CLOUDFLARE_API_TOKEN:-}" || ( -n "${CF_GLOBAL_API_KEY:-}" && -n "${CF_AUTH_EMAIL:-}" ) ]]; then
   echo ""
-  echo "== 4) Cloudflare tunnel connections (GET cfd_tunnel/.../connections) =="
-  URL="https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}/connections"
-  if ! curl -fsS --max-time 30 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$URL" \
-    | python -c "import json,sys; r=json.load(sys.stdin); print(json.dumps(r, indent=2)[:8000])"; then
-    echo "(API request failed — check token scopes: Account.Cloudflare Tunnel Read)"
+  echo "== 4) Cloudflare tunnel (GET …/cfd_tunnel/{id} includes connections[]) =="
+  URL="https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}"
+  if ! _cf_api_curl "$URL" | python -m json.tool 2>/dev/null; then
+    echo "(tunnel GET failed — add Tunnel Read on your API token, or set CF_AUTH_EMAIL+CF_GLOBAL_API_KEY in .env)"
+    echo "    See: bash scripts/studio-cloudflare-tunnel/cf-bootstrap-user-token.sh"
   fi
 else
   echo ""
-  echo "== 4) Skipped: set CLOUDFLARE_API_TOKEN to list tunnel connectors via API =="
+  echo "== 4) Skipped: set CLOUDFLARE_API_TOKEN or CF_GLOBAL_API_KEY+CF_AUTH_EMAIL in .env =="
 fi
 
 echo ""

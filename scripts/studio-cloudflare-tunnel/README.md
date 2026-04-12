@@ -18,7 +18,10 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`setup-cloudflare-vercel-dns.ps1`](./setup-cloudflare-vercel-dns.ps1) | Apex/`www` targets when the zone is on Cloudflare. |
 | [`import-zone-to-cloudflare.ps1`](./import-zone-to-cloudflare.ps1) | Onboard a zone to Cloudflare (then change nameservers at registrar). |
 | [`verify-studio-public-health.sh`](./verify-studio-public-health.sh) | **Laptop / CI:** DNS + `curl` **`api-origin`** and **`api`** health (read-only). |
-| [`preflight-studio-public-api.sh`](./preflight-studio-public-api.sh) | **Before UI testing:** remote KV health key delete + 10× `worker_version` sample + optional `CLOUDFLARE_API_TOKEN` tunnel connection list. |
+| [`preflight-studio-public-api.sh`](./preflight-studio-public-api.sh) | **Before UI testing:** remote KV health key delete + 10× `worker_version` sample + tunnel `connections[]` via API (needs `.env`; see repo `.env.example`). |
+| [`_cf_api_auth.sh`](./_cf_api_auth.sh) | Sourced helper: `curl` with **Bearer** token or **Global API Key** + email. |
+| [`cf-tunnel-admin.sh`](./cf-tunnel-admin.sh) | **CLI tunnel ops:** `verify`, `tunnel-get`, `connection-delete <uuid>`, `tunnel-wrangler-info` (no Zero Trust UI). |
+| [`cf-bootstrap-user-token.sh`](./cf-bootstrap-user-token.sh) | Mint a **User** API token with Tunnel **Read** using **Global API Key** + email (when Account token cannot list connectors). |
 | [`push-cloudflared-config-to-gce-vm.sh`](./push-cloudflared-config-to-gce-vm.sh) | **Laptop:** `gcloud compute scp` + `ingress validate` + `systemctl restart cloudflared` on **`immersive-studio-worker`**. |
 | [`vm-check-studio-stack.sh`](./vm-check-studio-stack.sh) | **GCE VM (SSH):** `cloudflared`, `docker`, `127.0.0.1:8787` health, **Blender** in `studio-worker` container. |
 | [`cloudflared-connector-immersive-labs-studio-api.template.yml`](./cloudflared-connector-immersive-labs-studio-api.template.yml) | **Named tunnel ingress:** `api-origin` → `8787`, `comfy` → `8188`. Copy to the connector host; set `credentials-file` path; run `cloudflared tunnel run`. |
