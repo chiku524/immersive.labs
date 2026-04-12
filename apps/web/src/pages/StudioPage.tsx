@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
-import { STUDIO_API_BASE, STUDIO_API_READY } from "../studioApiConfig";
+import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
 import "../App.css";
 import "./StudioPage.css";
 
@@ -560,13 +560,13 @@ export function StudioPage() {
           ) : (
             <div className={`studio-health studio-health--${health}`} role="status">
               {health === "checking" && "Checking worker…"}
-              {health === "ok" && `Worker reachable at ${STUDIO_API_BASE}`}
+              {health === "ok" && <>Worker reachable at {studioWorkerDisplayOrigin()}</>}
               {health === "error" && (
                 <>
-                  Worker not reachable at {STUDIO_API_BASE}. Run{" "}
+                  Worker not reachable at {studioWorkerDisplayOrigin()}. Run{" "}
                   <code>immersive-studio serve --host 127.0.0.1 --port 8787</code> from{" "}
-                  <code>apps/studio-worker</code>, or fix <code>VITE_STUDIO_API_URL</code> if it points at the wrong
-                  host.{" "}
+                  <code>apps/studio-worker</code>, or fix <code>VITE_STUDIO_API_URL</code> /{" "}
+                  <code>VITE_STUDIO_API_PROXY</code> in <code>apps/web/.env.development.local</code>.{" "}
                   <button type="button" className="studio-retry" onClick={checkHealth}>
                     Retry
                   </button>
@@ -668,7 +668,16 @@ export function StudioPage() {
               }`}
               role="status"
             >
-              ComfyUI at <code>{comfy.url}</code>: {comfy.reachable ? "reachable" : "not running"}
+              ComfyUI
+              {comfy.url ? (
+                <>
+                  {" "}
+                  at <code>{comfy.url}</code>
+                </>
+              ) : (
+                <> (URL unknown — worker did not respond)</>
+              )}
+              : {comfy.reachable ? "reachable" : "not running"}
               {comfy.detail ? ` — ${comfy.detail}` : null}
               {!comfy.reachable ? (
                 <span className="studio-comfy-hint">
