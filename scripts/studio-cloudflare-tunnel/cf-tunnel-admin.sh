@@ -11,7 +11,9 @@
 # Usage (repo root):
 #   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh verify
 #   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh tunnel-get
-#   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh connection-delete <connection_uuid>
+#   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh connector-cleanup <client_id>
+#       (runs local `cloudflared tunnel cleanup`; needs `cloudflared login` cert.pem on this host)
+#   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh connection-delete <uuid>   # often 404; prefer connector-cleanup
 #   bash scripts/studio-cloudflare-tunnel/cf-tunnel-admin.sh tunnel-wrangler-info
 #
 set -euo pipefail
@@ -62,8 +64,17 @@ case "${1:-help}" in
     # Official shape: GET …/cfd_tunnel/{id} includes `connections` (see Cloudflare Tunnel create-remote-tunnel-api doc).
     _cf_api_curl "${BASE}/cfd_tunnel/${TUNNEL_ID}" | python -m json.tool
     ;;
+  connector-cleanup | cleanup-connector)
+    cid="${2:?usage: $0 connector-cleanup <client_id>   (from tunnel-get: connections[].client_id; same id on multiple rows)}"
+    if ! command -v cloudflared >/dev/null 2>&1; then
+      echo "cloudflared not found in PATH" >&2
+      exit 1
+    fi
+    cloudflared tunnel cleanup --connector-id "$cid" "$TUNNEL_ID"
+    ;;
   connection-delete | rm-connection)
-    uuid="${2:?usage: $0 connection-delete <connection_uuid>   (from tunnel-get result.connections[].id)}"
+    uuid="${2:?usage: $0 connection-delete <connection_uuid>}"
+    echo "Trying API DELETE (may return 404 for account tokens); prefer: $0 connector-cleanup <client_id>" >&2
     _cf_api_curl -X DELETE "${BASE}/cfd_tunnel/${TUNNEL_ID}/connections/${uuid}" | python -m json.tool
     ;;
   tunnel-wrangler-info)
