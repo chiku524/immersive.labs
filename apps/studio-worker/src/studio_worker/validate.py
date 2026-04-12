@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import jsonschema
@@ -26,6 +27,7 @@ REQUIRED_MATERIAL_ROLES: dict[str, set[str]] = {
 }
 
 RESOLUTION_HINT_ALLOWED: tuple[int, ...] = (512, 1024, 2048, 4096)
+_RESOLUTION_HINT_TOKEN = re.compile(r"\b(512|1024|2048|4096)\b")
 
 
 def load_asset_validator() -> Draft202012Validator:
@@ -143,7 +145,18 @@ def _parse_resolution_hint(raw: Any) -> int:
     if isinstance(raw, (int, float)):
         return _snap_resolution_hint(int(raw))
     if isinstance(raw, str):
-        s = raw.strip().lower().replace("px", "")
+        s = (
+            raw.strip()
+            .lower()
+            .replace("px", "")
+            .strip('"')
+            .strip("'")
+            .replace("\u201c", "")
+            .replace("\u201d", "")
+        )
+        m = _RESOLUTION_HINT_TOKEN.search(s)
+        if m:
+            return int(m.group(1))
         try:
             v = int(float(s))
         except ValueError:
@@ -152,8 +165,25 @@ def _parse_resolution_hint(raw: Any) -> int:
     return 1024
 
 
+def _material_slots_to_plain_dicts(spec: dict[str, Any]) -> None:
+    """Ensure each slot is a plain dict so in-place coercion always sticks."""
+    raw = spec.get("material_slots")
+    if not isinstance(raw, list):
+        return
+    out: list[Any] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, Mapping):
+            out.append(dict(item))
+        else:
+            out.append(item)
+    spec["material_slots"] = out
+
+
 def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
     """resolution_hint must be JSON integer in {512,1024,2048,4096}; models often emit \"2048\"."""
+    _material_slots_to_plain_dicts(spec)
     for slot in spec.get("material_slots") or []:
         if not isinstance(slot, dict) or "resolution_hint" not in slot:
             continue
@@ -175,6 +205,11 @@ def normalize_asset_spec(spec: dict[str, Any]) -> None:
     pb = spec.get("poly_budget_tris")
     if isinstance(pb, float):
         spec["poly_budget_tris"] = int(pb)
+    elif isinstance(pb, str):
+        try:
+            spec["poly_budget_tris"] = int(float(pb.strip()))
+        except ValueError:
+            pass
 
 
 def validate_asset_spec(spec: dict[str, Any]) -> None:

@@ -53,3 +53,25 @@ def test_material_slot_resolution_hint_string_coerced_to_int() -> None:
     spec["material_slots"][0]["resolution_hint"] = "2048"
     validate_asset_spec(spec)
     assert spec["material_slots"][0]["resolution_hint"] == 2048
+
+
+def test_material_slot_resolution_hint_embedded_in_label_string() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["material_slots"][0]["resolution_hint"] = "texture 2048 (2k)"
+    validate_asset_spec(spec)
+    assert spec["material_slots"][0]["resolution_hint"] == 2048
+
+
+def test_material_slot_resolution_hint_json_quoted_number_string() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["material_slots"][0]["resolution_hint"] = '"2048"'
+    validate_asset_spec(spec)
+    assert spec["material_slots"][0]["resolution_hint"] == 2048
