@@ -40,6 +40,24 @@ type BillingStatus = {
   tier_id: string;
 };
 
+/** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
+function comfyLocalhostRefused(detail: string | null | undefined, url: string): boolean {
+  const u = (url ?? "").toLowerCase();
+  const d = (detail ?? "").toLowerCase();
+  const local = u.includes("127.0.0.1") || u.includes("localhost");
+  const p8188 = u.includes(":8188") || u.includes("8188");
+  if (!local || !p8188) {
+    return false;
+  }
+  return (
+    d.includes("refused") ||
+    d.includes("10061") ||
+    d.includes("econnrefused") ||
+    d.includes("could not be made") ||
+    d.includes("failed to establish")
+  );
+}
+
 function formatApiDetail(detail: unknown): string {
   if (typeof detail === "string") {
     return detail;
@@ -682,9 +700,22 @@ export function StudioPage() {
               {!comfy.reachable ? (
                 <span className="studio-comfy-hint">
                   {" "}
-                  (optional — only required if you enable <strong>Generate albedo textures</strong>. Set{" "}
-                  <code>STUDIO_COMFY_URL</code> on the worker to your ComfyUI base URL, e.g.{" "}
-                  <code>https://comfy.immersivelabs.space</code>, or run ComfyUI locally on port 8188.)
+                  {comfyLocalhostRefused(comfy.detail, comfy.url) ? (
+                    <>
+                      <strong>No process on port 8188.</strong> Start ComfyUI in a <em>second</em> terminal (not this
+                      repo): <code>python main.py --listen 127.0.0.1 --port 8188</code> from your{" "}
+                      <a href="https://github.com/comfyanonymous/ComfyUI" target="_blank" rel="noopener noreferrer">
+                        ComfyUI
+                      </a>{" "}
+                      install, then click Refresh. Guide: <code>scripts/local-pc-studio/README.md</code> §3.
+                    </>
+                  ) : (
+                    <>
+                      (optional — only if you enable <strong>Generate albedo textures</strong>. Set{" "}
+                      <code>STUDIO_COMFY_URL</code> on the worker, e.g.{" "}
+                      <code>https://comfy.immersivelabs.space</code>, or run ComfyUI locally on port 8188.)
+                    </>
+                  )}
                 </span>
               ) : null}
               <button type="button" className="studio-retry" onClick={refreshComfy}>

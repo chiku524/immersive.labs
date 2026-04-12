@@ -44,11 +44,43 @@ Set at least:
 
 ## 3. Start ComfyUI
 
-Start Comfy so the API listens on **127.0.0.1:8188** (adjust if you use another port; then set `STUDIO_COMFY_URL` accordingly). Confirm in a browser or with:
+The Studio worker only **checks** Comfy; it does **not** start it. If `/studio` shows **“actively refused”** / **WinError 10061** on `http://127.0.0.1:8188`, nothing is listening on that port yet.
+
+### Install (once)
+
+Clone [ComfyUI](https://github.com/comfyanonymous/ComfyUI) somewhere outside this monorepo (e.g. `C:\src\ComfyUI`), create a venv there, install its `requirements.txt`, and download a checkpoint into `models/checkpoints/` (see Comfy’s README).
+
+### Run (every session)
+
+In **PowerShell** or **cmd**, from your **ComfyUI** folder (not `immersive.labs`):
+
+```powershell
+# If you use a venv in ComfyUI:
+.\venv\Scripts\activate
+python main.py --listen 127.0.0.1 --port 8188
+```
+
+Wait until the terminal prints something like **“Running on http://127.0.0.1:8188”**. Leave this window open.
+
+### Verify
+
+In another terminal:
 
 ```bash
 curl -sS http://127.0.0.1:8188/system_stats
 ```
+
+Or open `http://127.0.0.1:8188` in a browser — you should see the Comfy UI.
+
+### Without local Comfy (textures via cloud)
+
+If you do **not** want to run Comfy on this PC, set in `apps/studio-worker/.env.local`:
+
+```env
+STUDIO_COMFY_URL=https://comfy.immersivelabs.space
+```
+
+(Only works if that host is reachable from your network.) Then restart `immersive-studio serve`.
 
 ## 4. Start the Studio API
 
@@ -127,7 +159,9 @@ immersive-studio queue-worker
 
 | Symptom | Check |
 |--------|--------|
+| **WinError 10061** / **connection refused** on `127.0.0.1:8188` | ComfyUI is not running — see **§3 Start ComfyUI** (separate terminal, `python main.py --listen 127.0.0.1 --port 8188`). |
 | Textures fail | Comfy URL, checkpoint names, `STUDIO_COMFY_PROFILE` / `STUDIO_COMFY_CHECKPOINT` in `.env.local`. |
 | Mesh / GLB fails | `immersive-studio doctor --strict` and `STUDIO_BLENDER_BIN`. |
 | CORS errors | Use **Option A** (proxy) or expand `STUDIO_CORS_ORIGINS`. |
 | 502 from Ollama | Start Ollama or turn **Mock** on in `/studio`. |
+| Worker in **WSL**, Comfy on **Windows** | `127.0.0.1` inside WSL is not your Windows host — use the Windows host IP from WSL (`/etc/resolv.conf` nameserver) or run Comfy inside WSL too. |
