@@ -7,7 +7,7 @@ Use this layout when **your machine** runs the full stack: **ComfyUI** (textures
 - **Python 3.11+** and **Node.js** (for `apps/web`).
 - **ComfyUI** with its HTTP API (default in many installs: `http://127.0.0.1:8188`).
 - **Blender 4.x** on `PATH`, or set `STUDIO_BLENDER_BIN` to `blender.exe` (Windows) or `blender` (macOS/Linux).
-- **Ollama** (optional): only needed when **Mock** is off for spec generation; otherwise mock specs skip it.
+- **Ollama**: required when **Mock** is off in `/studio` (default is off in dev). Install from [ollama.com](https://ollama.com) or `winget install Ollama.Ollama`, then `ollama pull llama3.2` (matches worker default `STUDIO_OLLAMA_MODEL`). Set `STUDIO_OLLAMA_URL` / `STUDIO_OLLAMA_MODEL` in `apps/studio-worker/.env.local` if needed.
 
 ## 1. Install the studio worker (editable)
 

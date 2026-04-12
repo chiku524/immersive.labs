@@ -110,7 +110,7 @@ export function StudioPage() {
   const [prompt, setPrompt] = useState("");
   const [category, setCategory] = useState<StudioCategory>("prop");
   const [stylePreset, setStylePreset] = useState<StudioStyle>("toon_bold");
-  const [mock, setMock] = useState(true);
+  const [mock, setMock] = useState(false);
   const [generateTextures, setGenerateTextures] = useState(false);
   const [exportMesh, setExportMesh] = useState(false);
   const [loading, setLoading] = useState(false);
