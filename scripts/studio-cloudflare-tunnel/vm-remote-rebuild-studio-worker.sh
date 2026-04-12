@@ -11,7 +11,9 @@
 set -euo pipefail
 ZONE="${ZONE:-us-central1-a}"
 VM="${VM:-immersive-studio-worker}"
-PROJECT="${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null | tr -d '\n' || true)}"
+# gcloud on Windows may emit CRLF — strip \r or --project breaks.
+_raw="${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null || true)}"
+PROJECT="$(printf '%s' "$_raw" | tr -d '\r\n')"
 IAP="${IAP:-0}"
 GCLOUD_SSH=(gcloud compute ssh "$VM" --zone="$ZONE")
 [[ -n "$PROJECT" ]] && GCLOUD_SSH+=(--project="$PROJECT")
