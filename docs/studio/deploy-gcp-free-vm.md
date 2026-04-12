@@ -99,7 +99,8 @@ The **Pages/CI build** only ships the **React** app. Any change under **`apps/st
 
 1. **On the worker host:** `git pull` (or copy the new tree), then rebuild and recreate the container from the monorepo root, for example:  
    `docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .`  
-   then `docker stop` / `docker rm` the old container and `docker run …` again with the same **`-e`** flags (`STUDIO_CORS_ORIGINS`, `STUDIO_COMFY_URL`, secrets, etc.).
+   then `docker stop` / `docker rm` the old container and `docker run …` again with the same **`-e`** flags (`STUDIO_CORS_ORIGINS`, `STUDIO_COMFY_URL`, secrets, etc.).  
+   **From your laptop** (with `gcloud` and SSH to the VM): run **`bash scripts/studio-cloudflare-tunnel/vm-remote-rebuild-studio-worker.sh`** — it resets **`/opt/immersive.labs`** to **`origin/main`** and runs **[`vm-rebuild-studio-worker.sh`](../../scripts/studio-cloudflare-tunnel/vm-rebuild-studio-worker.sh)** (metadata-driven **`docker run`**). Use **`IAP=1`** if you reach the VM only via IAP.
 2. **Smoke test:** `curl -sS https://api.yourdomain.com/api/studio/health` — the JSON should include **`worker_version`** (bumped in `apps/studio-worker` when you ship server-side fixes). The **`/studio`** page shows **Worker v…** when that field is present so you can confirm the browser is talking to the redeployed API.
 3. **Frontend:** Redeploy **Cloudflare Pages** only when **`apps/web`** or env vars such as **`VITE_STUDIO_API_URL`** change.
 

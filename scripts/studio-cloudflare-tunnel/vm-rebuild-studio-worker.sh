@@ -29,5 +29,13 @@ sudo docker run -d --name studio-worker --restart unless-stopped \
   -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
   -v studio-output:/repo/apps/studio-worker/output \
   immersive-studio-worker:local
-curl -fsS http://127.0.0.1:8787/api/studio/health
-echo "OK: studio-worker rebuilt and health check passed."
+# Uvicorn may not accept connections for a second or two right after start.
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8787/api/studio/health; then
+    echo "OK: studio-worker rebuilt and health check passed."
+    exit 0
+  fi
+  sleep 2
+done
+echo "ERROR: health check failed after container start" >&2
+exit 1
