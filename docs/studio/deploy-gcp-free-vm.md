@@ -61,6 +61,16 @@ The worker calls ComfyUI’s HTTP API at **`STUDIO_COMFY_URL`** (no trailing sla
 
 **User-facing summary:** the deployed site includes **`/docs`** (`apps/web`) describing this split (loopback vs public hostname).
 
+### Ollama and `STUDIO_OLLAMA_URL` / `STUDIO_OLLAMA_MODEL` (LLM spec generation)
+
+The worker calls Ollama’s HTTP API at **`STUDIO_OLLAMA_URL`** (default in code `http://127.0.0.1:11434`). **Inside Docker**, that URL is the **container** loopback — you will get **connection refused** unless Ollama runs in the same container (it does not in our image).
+
+**Fix (same pattern as Comfy):**
+
+1. Install Ollama on the **VM host** (not only in Docker): from the repo on the VM, **`sudo bash scripts/studio-cloudflare-tunnel/install-ollama-debian-vm.sh`** (sets `OLLAMA_HOST=0.0.0.0:11434` so Docker can reach it). On **e2-micro** / small disks, the script defaults to **`tinyllama`** (~637 MB); use **`OLLAMA_FIRST_PULL=llama3.2`** only if you have free space ( **`llama3.2`** is ~2 GB ).
+2. Recreate **`studio-worker`** with **`--add-host=host.docker.internal:host-gateway`**, **`STUDIO_OLLAMA_URL=http://host.docker.internal:11434`**, and **`STUDIO_OLLAMA_MODEL`** matching what you pulled (e.g. **`tinyllama`**). The checked-in **`vm-bootstrap-gce-startup.sh`** / **`vm-rebuild-studio-worker.sh`** now do this by default (`STUDIO_OLLAMA_MODEL` defaults to **`tinyllama`**; override via instance metadata **`STUDIO_OLLAMA_MODEL`**).
+3. **Mock mode** in `/studio` skips Ollama entirely if you only need wiring tests.
+
 ### Cloudflare Tunnel
 
 10. In [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → **Create tunnel**.

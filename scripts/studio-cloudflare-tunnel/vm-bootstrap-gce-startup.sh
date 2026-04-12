@@ -90,13 +90,20 @@ fi
 # instance metadata STUDIO_COMFY_URL (e.g. http://host.docker.internal:8188 if you add --add-host).
 COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
+OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
+OLLAMA_URL="${OLLAMA_META:-http://host.docker.internal:11434}"
+OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
+OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
 
 docker stop studio-worker 2>/dev/null || true
 docker rm studio-worker 2>/dev/null || true
 docker run -d --name studio-worker --restart unless-stopped \
+  --add-host=host.docker.internal:host-gateway \
   -p 127.0.0.1:8787:8787 \
   -e STUDIO_CORS_ORIGINS="${CORS}" \
   -e STUDIO_COMFY_URL="${COMFY_URL}" \
+  -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
+  -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
   -v studio-output:/repo/apps/studio-worker/output \
   immersive-studio-worker:local
 
