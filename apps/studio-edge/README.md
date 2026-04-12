@@ -72,6 +72,12 @@ That hostname is already the **Worker’s public URL**. If the Worker proxied to
 
 **`GET /`** on a current **studio-worker** build returns JSON (service name, **`worker_version`**, links to **`/api/studio/health`**, **`/docs`**, etc.). **`GET /favicon.ico`** returns **204** from Python when deployed. If the origin still answers **404** for those paths (older container), **studio-edge** synthesizes **200 JSON** for **`/`** and **204** for **`/favicon.ico`** so **`https://api…/`** is never a bare `{"detail":"Not Found"}` from the edge. Response headers include **`X-Studio-Edge-Synthesized`**. For liveness, still use **`/api/studio/health`**.
 
+### “Gateway or tunnel returned HTML…” (HTTP 5xx from edge)
+
+The Worker turns upstream **HTML error pages** (common for **502 / 503 / 524 / 530**) into JSON so the `/studio` UI can show text instead of `Unexpected token '<'`. That message means **`fetch(ORIGIN_URL)`** got an error page, not FastAPI JSON — usually **tunnel → VM:8787** is down, slow, or **`ORIGIN_URL`** points at the wrong host.
+
+**Checks:** from your laptop, `curl -sS -o /dev/null -w '%{http_code}\n' "$ORIGIN_URL/api/studio/health"` (same URL as **`wrangler secret`**). On the VM: `systemctl is-active cloudflared`, `curl -sS http://127.0.0.1:8787/api/studio/health`. **Idempotent `GET /api/studio/*`** requests are **retried briefly** at the edge to ride out transient tunnel blips.
+
 ## R2 and D1 on this Worker
 
 Production bindings (see **`wrangler.toml`**):

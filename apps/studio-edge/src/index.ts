@@ -160,6 +160,28 @@ async function proxyToOrigin(request: Request, env: Env): Promise<Response> {
   return fetch(new Request(target, init));
 }
 
+/** Transient tunnel / origin errors often return 5xx HTML; retry idempotent studio GETs briefly. */
+async function proxyToOriginWithRetry(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const canRetry =
+    (request.method === "GET" || request.method === "HEAD") &&
+    url.pathname.startsWith("/api/studio/");
+  const maxAttempts = canRetry ? 3 : 1;
+  let last: Response | undefined;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    last = await proxyToOrigin(request, env);
+    if (!canRetry || attempt === maxAttempts - 1) {
+      break;
+    }
+    const s = last.status;
+    if (s !== 502 && s !== 503 && s !== 504 && s !== 524) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+  }
+  return last as Response;
+}
+
 /**
  * Cloudflare / tunnel often answer 5xx with an HTML error page. The /studio UI expects JSON;
  * rewrite so readApiJson shows a structured detail instead of "Unexpected token '<'".
@@ -167,6 +189,7 @@ async function proxyToOrigin(request: Request, env: Env): Promise<Response> {
 async function coerceJsonForStudioApiHtmlErrors(
   request: Request,
   proxied: Response,
+  env: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/studio/")) {
@@ -188,10 +211,14 @@ async function coerceJsonForStudioApiHtmlErrors(
       headers: proxied.headers,
     });
   }
+  const oh = originHostname(env);
   const body = JSON.stringify({
     detail:
-      "Gateway or tunnel returned HTML instead of JSON (origin unreachable, overloaded, or timed out).",
+      `Gateway or tunnel returned HTTP ${proxied.status} HTML instead of JSON for origin ${oh}. ` +
+      "Typical causes: cloudflared not running on the VM, tunnel DNS mismatch, origin overloaded, or a Cloudflare/proxy timeout. " +
+      "Confirm GET /api/studio/health on your tunnel host (e.g. api-origin…) and wrangler secret ORIGIN_URL.",
     gateway_status: proxied.status,
+    origin_host: oh,
   });
   return new Response(body, {
     status: proxied.status,
@@ -335,10 +362,10 @@ export default {
         }
         return fetchAndStoreHealth(request, env, env.STUDIO_KV);
       }
-      const proxied = await proxyToOrigin(request, env);
+      const proxied = await proxyToOriginWithRetry(request, env);
       const effective =
         synthesizeRootOrFaviconIfOrigin404(request, proxied, env) ?? proxied;
-      const normalized = await coerceJsonForStudioApiHtmlErrors(request, effective);
+      const normalized = await coerceJsonForStudioApiHtmlErrors(request, effective, env);
       const withOriginHint = new Response(normalized.body, {
         status: normalized.status,
         statusText: normalized.statusText,

@@ -475,7 +475,8 @@ export function StudioPage() {
         `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
     } finally {
       setJobLoading(false);
     }
