@@ -19,7 +19,7 @@ The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` e
 |---------|----------------|----------------|
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (code default when unset) | `http://127.0.0.1:8188` for local / same-VM ComfyUI |
 | `STUDIO_COMFY_PROFILE` | `sd15` | set to `sdxl` |
-| `STUDIO_COMFY_CHECKPOINT` | `v1-5-pruned-emaonly.ckpt` | `sd_xl_base_1.0.safetensors` |
+| `STUDIO_COMFY_CHECKPOINT` | `v1-5-pruned-emaonly.safetensors` | `sd_xl_base_1.0.safetensors` |
 
 ## Generation scope (v1)
 

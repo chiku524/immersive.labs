@@ -55,7 +55,7 @@ def comfy_profile() -> str:
 def comfy_checkpoint() -> str:
     return os.environ.get(
         "STUDIO_COMFY_CHECKPOINT",
-        "v1-5-pruned-emaonly.ckpt" if comfy_profile() == "sd15" else "sd_xl_base_1.0.safetensors",
+        "v1-5-pruned-emaonly.safetensors" if comfy_profile() == "sd15" else "sd_xl_base_1.0.safetensors",
     )
 
 

@@ -9,8 +9,9 @@
 set -euo pipefail
 
 COMFY_ROOT="${COMFY_ROOT:-/opt/ComfyUI}"
-CKPT_URL="${CKPT_URL:-https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt}"
-CKPT_NAME="${CKPT_NAME:-v1-5-pruned-emaonly.ckpt}"
+# Match studio-worker default STUDIO_COMFY_CHECKPOINT for sd15 (safetensors).
+CKPT_URL="${CKPT_URL:-https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive/resolve/main/v1-5-pruned-emaonly.safetensors}"
+CKPT_NAME="${CKPT_NAME:-v1-5-pruned-emaonly.safetensors}"
 COMFY_USER="${COMFY_USER:-comfy}"
 
 export DEBIAN_FRONTEND=noninteractive

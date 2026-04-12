@@ -17,6 +17,30 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`setup-cloudflare-dns-for-studio.ps1`](./setup-cloudflare-dns-for-studio.ps1) | PowerShell: API DNS helpers (needs **`CLOUDFLARE_API_TOKEN`**). |
 | [`setup-cloudflare-vercel-dns.ps1`](./setup-cloudflare-vercel-dns.ps1) | Apex/`www` targets when the zone is on Cloudflare. |
 | [`import-zone-to-cloudflare.ps1`](./import-zone-to-cloudflare.ps1) | Onboard a zone to Cloudflare (then change nameservers at registrar). |
+| [`verify-studio-public-health.sh`](./verify-studio-public-health.sh) | **Laptop / CI:** DNS + `curl` **`api-origin`** and **`api`** health (read-only). |
+| [`vm-check-studio-stack.sh`](./vm-check-studio-stack.sh) | **GCE VM (SSH):** `cloudflared`, `docker`, `127.0.0.1:8787` health, **Blender** in `studio-worker` container. |
+| [`cloudflared-connector-immersive-labs-studio-api.template.yml`](./cloudflared-connector-immersive-labs-studio-api.template.yml) | **Named tunnel ingress:** `api-origin` → `8787`, `comfy` → `8188`. Copy to the connector host; set `credentials-file` path; run `cloudflared tunnel run`. |
+| [`gce-ssh-immersive-studio-worker.ps1`](./gce-ssh-immersive-studio-worker.ps1) | **Windows:** IAP SSH using **OpenSSH** instead of PuTTY (`CLOUDSDK_COMPUTE_SSH_WITH_NATIVE_OPENSSH=1`). |
+
+**Tunnel had no connectors (HTTP 530):** start `cloudflared` on a host that can reach `127.0.0.1:8787` (VM with Docker, or your dev PC while testing). A working Windows example lives at `%USERPROFILE%\.cloudflared\immersive-labs-studio-api-connector.yml` after you copy the template and point `credentials-file` at your `52513248-….json`.
+
+## IAP SSH (PuTTY “Remote side unexpectedly closed”, or `start-iap-tunnel` 4003)
+
+Prerequisites (CLI, project **`immersive-labs-studio`**):
+
+1. **Enable APIs:** `gcloud services enable iap.googleapis.com networkmanagement.googleapis.com --project=immersive-labs-studio`
+2. **Firewall from IAP to port 22:** allow **`35.235.240.0/20`** → **`tcp:22`** to instances with the same **network tag** as the VM (e.g. `immersive-studio-ssh`). Example rule name: `allow-iap-ssh-immersive-studio`.
+3. **Verify reachability:**  
+   `printf "Y\n" | gcloud compute ssh immersive-studio-worker --zone=us-central1-a --project=immersive-labs-studio --tunnel-through-iap --troubleshoot`  
+   You want **Connectivity Test … REACHABLE** from an IAP source IP to the VM internal IP on port 22.
+
+**Windows / PuTTY:** `gcloud` defaults to **plink**. Set a **user** environment variable **`CLOUDSDK_COMPUTE_SSH_WITH_NATIVE_OPENSSH=1`**, close all terminals, reopen, then SSH again. Or run:
+
+`powershell -ExecutionPolicy Bypass -File scripts/studio-cloudflare-tunnel/gce-ssh-immersive-studio-worker.ps1`
+
+**Browser SSH:** In Cloud Console → Compute Engine → VM → **SSH** drop-down → **Open in browser window** (does not use local PuTTY).
+
+**NumPy warning:** optional speed-up for IAP connectivity checks — install NumPy into the Cloud SDK **bundled** Python (path varies); the warning is safe to ignore.
 
 ## Environment: worker + ComfyUI
 

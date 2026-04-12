@@ -128,6 +128,8 @@ export function StudioPage() {
     mesh_logs: string[];
   } | null>(null);
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
+  /** Extra context when health check fails (e.g. Cloudflare 530 tunnel). */
+  const [healthErrorHint, setHealthErrorHint] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [usage, setUsage] = useState<UsageInfo | null>(null);
@@ -167,24 +169,42 @@ export function StudioPage() {
   const checkHealth = useCallback(() => {
     if (!STUDIO_API_READY) {
       setHealth("error");
+      setHealthErrorHint(null);
       return;
     }
     setHealth("checking");
+    setHealthErrorHint(null);
     fetch(`${STUDIO_API_BASE}/api/studio/health`)
       .then(async (r) => {
         if (!r.ok) {
           setHealth("error");
+          if (r.status === 530) {
+            setHealthErrorHint(
+              "Cloudflare returned HTTP 530 (tunnel / origin unreachable). On the host behind your public API, start cloudflared and confirm the tunnel routes to immersive-studio on the expected port; see scripts/studio-cloudflare-tunnel/README.md.",
+            );
+          } else if (r.status >= 500) {
+            setHealthErrorHint(`Gateway or server error (HTTP ${r.status}). Check the Worker / reverse proxy and the Python worker logs.`);
+          } else {
+            setHealthErrorHint(`Unexpected HTTP ${r.status} from ${STUDIO_API_BASE}/api/studio/health.`);
+          }
           return;
         }
         try {
           const j = await readApiJson<{ auth_required?: boolean }>(r);
           setHealth("ok");
+          setHealthErrorHint(null);
           setAuthRequired(Boolean(j?.auth_required));
         } catch {
           setHealth("error");
+          setHealthErrorHint(
+            "The URL responded, but the body was not JSON (often an error page in front of the API). Fix DNS / tunnel / Worker upstream so /api/studio/health returns the worker JSON.",
+          );
         }
       })
-      .catch(() => setHealth("error"));
+      .catch(() => {
+        setHealth("error");
+        setHealthErrorHint("Network error — the browser could not complete a request to the Studio API (offline, CORS, or blocked).");
+      });
   }, []);
 
   const refreshUsage = useCallback(() => {
@@ -581,13 +601,30 @@ export function StudioPage() {
               {health === "ok" && <>Worker reachable at {studioWorkerDisplayOrigin()}</>}
               {health === "error" && (
                 <>
-                  Worker not reachable at {studioWorkerDisplayOrigin()}. Run{" "}
-                  <code>immersive-studio serve --host 127.0.0.1 --port 8787</code> from{" "}
-                  <code>apps/studio-worker</code>, or fix <code>VITE_STUDIO_API_URL</code> /{" "}
-                  <code>VITE_STUDIO_API_PROXY</code> in <code>apps/web/.env.development.local</code>.{" "}
+                  Worker not reachable at {studioWorkerDisplayOrigin()}.{" "}
+                  {import.meta.env.PROD ? (
+                    <>
+                      This is the public API URL baked into the site at build time — it is not your laptop. Fix the
+                      server, tunnel, or <code>ORIGIN_URL</code> behind <code>{studioWorkerDisplayOrigin()}</code> (see{" "}
+                      <code>apps/studio-edge/README.md</code>), then redeploy only if you change{" "}
+                      <code>VITE_STUDIO_API_URL</code>.
+                    </>
+                  ) : (
+                    <>
+                      Run <code>immersive-studio serve --host 127.0.0.1 --port 8787</code> from{" "}
+                      <code>apps/studio-worker</code>, or fix <code>VITE_STUDIO_API_URL</code> /{" "}
+                      <code>VITE_STUDIO_API_PROXY</code> in <code>apps/web/.env.development.local</code>.
+                    </>
+                  )}{" "}
                   <button type="button" className="studio-retry" onClick={checkHealth}>
                     Retry
                   </button>
+                  {healthErrorHint ? (
+                    <span className="studio-config-banner-sub">
+                      <br />
+                      {healthErrorHint}
+                    </span>
+                  ) : null}
                 </>
               )}
             </div>
@@ -693,7 +730,11 @@ export function StudioPage() {
                   at <code>{comfy.url}</code>
                 </>
               ) : (
-                <> (URL unknown — worker did not respond)</>
+                <>
+                  {" "}
+                  (Comfy status unavailable — the Studio API request failed; fix worker health above before tuning
+                  Comfy.)
+                </>
               )}
               : {comfy.reachable ? "reachable" : "not running"}
               {comfy.detail ? ` — ${comfy.detail}` : null}

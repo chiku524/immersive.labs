@@ -1,0 +1,21 @@
+# Template for tunnel "immersive-labs-studio-api" (id 52513248-a776-4f3d-b6fb-7e17c3858b2b).
+#
+# 1. Copy to the machine that will run the connector (GCE VM or your PC):
+#      Linux VM:   sudo cp ... /etc/cloudflared/config.yml
+#                  sudo cp ~/.cloudflared/52513248-....json /etc/cloudflared/
+#      Windows:    copy to %USERPROFILE%\.cloudflared\immersive-labs-studio-api-connector.yml
+# 2. Set credentials-file to the ABSOLUTE path of your 52513248-a776-4f3d-b6fb-7e17c3858b2b.json
+# 3. Run: cloudflared tunnel --config <this-file> run
+#    Or on Linux: sudo systemctl enable --now cloudflared (with config at /etc/cloudflared/config.yml)
+#
+# Never route public hostname "api" here — use api-origin (Worker fronts "api"). See apps/studio-edge/README.md.
+
+tunnel: 52513248-a776-4f3d-b6fb-7e17c3858b2b
+credentials-file: /etc/cloudflared/52513248-a776-4f3d-b6fb-7e17c3858b2b.json
+
+ingress:
+  - hostname: api-origin.immersivelabs.space
+    service: http://127.0.0.1:8787
+  - hostname: comfy.immersivelabs.space
+    service: http://127.0.0.1:8188
+  - service: http_status:404

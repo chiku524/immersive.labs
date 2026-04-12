@@ -52,15 +52,28 @@ Clone [ComfyUI](https://github.com/comfyanonymous/ComfyUI) somewhere outside thi
 
 ### Run (every session)
 
-In **PowerShell** or **cmd**, from your **ComfyUI** folder (not `immersive.labs`):
+**Easiest — helper script from the monorepo root** (expects a sibling folder `../ComfyUI` with `.venv`, or set `COMFYUI_ROOT`):
 
 ```powershell
-# If you use a venv in ComfyUI:
-.\venv\Scripts\activate
-python main.py --listen 127.0.0.1 --port 8188
+.\scripts\local-pc-studio\start-comfyui.ps1
 ```
 
-Wait until the terminal prints something like **“Running on http://127.0.0.1:8188”**. Leave this window open.
+```bash
+bash scripts/local-pc-studio/start-comfyui.sh
+```
+
+By default the script passes **`--cpu`**, which is required when PyTorch is the **CPU-only** wheel (`2.x+cpu`). If you install **CUDA** PyTorch and have a working GPU stack, run with `COMFYUI_USE_GPU=1` so `--cpu` is omitted.
+
+Or manually from your **ComfyUI** folder (not `immersive.labs`):
+
+```powershell
+.\.venv\Scripts\activate
+python main.py --listen 127.0.0.1 --port 8188 --cpu
+```
+
+Use **Python 3.12** for Comfy’s venv if possible — **3.14** often lacks prebuilt `torch` wheels yet.
+
+Wait until the terminal prints something like **“To see the GUI go to: http://127.0.0.1:8188”**. Leave this window open.
 
 ### Verify
 
@@ -159,7 +172,8 @@ immersive-studio queue-worker
 
 | Symptom | Check |
 |--------|--------|
-| **WinError 10061** / **connection refused** on `127.0.0.1:8188` | ComfyUI is not running — see **§3 Start ComfyUI** (separate terminal, `python main.py --listen 127.0.0.1 --port 8188`). |
+| **WinError 10061** / **connection refused** on `127.0.0.1:8188` | ComfyUI is not running — see **§3 Start ComfyUI** (separate terminal). |
+| **`Torch not compiled with CUDA enabled`** on startup | You installed **CPU-only** PyTorch; start Comfy with **`--cpu`** (the `start-comfyui` scripts do this by default) or reinstall PyTorch with CUDA. |
 | Textures fail | Comfy URL, checkpoint names, `STUDIO_COMFY_PROFILE` / `STUDIO_COMFY_CHECKPOINT` in `.env.local`. |
 | Mesh / GLB fails | `immersive-studio doctor --strict` and `STUDIO_BLENDER_BIN`. |
 | CORS errors | Use **Option A** (proxy) or expand `STUDIO_CORS_ORIGINS`. |
