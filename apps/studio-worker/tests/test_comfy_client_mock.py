@@ -82,6 +82,23 @@ def test_comfy_reachability_html_error_page(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @respx.mock
+def test_comfy_reachability_cloudflare_530(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = "http://comfy.530"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+    respx.get(f"{base}/system_stats").mock(
+        return_value=httpx.Response(
+            530,
+            text="error code: 530",
+            headers={"content-type": "text/plain; charset=UTF-8", "server": "cloudflare"},
+        )
+    )
+    out = comfy_reachability()
+    assert out["reachable"] is False
+    assert "530" in (out.get("detail") or "")
+    assert "cloudflared" in (out.get("detail") or "").lower()
+
+
+@respx.mock
 def test_comfy_reachability_200_html_challenge(monkeypatch: pytest.MonkeyPatch) -> None:
     base = "http://comfy.challenge"
     monkeypatch.setenv("STUDIO_COMFY_URL", base)

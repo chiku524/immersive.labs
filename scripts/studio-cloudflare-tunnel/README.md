@@ -49,6 +49,8 @@ bash scripts/studio-cloudflare-tunnel/add-tunnel-cname.sh comfy 52513248-a776-4f
 
 Then confirm: `nslookup comfy.immersivelabs.space` (should resolve via Cloudflare). In **Zero Trust → Tunnels → your tunnel → Public hostnames**, add **`comfy.immersivelabs.space` → `http://127.0.0.1:8188`** if not already present (must match `cloudflared` ingress on the VM).
 
+**`curl -I https://comfy.immersivelabs.space/system_stats` returns HTTP 530** — Cloudflare could not reach the origin. On the VM (or host that should answer Comfy): `sudo systemctl status cloudflared` (or your install method), confirm the tunnel is **healthy** in Zero Trust → Tunnels, and that **ComfyUI is running** and bound to **`127.0.0.1:8188`** so the tunnel’s `http://127.0.0.1:8188` target is not connection-refused.
+
 Remove any mistaken **`comfy`** record under the **wrong** zone (e.g. `boing.network`) in the DNS dashboard if a bad `cloudflared tunnel route dns` run created it.
 
 ## Related

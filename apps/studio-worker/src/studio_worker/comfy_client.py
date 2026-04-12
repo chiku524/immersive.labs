@@ -70,6 +70,19 @@ def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
     text = r.text
     ct = r.headers.get("content-type") or ""
 
+    # Cloudflare 530 = origin DNS / tunnel / upstream unreachable (common when cloudflared is down).
+    if r.status_code == 530:
+        return {
+            "reachable": False,
+            "url": base,
+            "detail": (
+                "Cloudflare HTTP 530: edge could not reach the origin for this hostname. "
+                "On the machine that should serve ComfyUI: ensure cloudflared is running, the tunnel "
+                "public hostname for comfy.* points to http://127.0.0.1:8188 (or your Comfy port), and "
+                "ComfyUI is actually listening. See scripts/studio-cloudflare-tunnel/README.md."
+            ),
+        }
+
     if r.status_code >= 400:
         if _response_looks_like_html(text, ct):
             return {"reachable": False, "url": base, "detail": _comfy_gateway_html_detail(r.status_code)}
