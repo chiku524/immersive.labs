@@ -59,6 +59,7 @@ function parseCorsOrigins(env: Env): string[] {
       "https://www.immersivelabs.space",
       "https://immersivelabs.space",
       "https://immersivelabs.vercel.app",
+      "https://immersive-studio-edge.nico-chikuji.workers.dev",
       "http://127.0.0.1:5173",
       "http://localhost:5173",
     ];

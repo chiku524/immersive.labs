@@ -1,10 +1,18 @@
 tunnel: 52513248-a776-4f3d-b6fb-7e17c3858b2b
 credentials-file: /etc/cloudflared/52513248-a776-4f3d-b6fb-7e17c3858b2b.json
 
+# Defaults for every origin behind this connector (override per ingress rule if needed).
+# See: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/configure-tunnels/local-management/configuration-file/
+originRequest:
+  connectTimeout: 60s
+  tlsTimeout: 30s
+  noHappyEyeballs: false
+
 # api-origin → studio-worker (FastAPI). Public `api` may be served by Cloudflare Worker → ORIGIN_URL.
 # comfy → ComfyUI on this same VM (default port 8188). If ComfyUI runs elsewhere, omit this ingress and
 # point STUDIO_COMFY_URL on the worker to that host instead.
-# Remotely managed tunnels: add the same hostnames in Zero Trust → Tunnels → Public hostnames.
+# If Zero Trust “Public hostnames” also lists these hosts, keep them in sync with this file or remove
+# duplicates so only this locally managed config drives routing.
 ingress:
   - hostname: api-origin.immersivelabs.space
     service: http://127.0.0.1:8787

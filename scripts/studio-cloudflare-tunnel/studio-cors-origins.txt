@@ -1,1 +1,1 @@
-https://immersivelabs.vercel.app,https://www.immersivelabs.space,https://immersivelabs.space
+https://immersivelabs.vercel.app,https://www.immersivelabs.space,https://immersivelabs.space,https://immersive-studio-edge.nico-chikuji.workers.dev

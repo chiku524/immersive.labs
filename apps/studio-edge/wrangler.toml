@@ -25,8 +25,9 @@ routes = [
 # Milliseconds to treat cached health JSON as fresh (KV write uses 60s TTL).
 HEALTH_CACHE_TTL_MS = "5000"
 # Must cover every browser origin that calls the Worker (Authorization triggers preflight).
-# Keep in sync with GCE STUDIO_CORS_ORIGINS / apps/studio-worker.
-STUDIO_CORS_ORIGINS = "https://immersivelabs.vercel.app,https://www.immersivelabs.space,https://immersivelabs.space"
+# Keep in sync with GCE Docker STUDIO_CORS_ORIGINS (see studio-cors-origins.txt) and apps/studio-worker.
+# Includes workers.dev for edge smoke tests; add exact *.pages.dev preview origins if previews call this API.
+STUDIO_CORS_ORIGINS = "https://immersivelabs.vercel.app,https://www.immersivelabs.space,https://immersivelabs.space,https://immersive-studio-edge.nico-chikuji.workers.dev"
 
 [[kv_namespaces]]
 binding = "STUDIO_KV"
