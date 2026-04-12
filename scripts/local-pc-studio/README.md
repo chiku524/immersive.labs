@@ -11,13 +11,17 @@ Use this layout when **your machine** runs the full stack: **ComfyUI** (textures
 
 ## 1. Install the studio worker (editable)
 
-From the **monorepo root**:
+From the **monorepo root** (recommended venv path `apps/studio-worker/.venv`, already gitignored):
 
 ```bash
+python -m venv apps/studio-worker/.venv
+# Windows Git Bash:  source apps/studio-worker/.venv/Scripts/activate
+# Windows cmd:        apps\studio-worker\.venv\Scripts\activate.bat
+# macOS/Linux:        source apps/studio-worker/.venv/bin/activate
 pip install -e "apps/studio-worker[dev]"
 ```
 
-(Use a venv if you prefer.)
+The `start-studio-api` scripts prefer `apps/studio-worker/.venv` when present.
 
 ## 2. Worker environment (`apps/studio-worker/.env.local`)
 

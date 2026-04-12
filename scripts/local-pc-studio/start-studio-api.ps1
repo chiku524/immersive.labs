@@ -34,10 +34,17 @@ if (Test-Path $EnvFile) {
   Write-Host "No $EnvFile — create it from scripts/local-pc-studio/env.studio-worker.local.template"
 }
 
-$py = Get-Command python -ErrorAction SilentlyContinue
-if (-not $py) {
-  Write-Error "python not found on PATH. Install Python 3.11+ and pip install -e apps/studio-worker"
+$venvPy = Join-Path $Root "apps\studio-worker\.venv\Scripts\python.exe"
+if (Test-Path $venvPy) {
+  $pyExe = $venvPy
+} else {
+  $py = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) {
+    Write-Error "python not found. Create a venv under apps/studio-worker/.venv and pip install -e apps/studio-worker[dev], or install Python 3.11+ on PATH."
+  }
+  $pyExe = $py.Source
 }
 Write-Host "STUDIO_REPO_ROOT=$($env:STUDIO_REPO_ROOT)"
+Write-Host "Using Python: $pyExe"
 Write-Host "Starting immersive-studio serve on http://127.0.0.1:8787 ..."
-& python -m studio_worker.cli serve --host 127.0.0.1 --port 8787
+& $pyExe -m studio_worker.cli serve --host 127.0.0.1 --port 8787

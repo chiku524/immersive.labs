@@ -15,4 +15,11 @@ else
   echo "No $ENV_FILE — create from scripts/local-pc-studio/env.studio-worker.local.template"
 fi
 cd "$ROOT"
-exec python -m studio_worker.cli serve --host 127.0.0.1 --port 8787
+if [[ -x "$ROOT/apps/studio-worker/.venv/bin/python" ]]; then
+  PY="$ROOT/apps/studio-worker/.venv/bin/python"
+elif [[ -x "$ROOT/apps/studio-worker/.venv/Scripts/python.exe" ]]; then
+  PY="$ROOT/apps/studio-worker/.venv/Scripts/python.exe"
+else
+  PY="python"
+fi
+exec "$PY" -m studio_worker.cli serve --host 127.0.0.1 --port 8787
