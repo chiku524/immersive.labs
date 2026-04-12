@@ -21,6 +21,8 @@ The worker ships **API-format workflows** (same shape as ComfyUI’s `/prompt` e
 | `STUDIO_COMFY_PROFILE` | `sd15` | set to `sdxl` |
 | `STUDIO_COMFY_CHECKPOINT` | `v1-5-pruned-emaonly.safetensors` | `sd_xl_base_1.0.safetensors` |
 
+**Windows (local Comfy):** If jobs fail in KSampler with `[Errno 22] Invalid argument` inside `tqdm` / `stderr.flush`, start Comfy with **`TQDM_DISABLE=1`** (see `scripts/local-pc-studio/start-comfyui.ps1`) or run Comfy from a normal console window.
+
 ## Generation scope (v1)
 
 `texture_pipeline.generate_pbr_textures_for_spec` renders **one image per variant × material slot** whose `role` is `albedo`, `normal`, or `orm`, capped by `STUDIO_TEXTURE_MAX_IMAGES` (default `32`). Outputs:

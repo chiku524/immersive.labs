@@ -4,8 +4,12 @@
 #
 # COMFYUI_ROOT     — folder that contains main.py (default: sibling ComfyUI next to this repo).
 # COMFYUI_USE_GPU  — set to 1 if you installed CUDA PyTorch; omits --cpu (required for CPU-only torch).
+# On Windows, tqdm + stderr can raise [Errno 22] during sampling in some shells — disable tqdm unless TQDM_DISABLE=0.
 
 set -euo pipefail
+if [[ "${TQDM_DISABLE:-}" != "0" ]]; then
+  export TQDM_DISABLE=1
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [[ -n "${COMFYUI_ROOT:-}" ]]; then

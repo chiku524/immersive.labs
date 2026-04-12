@@ -5,8 +5,14 @@
 
   COMFYUI_ROOT     — folder that contains main.py (default: sibling folder ComfyUI next to this repo).
   COMFYUI_USE_GPU  — set to 1 if you installed CUDA PyTorch; omits --cpu (required for CPU-only torch).
+
+  On Windows, tqdm can throw [Errno 22] Invalid argument during KSampler when stderr is not a real
+  console (some IDEs / background shells). We set TQDM_DISABLE=1 unless you already exported it to 0.
 #>
 $ErrorActionPreference = "Stop"
+if (-not ($env:TQDM_DISABLE -eq "0")) {
+  $env:TQDM_DISABLE = "1"
+}
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if ($env:COMFYUI_ROOT) {
   $ComfyRoot = $env:COMFYUI_ROOT.TrimEnd('\', '/')

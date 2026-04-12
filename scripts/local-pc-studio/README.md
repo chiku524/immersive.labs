@@ -174,6 +174,7 @@ immersive-studio queue-worker
 |--------|--------|
 | **WinError 10061** / **connection refused** on `127.0.0.1:8188` | ComfyUI is not running — see **§3 Start ComfyUI** (separate terminal). |
 | **`Torch not compiled with CUDA enabled`** on startup | You installed **CPU-only** PyTorch; start Comfy with **`--cpu`** (the `start-comfyui` scripts do this by default) or reinstall PyTorch with CUDA. |
+| **`OSError: [Errno 22] Invalid argument`** in KSampler / `tqdm` / `stderr.flush` (Windows) | Often a **broken or non-console stderr** (IDE terminal, detached process). The `start-comfyui` scripts set **`TQDM_DISABLE=1`** so Comfy skips tqdm progress bars. Or run Comfy from **cmd.exe** / **PowerShell** in its own window; restart Comfy after changing env. |
 | Textures fail | Comfy URL, checkpoint names, `STUDIO_COMFY_PROFILE` / `STUDIO_COMFY_CHECKPOINT` in `.env.local`. |
 | Mesh / GLB fails | `immersive-studio doctor --strict` and `STUDIO_BLENDER_BIN`. |
 | CORS errors | Use **Option A** (proxy) or expand `STUDIO_CORS_ORIGINS`. |
