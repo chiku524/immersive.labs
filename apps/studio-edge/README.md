@@ -70,7 +70,7 @@ Exact Cloudflare dashboard steps change over time; keep **one hostname = Worker*
 
 That hostname is already the **Worker’s public URL**. If the Worker proxied to the same host, every `fetch()` to origin would hit **this Worker again**, not the Python process behind the tunnel — a **loop** (or at best useless self-traffic). Use a **different** hostname that goes **straight to FastAPI** (e.g. **`api-origin`** → tunnel).
 
-Seeing **`{"detail":"Not Found"}`** on **`https://api.immersivelabs.space/`** (trailing slash, root path) is normal: the FastAPI app may not define **`GET /`**; try **`/api/studio/health`** instead.
+**`GET /`** on the Python worker returns a small JSON object (service name, **`worker_version`**, links to **`/api/studio/health`**, **`/docs`**, etc.). **`GET /favicon.ico`** returns **204** so the browser does not log a favicon 404. For liveness checks, still use **`/api/studio/health`**.
 
 ## R2 and D1 on this Worker
 

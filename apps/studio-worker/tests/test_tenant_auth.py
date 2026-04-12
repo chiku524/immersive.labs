@@ -32,6 +32,20 @@ def client_auth_on(monkeypatch, tmp_path):
         yield c, key, tid
 
 
+def test_root_returns_api_pointer_json(client_auth_off: TestClient) -> None:
+    r = client_auth_off.get("/")
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("service") == "immersive-studio-worker"
+    assert body.get("endpoints", {}).get("health") == "/api/studio/health"
+    assert body.get("worker_version")
+
+
+def test_favicon_is_no_content(client_auth_off: TestClient) -> None:
+    r = client_auth_off.get("/favicon.ico")
+    assert r.status_code == 204
+
+
 def test_health_shows_auth_flag(client_auth_off: TestClient) -> None:
     r = client_auth_off.get("/api/studio/health")
     assert r.status_code == 200

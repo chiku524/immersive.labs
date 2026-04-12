@@ -117,6 +117,31 @@ app.add_middleware(
 )
 
 
+@app.get("/", include_in_schema=False)
+def root() -> dict[str, Any]:
+    """
+    Visiting the API host in a browser hits ``GET /`` (there is no SPA here).
+    FastAPI would otherwise return ``{"detail":"Not Found"}`` for an undefined route.
+    """
+    return {
+        "service": "immersive-studio-worker",
+        "worker_version": studio_worker_package_version,
+        "message": "JSON API — use the paths below (or open /docs for Swagger).",
+        "endpoints": {
+            "health": "/api/studio/health",
+            "openapi": "/openapi.json",
+            "docs": "/docs",
+            "redoc": "/redoc",
+        },
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    """Browsers request this automatically; avoid noisy 404s in DevTools."""
+    return Response(status_code=204)
+
+
 Category = Literal["prop", "environment_piece", "character_base", "material_library"]
 StylePreset = Literal["realistic_hd_pbr", "anime_stylized", "toon_bold"]
 
