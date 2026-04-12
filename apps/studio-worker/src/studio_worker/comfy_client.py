@@ -8,6 +8,34 @@ from typing import Any
 import httpx
 
 
+# Cloudflare and some reverse proxies block or challenge requests with httpx's default User-Agent;
+# ComfyUI still expects normal HTTP from the worker.
+def _comfy_http_headers() -> dict[str, str]:
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/plain, */*",
+    }
+
+
+def _response_looks_like_html(body: str, content_type: str) -> bool:
+    ct = content_type.lower()
+    if "text/html" in ct or "application/xhtml" in ct:
+        return True
+    s = body.lstrip().lower()
+    return s.startswith("<!doctype") or s.startswith("<html")
+
+
+def _comfy_gateway_html_detail(status_code: int) -> str:
+    return (
+        f"HTTP {status_code} returned HTML (Cloudflare/gateway page or browser challenge), not ComfyUI JSON. "
+        "The hostname may be down, blocking server-side clients, or Comfy may not be exposed at this URL. "
+        "Try from this machine: curl -sS -I <your STUDIO_COMFY_URL>/system_stats"
+    )
+
+
 class ComfyUIError(RuntimeError):
     pass
 
@@ -30,11 +58,35 @@ def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
     """
     base = (base_url or comfy_base_url()).rstrip("/")
     try:
-        r = httpx.get(f"{base}/system_stats", timeout=5.0)
-        ok = r.status_code < 400
-        return {"reachable": ok, "url": base, "detail": None if ok else r.text[:200]}
+        r = httpx.get(
+            f"{base}/system_stats",
+            timeout=10.0,
+            headers=_comfy_http_headers(),
+            follow_redirects=True,
+        )
     except httpx.RequestError as e:
         return {"reachable": False, "url": base, "detail": str(e)}
+
+    text = r.text
+    ct = r.headers.get("content-type") or ""
+
+    if r.status_code >= 400:
+        if _response_looks_like_html(text, ct):
+            return {"reachable": False, "url": base, "detail": _comfy_gateway_html_detail(r.status_code)}
+        return {"reachable": False, "url": base, "detail": text[:400]}
+
+    if _response_looks_like_html(text, ct):
+        return {"reachable": False, "url": base, "detail": _comfy_gateway_html_detail(r.status_code)}
+
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        return {
+            "reachable": False,
+            "url": base,
+            "detail": "ComfyUI /system_stats returned non-JSON (check URL points at Comfy, not another site).",
+        }
+    return {"reachable": True, "url": base, "detail": None}
 
 
 def queue_prompt(prompt_graph: dict[str, Any], *, base_url: str | None = None) -> str:
@@ -45,6 +97,8 @@ def queue_prompt(prompt_graph: dict[str, Any], *, base_url: str | None = None) -
             f"{base}/prompt",
             json={"prompt": prompt_graph, "client_id": client_id},
             timeout=60.0,
+            headers=_comfy_http_headers(),
+            follow_redirects=True,
         )
     except httpx.RequestError as e:
         raise ComfyUIError(f"Cannot reach ComfyUI at {base}: {e}") from e
@@ -60,7 +114,12 @@ def queue_prompt(prompt_graph: dict[str, Any], *, base_url: str | None = None) -
 def fetch_history(*, base_url: str | None = None) -> dict[str, Any]:
     base = base_url or comfy_base_url()
     try:
-        r = httpx.get(f"{base}/history", timeout=60.0)
+        r = httpx.get(
+            f"{base}/history",
+            timeout=60.0,
+            headers=_comfy_http_headers(),
+            follow_redirects=True,
+        )
     except httpx.RequestError as e:
         raise ComfyUIError(f"Cannot reach ComfyUI at {base}: {e}") from e
     if r.status_code >= 400:
@@ -125,7 +184,13 @@ def download_image(
     base = base_url or comfy_base_url()
     params = {"filename": filename, "subfolder": subfolder, "type": type_}
     try:
-        r = httpx.get(f"{base}/view", params=params, timeout=120.0)
+        r = httpx.get(
+            f"{base}/view",
+            params=params,
+            timeout=120.0,
+            headers=_comfy_http_headers(),
+            follow_redirects=True,
+        )
     except httpx.RequestError as e:
         raise ComfyUIError(f"Cannot download image from ComfyUI: {e}") from e
     if r.status_code >= 400:

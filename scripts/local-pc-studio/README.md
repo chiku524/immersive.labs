@@ -80,7 +80,7 @@ If you do **not** want to run Comfy on this PC, set in `apps/studio-worker/.env.
 STUDIO_COMFY_URL=https://comfy.immersivelabs.space
 ```
 
-(Only works if that host is reachable from your network.) Then restart `immersive-studio serve`.
+Then restart `immersive-studio serve`. The worker calls **`/system_stats`** over HTTPS; if `/studio` shows **“returned HTML … not ComfyUI JSON”**, the hostname is serving a **Cloudflare/gateway error or challenge page** (tunnel down, WAF, or Comfy not actually exposed on that path) — fix the **remote** tunnel/DNS, or run Comfy locally again. The worker sends a normal browser **User-Agent** so basic bot blocks are avoided.
 
 ## 4. Start the Studio API
 

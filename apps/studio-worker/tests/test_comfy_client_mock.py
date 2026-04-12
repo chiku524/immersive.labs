@@ -62,3 +62,36 @@ def test_comfy_reachability_request_error(monkeypatch: pytest.MonkeyPatch) -> No
     out = comfy_reachability(base_url="http://127.0.0.1:59999")
     assert out["reachable"] is False
     assert "refused" in (out.get("detail") or "")
+
+
+@respx.mock
+def test_comfy_reachability_html_error_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = "http://comfy.html"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+    respx.get(f"{base}/system_stats").mock(
+        return_value=httpx.Response(
+            502,
+            text="<!DOCTYPE html><html><title>Bad Gateway</title></html>",
+            headers={"content-type": "text/html; charset=UTF-8"},
+        )
+    )
+    out = comfy_reachability()
+    assert out["reachable"] is False
+    assert "HTML" in (out.get("detail") or "")
+    assert "<!DOCTYPE" not in (out.get("detail") or "")
+
+
+@respx.mock
+def test_comfy_reachability_200_html_challenge(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = "http://comfy.challenge"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+    respx.get(f"{base}/system_stats").mock(
+        return_value=httpx.Response(
+            200,
+            text="<!DOCTYPE html><html></html>",
+            headers={"content-type": "text/html"},
+        )
+    )
+    out = comfy_reachability()
+    assert out["reachable"] is False
+    assert "HTML" in (out.get("detail") or "")
