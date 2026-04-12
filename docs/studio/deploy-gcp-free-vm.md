@@ -68,8 +68,9 @@ The worker calls Ollama’s HTTP API at **`STUDIO_OLLAMA_URL`** (default in code
 **Fix (same pattern as Comfy):**
 
 1. Install Ollama on the **VM host** (not only in Docker): from the repo on the VM, **`sudo bash scripts/studio-cloudflare-tunnel/install-ollama-debian-vm.sh`** (sets `OLLAMA_HOST=0.0.0.0:11434` so Docker can reach it). On **e2-micro** / small disks, the script defaults to **`tinyllama`** (~637 MB); use **`OLLAMA_FIRST_PULL=llama3.2`** only if you have free space ( **`llama3.2`** is ~2 GB ).
-2. Recreate **`studio-worker`** with **`--add-host=host.docker.internal:host-gateway`**, **`STUDIO_OLLAMA_URL=http://host.docker.internal:11434`**, and **`STUDIO_OLLAMA_MODEL`** matching what you pulled (e.g. **`tinyllama`**). The checked-in **`vm-bootstrap-gce-startup.sh`** / **`vm-rebuild-studio-worker.sh`** now do this by default (`STUDIO_OLLAMA_MODEL` defaults to **`tinyllama`**; override via instance metadata **`STUDIO_OLLAMA_MODEL`**).
-3. **Mock mode** in `/studio` skips Ollama entirely if you only need wiring tests.
+2. Recreate **`studio-worker`** with **`--add-host=host.docker.internal:host-gateway`** (still recommended for **`host.docker.internal`** URLs such as Comfy), **`STUDIO_OLLAMA_URL`**, and **`STUDIO_OLLAMA_MODEL`** matching what you pulled (e.g. **`tinyllama`**). The checked-in **`vm-bootstrap-gce-startup.sh`** / **`vm-rebuild-studio-worker.sh`** default **`STUDIO_OLLAMA_URL`** to **`http://172.17.0.1:11434`** (Docker bridge → host on Linux; avoids some **`host.docker.internal`** hangs). Override via metadata if needed (e.g. **`http://host.docker.internal:11434`**). **`STUDIO_OLLAMA_MODEL`** defaults to **`tinyllama`**.
+3. **Host firewall:** if **`ufw`** is enabled, the bridge may not reach **`127.0.0.1:11434`** on the host — allow from **`docker0`** or bind-check with **`sudo docker exec studio-worker python -c "import urllib.request; print(urllib.request.urlopen('http://172.17.0.1:11434/api/tags', timeout=5).read()[:200])"`** from the running container.
+4. **Mock mode** in `/studio` skips Ollama entirely if you only need wiring tests.
 
 ### Cloudflare Tunnel
 

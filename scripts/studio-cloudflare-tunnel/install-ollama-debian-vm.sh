@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install Ollama on a Debian/Ubuntu VM host so the **Docker** studio-worker can reach it at
-# http://host.docker.internal:11434 (see vm-bootstrap / vm-rebuild --add-host).
+# http://172.17.0.1:11434 (default in vm-rebuild) or http://host.docker.internal:11434 (metadata override).
 #
 # Run on the GCE VM as a user with sudo:
 #   curl -fsSL …/install-ollama-debian-vm.sh | bash
@@ -41,4 +41,6 @@ done
 
 ollama pull "$FIRST_PULL"
 
-echo "OK: Ollama listening on 0.0.0.0:11434; pulled ${FIRST_PULL}. Recreate studio-worker with host.docker.internal (see vm-rebuild-studio-worker.sh)."
+echo "OK: Ollama listening on 0.0.0.0:11434; pulled ${FIRST_PULL}."
+echo "Recreate studio-worker with STUDIO_OLLAMA_URL=http://172.17.0.1:11434 (default in vm-rebuild) or host.docker.internal; see vm-rebuild-studio-worker.sh."
+echo "If the worker still cannot reach Ollama, check host firewall (ufw): allow traffic from docker0 to port 11434."

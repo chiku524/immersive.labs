@@ -30,8 +30,10 @@ def chat_completion(system: str, user: str, *, model: str | None = None, timeout
         ],
         "options": {"temperature": 0.35},
     }
+    # Short connect timeout so misconfigured STUDIO_OLLAMA_URL fails fast; read can be long for LLM.
+    timeout = httpx.Timeout(timeout_s, connect=min(15.0, timeout_s))
     try:
-        r = httpx.post(url, json=payload, timeout=timeout_s)
+        r = httpx.post(url, json=payload, timeout=timeout)
     except httpx.RequestError as e:
         raise RuntimeError(f"Could not reach Ollama at {ollama_base_url()}: {e}") from e
     if r.status_code >= 400:

@@ -423,7 +423,10 @@ export function StudioPage() {
           generate_textures: generateTextures,
           export_mesh: exportMesh,
           unity_urp_hint: "6000.0.x LTS (pin when smoke-tested)",
-          max_attempts: 3,
+          // One queue attempt: otherwise a failed job (e.g. Ollama down) returns status `pending`
+          // for retries while the UI only treats `dead` / `completed` as terminal — button stays
+          // "Running job…" for up to max_attempts × long LLM timeouts.
+          max_attempts: 1,
           idempotency_key: idem,
         }),
       });

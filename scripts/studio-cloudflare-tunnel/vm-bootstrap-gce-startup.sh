@@ -91,7 +91,7 @@ fi
 COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
 OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
-OLLAMA_URL="${OLLAMA_META:-http://host.docker.internal:11434}"
+OLLAMA_URL="${OLLAMA_META:-http://172.17.0.1:11434}"
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
 

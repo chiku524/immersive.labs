@@ -10,7 +10,9 @@ COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
 # Ollama on the VM host (not inside the worker container). Requires Ollama on host + OLLAMA_HOST=0.0.0.0 — see install-ollama-debian-vm.sh
 OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
-OLLAMA_URL="${OLLAMA_META:-http://host.docker.internal:11434}"
+# Default: Docker bridge gateway on Linux (reliable on GCE). Override with metadata if needed
+# (e.g. http://host.docker.internal:11434 when --add-host=host.docker.internal:host-gateway is used).
+OLLAMA_URL="${OLLAMA_META:-http://172.17.0.1:11434}"
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 # tinyllama fits e2-micro disks; set metadata STUDIO_OLLAMA_MODEL=llama3.2 when you have space.
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
