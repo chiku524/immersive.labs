@@ -125,7 +125,13 @@ export function DocsPage() {
                     </li>
                     <li>
                       Ensure <code>VITE_STUDIO_API_URL=http://127.0.0.1:8787</code> for the web app (e.g.{" "}
-                      <code>apps/web/.env.development.local</code>) if the default is wrong.
+                      <code>apps/web/.env.development.local</code>) if the default is wrong — or set{" "}
+                      <code>VITE_STUDIO_API_PROXY=1</code> there so Vite proxies <code>/api/studio</code> to the worker
+                      (same-origin; no CORS tuning).
+                    </li>
+                    <li>
+                      To run <strong>ComfyUI + Blender + API on your own PC</strong>, follow{" "}
+                      <code>scripts/local-pc-studio/README.md</code> (env template + start scripts).
                     </li>
                     <li>
                       Use <strong>mock</strong> mode in the UI if Ollama is not running. Enable textures only when

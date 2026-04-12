@@ -46,6 +46,8 @@ pip install -e .
 python -m studio_worker.cli serve --host 127.0.0.1 --port 8787
 ```
 
+**Host ComfyUI + Blender + the API on your own PC** (recommended checklist, env templates, optional Vite proxy): [scripts/local-pc-studio/README.md](./scripts/local-pc-studio/README.md).
+
 Use **mock mode** in the UI if Ollama is not running. Enable **Generate albedo textures** when [ComfyUI](https://github.com/comfyanonymous/ComfyUI) is up and `STUDIO_COMFY_CHECKPOINT` matches a local checkpoint. See [apps/studio-worker/README.md](./apps/studio-worker/README.md) and [packages/studio-unity/README.md](./packages/studio-unity/README.md).
 
 ## Studio documentation
