@@ -56,8 +56,11 @@
             "enum": ["albedo", "normal", "orm", "emissive", "mask"]
           },
           "resolution_hint": {
-            "type": "integer",
-            "enum": [512, 1024, 2048, 4096]
+            "description": "LLMs often emit quoted numbers; accept int or canonical string, then normalize server-side.",
+            "oneOf": [
+              { "type": "integer", "enum": [512, 1024, 2048, 4096] },
+              { "type": "string", "enum": ["512", "1024", "2048", "4096"] }
+            ]
           },
           "notes": { "type": "string" }
         }

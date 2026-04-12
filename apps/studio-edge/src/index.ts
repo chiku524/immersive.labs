@@ -236,6 +236,55 @@ async function cachedHealth(request: Request, env: Env): Promise<Response | null
   return new Response(JSON.stringify(entry.body), { status: 200, headers });
 }
 
+/**
+ * Older studio-worker images return 404 for GET / and /favicon.ico. Synthesize minimal
+ * responses so https://api…/ is human-friendly without waiting for a VM redeploy.
+ */
+function synthesizeRootOrFaviconIfOrigin404(
+  request: Request,
+  proxied: Response,
+  env: Env,
+): Response | null {
+  const url = new URL(request.url);
+  const m = request.method;
+  if (m !== "GET" && m !== "HEAD") {
+    return null;
+  }
+  if (url.pathname !== "/" && url.pathname !== "/favicon.ico") {
+    return null;
+  }
+  if (proxied.status !== 404) {
+    return null;
+  }
+  const oh = originHostname(env);
+  if (url.pathname === "/favicon.ico") {
+    const headers = new Headers({
+      "X-Studio-Edge-Synthesized": "favicon-204",
+      "X-Studio-Edge-Origin-Host": oh,
+    });
+    return new Response(null, { status: 204, headers });
+  }
+  const bodyObj: Record<string, unknown> = {
+    service: "immersive-studio",
+    message:
+      "Studio API host. The origin returned 404 for GET / (redeploy studio-worker for a native root JSON body). Use the endpoints below.",
+    origin_host: oh,
+    endpoints: {
+      health: "/api/studio/health",
+      openapi: "/openapi.json",
+      docs: "/docs",
+      redoc: "/redoc",
+    },
+  };
+  const body = m === "HEAD" ? null : JSON.stringify(bodyObj);
+  const headers = new Headers({
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Studio-Edge-Synthesized": "root-404-fallback",
+    "X-Studio-Edge-Origin-Host": oh,
+  });
+  return new Response(body, { status: 200, headers });
+}
+
 async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace): Promise<Response> {
   const target = `${originBase(env)}${HEALTH_PATH}`;
   const headers = scrubRequestHeaders(request.headers);
@@ -287,7 +336,9 @@ export default {
         return fetchAndStoreHealth(request, env, env.STUDIO_KV);
       }
       const proxied = await proxyToOrigin(request, env);
-      const normalized = await coerceJsonForStudioApiHtmlErrors(request, proxied);
+      const effective =
+        synthesizeRootOrFaviconIfOrigin404(request, proxied, env) ?? proxied;
+      const normalized = await coerceJsonForStudioApiHtmlErrors(request, effective);
       const withOriginHint = new Response(normalized.body, {
         status: normalized.status,
         statusText: normalized.statusText,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from studio_worker.mock_spec import build_mock_spec
-from studio_worker.validate import validate_asset_spec
+from studio_worker.validate import load_asset_validator, validate_asset_spec
 
 
 def test_mock_spec_validates_toon() -> None:
@@ -42,6 +42,17 @@ def test_generation_negative_prompt_null_becomes_empty_string() -> None:
     spec["generation"]["negative_prompt"] = None
     validate_asset_spec(spec)
     assert spec["generation"]["negative_prompt"] == ""
+
+
+def test_json_schema_accepts_literal_string_resolution_enum_without_coercion() -> None:
+    """Defense in depth: schema allows canonical string enums before normalize runs."""
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["material_slots"][0]["resolution_hint"] = "2048"
+    load_asset_validator().validate(spec)
 
 
 def test_material_slot_resolution_hint_string_coerced_to_int() -> None:
