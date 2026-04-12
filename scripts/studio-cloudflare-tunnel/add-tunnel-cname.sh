@@ -8,7 +8,10 @@
 #
 # Usage:
 #   export CLOUDFLARE_API_TOKEN='...'
-#   bash scripts/studio-cloudflare-tunnel/add-tunnel-cname.sh comfy 52513248-a776-4f3d-b6fb-7e17c3858b2b immersivelabs.space
+#   bash scripts/studio-cloudflare-tunnel/add-tunnel-cname.sh api-origin 52513248-a776-4f3d-b6fb-7e17c3858b2b immersivelabs.space
+#
+# Or the same via env (positional args win when set):
+#   SUBDOMAIN=api-origin TUNNEL_ID=52513248-... ZONE=immersivelabs.space bash scripts/.../add-tunnel-cname.sh
 #
 set -euo pipefail
 
@@ -18,9 +21,18 @@ if [[ -z "$PY" ]]; then
   exit 1
 fi
 
-SUB="${1:?first arg: DNS label (e.g. comfy)}"
-TUNNEL_ID="${2:?second arg: tunnel UUID}"
-ZONE_NAME="${3:-immersivelabs.space}"
+SUB="${1:-${SUBDOMAIN:-}}"
+TUNNEL_ID="${2:-${TUNNEL_ID:-}}"
+ZONE_NAME="${3:-${ZONE:-immersivelabs.space}}"
+if [[ -z "$SUB" ]]; then
+  echo "Missing DNS label: pass as first arg (e.g. api-origin) or set SUBDOMAIN=api-origin" >&2
+  echo "Usage: $0 <dns-label> <tunnel-uuid> [zone]" >&2
+  exit 1
+fi
+if [[ -z "$TUNNEL_ID" ]]; then
+  echo "Missing tunnel UUID: pass as second arg or set TUNNEL_ID=..." >&2
+  exit 1
+fi
 TOKEN="${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN (Zone DNS Edit)}"
 
 BASE="https://api.cloudflare.com/client/v4"
