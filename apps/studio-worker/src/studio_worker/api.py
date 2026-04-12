@@ -32,6 +32,7 @@ from studio_worker.scale_config import (
     redis_queue_engine,
     tenants_backend,
 )
+from studio_worker import __version__ as studio_worker_package_version
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker.sqlite_queue import (
     count_queue_by_status,
@@ -102,7 +103,7 @@ async def _app_lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Immersive Studio Worker",
-    version="0.1.0",
+    version=studio_worker_package_version,
     lifespan=_app_lifespan,
 )
 app.include_router(billing_router)
@@ -136,6 +137,10 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     auth_required: bool
     stripe_webhook_configured: bool = False
+    worker_version: str = Field(
+        ...,
+        description="Python worker package version (bump + redeploy after server-side fixes).",
+    )
 
 
 class MetricsResponse(BaseModel):
@@ -151,6 +156,7 @@ async def health() -> HealthResponse:
         status="ok",
         auth_required=api_auth_required(),
         stripe_webhook_configured=bool(stripe_webhook_secret()),
+        worker_version=studio_worker_package_version,
     )
 
 

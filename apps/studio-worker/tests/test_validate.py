@@ -20,3 +20,14 @@ def test_mock_spec_validates_anime() -> None:
         style_preset="anime_stylized",
     )
     validate_asset_spec(spec)
+
+
+def test_target_height_m_null_coerced_before_validation() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["target_height_m"] = None
+    validate_asset_spec(spec)
+    assert spec["target_height_m"] == 1.0

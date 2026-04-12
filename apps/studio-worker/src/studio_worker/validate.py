@@ -38,6 +38,9 @@ def load_asset_validator() -> Draft202012Validator:
 
 
 def validate_json_schema(spec: dict[str, Any]) -> None:
+    # Always coerce here too: callers must not skip normalize_asset_spec, but
+    # long-lived uvicorn/Docker processes often run stale code until restart.
+    _coerce_target_height_m(spec)
     validator = load_asset_validator()
     validator.validate(spec)
 
@@ -84,8 +87,39 @@ def validate_business_rules(spec: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _coerce_target_height_m(spec: dict[str, Any]) -> None:
+    """
+    LLMs often emit target_height_m: null or omit it; schema requires a positive number when present.
+    Coerce null / invalid / non-positive to 1.0 (matches mock_spec + Blender fallback).
+    """
+    if "target_height_m" not in spec:
+        return
+    raw = spec["target_height_m"]
+    if raw is None:
+        spec["target_height_m"] = 1.0
+        return
+    if isinstance(raw, str):
+        try:
+            raw = float(raw.strip())
+        except ValueError:
+            spec["target_height_m"] = 1.0
+            return
+    if isinstance(raw, bool):
+        spec["target_height_m"] = 1.0
+        return
+    if isinstance(raw, (int, float)):
+        v = float(raw)
+        if v <= 0 or v != v:
+            spec["target_height_m"] = 1.0
+        else:
+            spec["target_height_m"] = v
+        return
+    spec["target_height_m"] = 1.0
+
+
 def normalize_asset_spec(spec: dict[str, Any]) -> None:
     """Coerce common LLM quirks in-place before schema validation."""
+    _coerce_target_height_m(spec)
     pb = spec.get("poly_budget_tris")
     if isinstance(pb, float):
         spec["poly_budget_tris"] = int(pb)

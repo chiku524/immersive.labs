@@ -83,6 +83,16 @@ The worker calls ComfyUI’s HTTP API at **`STUDIO_COMFY_URL`** (no trailing sla
 19. Confirm **`STUDIO_CORS_ORIGINS`** on the worker lists **both** **`https://your-app.vercel.app`** and **`https://www.yourdomain.com`** / **`https://yourdomain.com`** if you use those URLs in the browser (see below).
 20. Open **`/studio`** on each live origin you use and confirm the health line shows the worker OK.
 
+### After changing `apps/studio-worker` (Python fixes)
+
+The Vercel build only ships the **React** app. Any change under **`apps/studio-worker`** (validation, queue, billing, Comfy integration) requires updating the **machine that runs `immersive-studio serve`** (your VM/container), not Vercel alone.
+
+1. **On the worker host:** `git pull` (or copy the new tree), then rebuild and recreate the container from the monorepo root, for example:  
+   `docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .`  
+   then `docker stop` / `docker rm` the old container and `docker run …` again with the same **`-e`** flags (`STUDIO_CORS_ORIGINS`, `STUDIO_COMFY_URL`, secrets, etc.).
+2. **Smoke test:** `curl -sS https://api.yourdomain.com/api/studio/health` — the JSON should include **`worker_version`** (bumped in `apps/studio-worker` when you ship server-side fixes). The **`/studio`** page shows **Worker v…** when that field is present so you can confirm the browser is talking to the redeployed API.
+3. **Frontend:** Redeploy Vercel only when **`apps/web`** or env vars such as **`VITE_STUDIO_API_URL`** change.
+
 ### `STUDIO_CORS_ORIGINS` (production pattern)
 
 The browser sends an **`Origin`** header that must **exactly** match one allowed origin (scheme + host; no path). List **all** of these, comma-separated, if you use them:

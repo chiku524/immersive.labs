@@ -37,7 +37,7 @@ Required top-level keys:
 - category: one of {list(CATEGORIES)}
 - style_preset: must be exactly "{style_preset}" (do not change it)
 - poly_budget_tris: integer, must be <= {poly_max} for this style
-- target_height_m: optional positive number (meters) if inferable
+- target_height_m: positive number (meters), typically 0.5–3.0 for props; use 1.0 if scale is unknown (never null)
 - palette: optional array of #RRGGBB strings for color locking
 - tags: non-empty array of short strings
 - material_slots: array; each item has id, role, resolution_hint (512|1024|2048|4096), optional notes

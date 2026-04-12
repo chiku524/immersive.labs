@@ -38,6 +38,7 @@ def test_health_shows_auth_flag(client_auth_off: TestClient) -> None:
     body = r.json()
     assert body["auth_required"] is False
     assert body["stripe_webhook_configured"] is False
+    assert body.get("worker_version")
 
 
 def test_health_auth_required_when_enabled(monkeypatch) -> None:

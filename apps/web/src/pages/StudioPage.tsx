@@ -128,6 +128,8 @@ export function StudioPage() {
     mesh_logs: string[];
   } | null>(null);
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
+  /** From GET /api/studio/health when present (helps confirm prod worker redeploy). */
+  const [workerVersion, setWorkerVersion] = useState<string | null>(null);
   /** Extra context when health check fails (e.g. Cloudflare 530 tunnel). */
   const [healthErrorHint, setHealthErrorHint] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
@@ -174,10 +176,12 @@ export function StudioPage() {
     }
     setHealth("checking");
     setHealthErrorHint(null);
+    setWorkerVersion(null);
     fetch(`${STUDIO_API_BASE}/api/studio/health`)
       .then(async (r) => {
         if (!r.ok) {
           setHealth("error");
+          setWorkerVersion(null);
           if (r.status === 530) {
             setHealthErrorHint(
               "Cloudflare returned HTTP 530 (tunnel / origin unreachable). On the host behind your public API, start cloudflared and confirm the tunnel routes to immersive-studio on the expected port; see scripts/studio-cloudflare-tunnel/README.md.",
@@ -190,12 +194,14 @@ export function StudioPage() {
           return;
         }
         try {
-          const j = await readApiJson<{ auth_required?: boolean }>(r);
+          const j = await readApiJson<{ auth_required?: boolean; worker_version?: string }>(r);
           setHealth("ok");
           setHealthErrorHint(null);
           setAuthRequired(Boolean(j?.auth_required));
+          setWorkerVersion(typeof j?.worker_version === "string" ? j.worker_version : null);
         } catch {
           setHealth("error");
+          setWorkerVersion(null);
           setHealthErrorHint(
             "The URL responded, but the body was not JSON (often an error page in front of the API). Fix DNS / tunnel / Worker upstream so /api/studio/health returns the worker JSON.",
           );
@@ -203,6 +209,7 @@ export function StudioPage() {
       })
       .catch(() => {
         setHealth("error");
+        setWorkerVersion(null);
         setHealthErrorHint("Network error — the browser could not complete a request to the Studio API (offline, CORS, or blocked).");
       });
   }, []);
@@ -347,7 +354,9 @@ export function StudioPage() {
     } catch (err) {
       setSpec(null);
       setMeta(null);
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      // Makes it obvious when `.env` points the browser at a remote worker (stale deploy) vs local 8787.
+      setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
     } finally {
       setLoading(false);
     }
@@ -598,7 +607,11 @@ export function StudioPage() {
           ) : (
             <div className={`studio-health studio-health--${health}`} role="status">
               {health === "checking" && "Checking worker…"}
-              {health === "ok" && <>Worker reachable at {studioWorkerDisplayOrigin()}</>}
+              {health === "ok" && (
+                <>
+                  Worker{workerVersion ? ` v${workerVersion}` : ""} reachable at {studioWorkerDisplayOrigin()}
+                </>
+              )}
               {health === "error" && (
                 <>
                   Worker not reachable at {studioWorkerDisplayOrigin()}.{" "}
