@@ -92,6 +92,14 @@ npx wrangler d1 create <database-name>
 
 Then update **`wrangler.toml`** and redeploy.
 
+## Workers.dev / preview URLs show “inactive” in the dashboard
+
+If **only** `routes = [{ pattern = "api.…", zone_name = … }]` is set, deploys often turn off **`*.workers.dev`** and **preview URL** routes unless you opt back in.
+
+This repo sets **`workers_dev = true`** and **`preview_urls = true`** in **`wrangler.toml`**. After changing them, run **`npm run deploy`** (or `npx wrangler deploy`) so Cloudflare picks up the config; the dashboard should then list those routes as active.
+
+Production traffic still uses **`api.immersivelabs.space`** via the zone route; **`immersive-studio-edge.<subdomain>.workers.dev`** is optional for testing the Worker without custom DNS.
+
 ## Deploy
 
 ```bash

@@ -6,6 +6,11 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 account_id = "10374f367672f4d19db430601db0926b"
 
+# With custom zone `routes` below, Wrangler otherwise disables workers.dev + preview URLs
+# (dashboard shows them as inactive). Keep these true for *.workers.dev smoke tests and PR previews.
+workers_dev = true
+preview_urls = true
+
 # Route Worker on public API hostname (zone must be on Cloudflare).
 routes = [
   { pattern = "api.immersivelabs.space/*", zone_name = "immersivelabs.space" },
