@@ -132,7 +132,8 @@ def run_studio_job(
             except Exception as e:
                 errors.append(str(e))
                 has_textures = False
-                manifest["toolchain"]["image_pipeline"] = f"comfyui:error:{str(e)}"[:200]
+                # Keep enough of the message for Comfy JSON (node_errors); 200 chars was too short for zip review.
+                manifest["toolchain"]["image_pipeline"] = f"comfyui:error:{str(e)}"[:4000]
                 (out_dir / "manifest.json").write_text(
                     json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
                 )
