@@ -29,6 +29,8 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 
 **Tunnel had no connectors (HTTP 530):** start `cloudflared` on a host that can reach `127.0.0.1:8787` (VM with Docker, or your dev PC while testing). A working Windows example lives at `%USERPROFILE%\.cloudflared\immersive-labs-studio-api-connector.yml` after you copy the template and point `credentials-file` at your `52513248-….json`.
 
+**Stray connector you cannot SSH to:** `cloudflared tunnel cleanup --connector-id …` only drops sessions until the process reconnects. To invalidate old credentials everywhere, **rotate** the tunnel secret: `PATCH …/cfd_tunnel/{tunnel_id}` with a new `tunnel_secret` (base64 of 32 random bytes), rebuild the credentials JSON (`AccountTag`, `TunnelID`, `TunnelSecret`, optional `Endpoint: ""`), **`gcloud compute scp`** to `/etc/cloudflared/52513248-….json` on **`immersive-studio-worker`**, then **`sudo systemctl restart cloudflared`**. Requires **Cloudflare Tunnel Edit** on the API token. Then **`cf-tunnel-admin.sh connector-cleanup`** if a stale `client_id` still appears, and **`wrangler kv key delete studio:health:v1`** (remote) for a fresh edge health cache.
+
 ## IAP SSH (PuTTY “Remote side unexpectedly closed”, or `start-iap-tunnel` 4003)
 
 Prerequisites (CLI, project **`immersive-labs-studio`**):

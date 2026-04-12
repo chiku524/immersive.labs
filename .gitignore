@@ -1,6 +1,8 @@
 node_modules
 dist
 .env
+# Ephemeral tunnel credential material (rotate-tunnel / local ops)
+scripts/studio-cloudflare-tunnel/.tunnel*.tmp*
 apps/studio-worker/.venv/
 **/.wrangler/
 **/.dev.vars
