@@ -13,7 +13,12 @@
 # Or the same via env (positional args win when set):
 #   SUBDOMAIN=api-origin TUNNEL_ID=52513248-... ZONE=immersivelabs.space bash scripts/.../add-tunnel-cname.sh
 #
+# Git Bash: if curl fails with "URL rejected: Malformed input", pull latest (MSYS2_ARG_CONV_EXCL + id trim).
+#
 set -euo pipefail
+
+# Git Bash / MSYS can rewrite arguments that look like paths; curl then sees a broken URL (error 3).
+export MSYS2_ARG_CONV_EXCL="*"
 
 PY="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
 if [[ -z "$PY" ]]; then
@@ -43,7 +48,7 @@ hdr=(-H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json")
 
 echo "Resolving zone ${ZONE_NAME}..."
 zones_json="$(curl -fsS "${hdr[@]}" "${BASE}/zones?name=${ZONE_NAME}")"
-zone_id="$("$PY" -c "import json,sys; d=json.load(sys.stdin); r=d.get('result')or[]; print(r[0]['id'] if r else '')" <<<"$zones_json")"
+zone_id="$("$PY" -c "import json,sys; d=json.load(sys.stdin); r=d.get('result')or[]; print(r[0]['id'] if r else '')" <<<"$zones_json" | tr -d '\r\n')"
 if [[ -z "$zone_id" ]]; then
   echo "Zone not found: ${ZONE_NAME}" >&2
   exit 1
@@ -52,10 +57,12 @@ echo "zone_id=${zone_id}"
 
 echo "Listing existing ${FQDN}..."
 list_json="$(curl -fsS "${hdr[@]}" "${BASE}/zones/${zone_id}/dns_records?name=${FQDN}")"
-while read -r rid; do
+while IFS= read -r rid || [[ -n "${rid:-}" ]]; do
+  rid="$(printf '%s' "$rid" | tr -d '\r\n')"
   [[ -z "$rid" ]] && continue
   echo "Deleting record id=${rid}"
-  curl -fsS "${hdr[@]}" -X DELETE "${BASE}/zones/${zone_id}/dns_records/${rid}" >/dev/null
+  del_url="${BASE}/zones/${zone_id}/dns_records/${rid}"
+  curl -fsS "${hdr[@]}" -X DELETE "$del_url" >/dev/null
 done < <("$PY" -c "
 import json,sys
 d=json.load(sys.stdin)
