@@ -104,7 +104,7 @@ export function DocsPage() {
                   </p>
                   <p className="docs-note" role="note">
                     <strong>Split deploy:</strong> the marketing site and <Link to="/studio">/studio</Link> are static
-                    (e.g. Vercel). The worker runs on a VM or container with persistent disk for SQLite and job output.
+                    (e.g. Cloudflare Pages). The worker runs on a VM or container with persistent disk for SQLite and job output.
                     Point <code>VITE_STUDIO_API_URL</code> at the worker&apos;s public HTTPS origin.
                   </p>
                 </section>
@@ -154,7 +154,7 @@ export function DocsPage() {
                   </p>
                   <h3>CORS</h3>
                   <p>
-                    Every browser origin you use (apex, <code>www</code>, Vercel preview, etc.) must appear in{" "}
+                    Every browser origin you use (apex, <code>www</code>, Pages preview hosts, etc.) must appear in{" "}
                     <code>STUDIO_CORS_ORIGINS</code> on the worker, as a comma-separated list (scheme + host, no path).
                   </p>
                 </section>
@@ -279,7 +279,7 @@ export function DocsPage() {
                       <dt>
                         <code>VITE_STUDIO_API_URL</code> (frontend build)
                       </dt>
-                      <dd>Public HTTPS base URL of the worker; set before Vite build (e.g. Vercel env).</dd>
+                      <dd>Public HTTPS base URL of the worker; set before Vite build (e.g. Cloudflare Pages env).</dd>
                     </div>
                     <div>
                       <dt>

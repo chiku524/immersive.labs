@@ -1,7 +1,7 @@
 /**
  * Worker base URL for Studio API calls.
  *
- * - Production builds must set VITE_STUDIO_API_URL at build time (e.g. Vercel env).
+ * - Production builds must set VITE_STUDIO_API_URL at build time (e.g. Cloudflare Pages env).
  * - Local dev: unset → http://127.0.0.1:8787 (direct; set STUDIO_CORS_ORIGINS on the worker).
  * - Local dev: VITE_STUDIO_API_PROXY=1 → "" (same-origin `/api/studio/*`; Vite proxies to 8787).
  */

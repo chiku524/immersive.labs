@@ -60,7 +60,7 @@ Use **mock mode** in the UI if Ollama is not running. Enable **Generate albedo t
 
 **GCE + Cloudflare scripts index:** [scripts/studio-cloudflare-tunnel/README.md](./scripts/studio-cloudflare-tunnel/README.md)
 
-**Deploying the web app (e.g. Vercel):** the UI is static/build output; **SQLite and jobs live on the Python worker host**, not on Vercel — set `VITE_STUDIO_API_URL` to your worker. Details: [docs/studio/essentials.md](./docs/studio/essentials.md) (storage / Vercel subsection).
+**Deploying the web app (e.g. Cloudflare Pages):** the UI is static/build output; **SQLite and jobs live on the Python worker host** — set `VITE_STUDIO_API_URL` at build time to your worker. Details: [docs/studio/essentials.md](./docs/studio/essentials.md) (storage / static host subsection).
 
 Planning index: [docs/studio/README.md](./docs/studio/README.md).
 

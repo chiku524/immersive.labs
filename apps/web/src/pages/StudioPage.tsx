@@ -596,8 +596,8 @@ export function StudioPage() {
               <code>VITE_STUDIO_API_URL</code> to your public worker base URL (no trailing slash), then rebuild.
               <br />
               <span className="studio-config-banner-sub">
-                <strong>Vercel:</strong> Project → Settings → Environment Variables → add{" "}
-                <code>VITE_STUDIO_API_URL</code> = <code>https://your-worker.example.com</code> → redeploy.
+                <strong>Cloudflare Pages:</strong> Project → Settings → Environment variables → add{" "}
+                <code>VITE_STUDIO_API_URL</code> = <code>https://your-worker.example.com</code> → trigger a new build.
                 <br />
                 <strong>Local dev:</strong> run <code>npm run dev</code> (defaults to{" "}
                 <code>http://127.0.0.1:8787</code>) or put the same value in{" "}

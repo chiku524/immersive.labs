@@ -4,13 +4,13 @@ This guide runs **`immersive-studio serve`** on a small **Google Cloud** virtual
 
 **Why GCP here:** signup and quotas are usually straightforward, docs are stable, and **`e2-micro`** is a common choice for always-free hobby APIs.
 
-**What you get:** a public HTTPS URL for the worker that pairs with the static site on Vercel (`VITE_STUDIO_API_URL` at build time). **You do not keep your laptop online.**
+**What you get:** a public HTTPS URL for the worker that pairs with your static frontend (e.g. **Cloudflare Pages**), with **`VITE_STUDIO_API_URL` set at Vite build time**. **You do not keep your laptop online.**
 
 **Caveats:**
 
 - You need a **billing account** on GCP; staying free depends on **staying inside** free-tier limits. Check **Billing → Reports** after setup.
 - **`e2-micro` has 1 GiB RAM.** Full **Ollama / ComfyUI / Blender** on the same VM is usually unrealistic. Plan on **mock specs** and lightweight jobs first.
-- The Vercel app is **HTTPS**; the worker must be **HTTPS** too (mixed content). Use **Cloudflare Tunnel** (below) or Caddy.
+- The marketing site is served over **HTTPS**; the worker must be **HTTPS** too (mixed content). Use **Cloudflare Tunnel** (below) or Caddy.
 
 **Automation:** [`scripts/studio-cloudflare-tunnel/`](../../scripts/studio-cloudflare-tunnel/) — see [§10](#10-terminal-scripts-this-repo).
 
@@ -43,7 +43,7 @@ Do these in order. Replace placeholders (`YOUR_PROJECT_ID`, `your-app`, `yourdom
 ```bash
 docker run -d --name studio-worker --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
-  -e STUDIO_CORS_ORIGINS='https://your-app.vercel.app,https://www.yourdomain.com,https://yourdomain.com' \
+  -e STUDIO_CORS_ORIGINS='https://your-project.pages.dev,https://www.yourdomain.com,https://yourdomain.com' \
   -v studio-output:/repo/apps/studio-worker/output \
   immersive-studio-worker:local
 ```
@@ -69,29 +69,29 @@ The worker calls ComfyUI’s HTTP API at **`STUDIO_COMFY_URL`** (no trailing sla
 13. On the VM: **`sudo bash scripts/studio-cloudflare-tunnel/cloudflared-service-install.sh 'PASTE_TOKEN'`**
 14. In the tunnel → **Public hostname**: subdomain **`api`**, domain your zone, service **HTTP**, URL **`http://127.0.0.1:8787`** (must match the tunnel docs and your DNS name, e.g. **`https://api.yourdomain.com`**).
 
-### DNS (domain on Vercel)
+### DNS (API hostname)
 
-15. In **Vercel → Project → Domains → your domain → DNS**, add **CNAME**:  
+15. Where your **apex / `www`** DNS lives (registrar, **Cloudflare DNS**, or a former static host): add a **CNAME** for the API subdomain:  
     **Name:** `api` (or your subdomain) → **Value:** **`<TUNNEL_ID>.cfargotunnel.com`** (from Cloudflare tunnel details).  
-    (If nameservers are **Cloudflare** instead, use automatic DNS in the tunnel UI and skip manual CNAME on Vercel.)
+    If the zone is already on **Cloudflare**, you can use automatic DNS from the tunnel UI instead of a manual CNAME.
 16. Wait for DNS to propagate; test: **`curl -sS https://api.yourdomain.com/api/studio/health`**
 
-### Vercel (frontend)
+### Cloudflare Pages (frontend)
 
-17. Project → **Settings → Environment Variables**: **`VITE_STUDIO_API_URL`** = **`https://api.yourdomain.com`** (no trailing slash; use your real API host).
-18. **Redeploy** the production deployment so the bundle includes that variable.
-19. Confirm **`STUDIO_CORS_ORIGINS`** on the worker lists **both** **`https://your-app.vercel.app`** and **`https://www.yourdomain.com`** / **`https://yourdomain.com`** if you use those URLs in the browser (see below).
+17. **Cloudflare Dashboard** → **Workers & Pages** → your **Pages** project → **Settings** → **Environment variables**: set **`VITE_STUDIO_API_URL`** = **`https://api.yourdomain.com`** (no trailing slash; use your real API host).
+18. **Trigger a new production deployment** so the bundle includes that variable (Vite inlines `VITE_*` at build time).
+19. Confirm **`STUDIO_CORS_ORIGINS`** on the worker lists **every origin** visitors use — e.g. **`https://www.yourdomain.com`**, **`https://yourdomain.com`**, and any **`*.pages.dev`** preview URL if you test against production APIs from preview deploys (see below).
 20. Open **`/studio`** on each live origin you use and confirm the health line shows the worker OK.
 
 ### After changing `apps/studio-worker` (Python fixes)
 
-The Vercel build only ships the **React** app. Any change under **`apps/studio-worker`** (validation, queue, billing, Comfy integration) requires updating the **machine that runs `immersive-studio serve`** (your VM/container), not Vercel alone.
+The **Pages/CI build** only ships the **React** app. Any change under **`apps/studio-worker`** (validation, queue, billing, Comfy integration) requires updating the **machine that runs `immersive-studio serve`** (your VM/container), not Cloudflare Pages alone.
 
 1. **On the worker host:** `git pull` (or copy the new tree), then rebuild and recreate the container from the monorepo root, for example:  
    `docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .`  
    then `docker stop` / `docker rm` the old container and `docker run …` again with the same **`-e`** flags (`STUDIO_CORS_ORIGINS`, `STUDIO_COMFY_URL`, secrets, etc.).
 2. **Smoke test:** `curl -sS https://api.yourdomain.com/api/studio/health` — the JSON should include **`worker_version`** (bumped in `apps/studio-worker` when you ship server-side fixes). The **`/studio`** page shows **Worker v…** when that field is present so you can confirm the browser is talking to the redeployed API.
-3. **Frontend:** Redeploy Vercel only when **`apps/web`** or env vars such as **`VITE_STUDIO_API_URL`** change.
+3. **Frontend:** Redeploy **Cloudflare Pages** only when **`apps/web`** or env vars such as **`VITE_STUDIO_API_URL`** change.
 
 ### `STUDIO_CORS_ORIGINS` (production pattern)
 
@@ -99,8 +99,8 @@ The browser sends an **`Origin`** header that must **exactly** match one allowed
 
 | You open the site at | Include in `STUDIO_CORS_ORIGINS` |
 |----------------------|----------------------------------|
-| Default Vercel URL | `https://your-app.vercel.app` |
-| `www` custom domain | `https://www.yourdomain.com` |
+| Cloudflare Pages preview | `https://your-branch.your-project.pages.dev` (only if you hit the API from previews) |
+| Custom domain (`www`) | `https://www.yourdomain.com` |
 | Apex custom domain | `https://yourdomain.com` |
 
 Optional local dev: append **`http://127.0.0.1:5173,http://localhost:5173`**. Trailing slashes in the env var are stripped by the worker.
