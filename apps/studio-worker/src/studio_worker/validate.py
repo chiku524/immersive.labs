@@ -25,6 +25,8 @@ REQUIRED_MATERIAL_ROLES: dict[str, set[str]] = {
     "realistic_hd_pbr": {"albedo", "normal", "orm"},
 }
 
+RESOLUTION_HINT_ALLOWED: tuple[int, ...] = (512, 1024, 2048, 4096)
+
 
 def load_asset_validator() -> Draft202012Validator:
     schema_path = asset_spec_schema_path()
@@ -40,7 +42,7 @@ def load_asset_validator() -> Draft202012Validator:
 def validate_json_schema(spec: dict[str, Any]) -> None:
     # Always coerce here too: callers must not skip normalize_asset_spec, but
     # long-lived uvicorn/Docker processes often run stale code until restart.
-    _coerce_target_height_m(spec)
+    apply_llm_json_coercions(spec)
     validator = load_asset_validator()
     validator.validate(spec)
 
@@ -117,18 +119,62 @@ def _coerce_target_height_m(spec: dict[str, Any]) -> None:
     spec["target_height_m"] = 1.0
 
 
+def _coerce_generation_negative_prompt(spec: dict[str, Any]) -> None:
+    """Schema requires generation.negative_prompt to be a string when present; LLMs emit null."""
+    gen = spec.get("generation")
+    if not isinstance(gen, dict) or "negative_prompt" not in gen:
+        return
+    raw = gen["negative_prompt"]
+    if raw is None:
+        gen["negative_prompt"] = ""
+    elif not isinstance(raw, str):
+        gen["negative_prompt"] = ""
+
+
+def _snap_resolution_hint(value: int) -> int:
+    if value in RESOLUTION_HINT_ALLOWED:
+        return value
+    return min(RESOLUTION_HINT_ALLOWED, key=lambda x: abs(x - value))
+
+
+def _parse_resolution_hint(raw: Any) -> int:
+    if isinstance(raw, bool):
+        return 1024
+    if isinstance(raw, (int, float)):
+        return _snap_resolution_hint(int(raw))
+    if isinstance(raw, str):
+        s = raw.strip().lower().replace("px", "")
+        try:
+            v = int(float(s))
+        except ValueError:
+            return 1024
+        return _snap_resolution_hint(v)
+    return 1024
+
+
+def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
+    """resolution_hint must be JSON integer in {512,1024,2048,4096}; models often emit \"2048\"."""
+    for slot in spec.get("material_slots") or []:
+        if not isinstance(slot, dict) or "resolution_hint" not in slot:
+            continue
+        slot["resolution_hint"] = _parse_resolution_hint(slot["resolution_hint"])
+
+
+def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
+    """Normalize common LLM JSON quirks before JSON Schema validation."""
+    if not isinstance(spec, dict):
+        return
+    _coerce_target_height_m(spec)
+    _coerce_generation_negative_prompt(spec)
+    _coerce_material_slot_resolution_hints(spec)
+
+
 def normalize_asset_spec(spec: dict[str, Any]) -> None:
     """Coerce common LLM quirks in-place before schema validation."""
-    _coerce_target_height_m(spec)
+    apply_llm_json_coercions(spec)
     pb = spec.get("poly_budget_tris")
     if isinstance(pb, float):
         spec["poly_budget_tris"] = int(pb)
-    for slot in spec.get("material_slots") or []:
-        if not isinstance(slot, dict):
-            continue
-        rh = slot.get("resolution_hint")
-        if isinstance(rh, float):
-            slot["resolution_hint"] = int(rh)
 
 
 def validate_asset_spec(spec: dict[str, Any]) -> None:
