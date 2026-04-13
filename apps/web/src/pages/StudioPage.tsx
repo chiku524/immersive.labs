@@ -64,6 +64,79 @@ async function readApiJson<T>(r: Response): Promise<T> {
   }
 }
 
+/** Matches worker default `STUDIO_COMFY_URL` when unset; used only for display when the API body is not a full Comfy payload. */
+const DEFAULT_COMFY_DISPLAY_URL = "https://comfy.immersivelabs.space";
+
+/**
+ * `readApiJson` succeeds on edge-coerced gateway errors (`gateway_status`, `detail`) which are not
+ * `StudioComfyStatusPayload` — missing `url` made the UI claim "Studio API request failed".
+ */
+function parseComfyStatusResponse(r: Response, text: string): StudioComfyStatusPayload {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    const t = text.trim();
+    const snippet = t.slice(0, 160).replace(/\s+/g, " ");
+    const html =
+      t.startsWith("<!") || t.toLowerCase().startsWith("<html")
+        ? " Response was HTML (gateway 502/504 or timeout), not JSON."
+        : "";
+    return {
+      reachable: false,
+      url: DEFAULT_COMFY_DISPLAY_URL,
+      detail: `HTTP ${r.status}: invalid JSON.${html}${snippet ? ` Body: ${snippet}` : ""}`,
+    };
+  }
+
+  if (raw !== null && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    if (typeof o.gateway_status === "number") {
+      const base =
+        typeof o.detail === "string" ? o.detail : "Gateway returned an error instead of Comfy JSON.";
+      const host = typeof o.origin_host === "string" ? ` (origin: ${o.origin_host})` : "";
+      return {
+        reachable: false,
+        url: DEFAULT_COMFY_DISPLAY_URL,
+        detail: `${base}${host}`,
+      };
+    }
+    if (
+      typeof o.reachable === "boolean" &&
+      typeof o.url === "string" &&
+      (o.detail === null || o.detail === undefined || typeof o.detail === "string")
+    ) {
+      return {
+        reachable: o.reachable,
+        url: o.url,
+        detail: typeof o.detail === "string" ? o.detail : null,
+      };
+    }
+    const d = o.detail;
+    let detailStr: string;
+    if (typeof d === "string") {
+      detailStr = d;
+    } else if (Array.isArray(d)) {
+      detailStr = JSON.stringify(d);
+    } else if (d !== null && d !== undefined && typeof d === "object") {
+      detailStr = JSON.stringify(d);
+    } else {
+      detailStr = "Unexpected /api/studio/comfy-status JSON shape.";
+    }
+    return {
+      reachable: false,
+      url: DEFAULT_COMFY_DISPLAY_URL,
+      detail: detailStr,
+    };
+  }
+
+  return {
+    reachable: false,
+    url: DEFAULT_COMFY_DISPLAY_URL,
+    detail: "Unexpected /api/studio/comfy-status response (not a JSON object).",
+  };
+}
+
 const STUDIO_QUEUE_POLL_MS = 2000;
 const STUDIO_QUEUE_MAX_WAIT_MS = 45 * 60 * 1000;
 
@@ -305,11 +378,11 @@ export function StudioPage() {
         if (signal?.aborted) {
           return null;
         }
-        try {
-          return await readApiJson<StudioComfyStatusPayload>(r);
-        } catch {
-          return { reachable: false, url: "", detail: "request failed" };
+        const text = await r.text();
+        if (signal?.aborted) {
+          return null;
         }
+        return parseComfyStatusResponse(r, text);
       })
       .then((v) => {
         if (signal?.aborted || v == null) {
@@ -321,7 +394,11 @@ export function StudioPage() {
         if (signal?.aborted || isAbortError(e)) {
           return;
         }
-        setComfy({ reachable: false, url: "", detail: "request failed" });
+        setComfy({
+          reachable: false,
+          url: DEFAULT_COMFY_DISPLAY_URL,
+          detail: e instanceof Error ? e.message : "Network request failed",
+        });
       });
   }, []);
 

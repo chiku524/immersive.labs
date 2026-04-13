@@ -11,10 +11,11 @@ const HEALTH_PATH = "/api/studio/health";
 const HEALTH_KV_KEY = "studio:health:v1";
 const HEALTH_KV_TTL_SECONDS = 60;
 
-/** Anonymous probe; short KV TTL reduces tunnel load when many clients poll /studio. */
+/** Anonymous probe; edge treats KV entries stale before this (see COMFY_EDGE_STALE_MS). */
 const COMFY_STATUS_PATH = "/api/studio/comfy-status";
 const COMFY_KV_KEY = "studio:comfy-status:v1";
-const COMFY_KV_TTL_SECONDS = 20;
+/** Cloudflare KV rejects `expirationTtl` below 60s — values under 60 caused prod Worker 1101 on comfy-status. */
+const COMFY_KV_TTL_SECONDS = 60;
 const COMFY_EDGE_STALE_MS = 18_000;
 
 export interface Env {
@@ -52,6 +53,12 @@ function healthCacheTtlMs(env: Env): number {
   const raw = env.HEALTH_CACHE_TTL_MS ?? "5000";
   const n = Number.parseInt(String(raw), 10);
   return Number.isFinite(n) && n >= 0 ? Math.min(n, 60_000) : 5000;
+}
+
+/** Workers KV requires expirationTtl >= 60 seconds (writes below that fail at runtime). */
+function kvWriteExpirationTtl(seconds: number): number {
+  const n = Math.floor(seconds);
+  return Number.isFinite(n) && n > 0 ? Math.max(60, n) : 60;
 }
 
 /** Same shape as studio_worker.api._cors_allow_origins defaults + production marketing origins. */
@@ -322,11 +329,15 @@ async function fetchAndStoreComfyStatus(request: Request, env: Env, kv: KVNamesp
     return mergeCors(request, r, allowed);
   }
   const acao = upstream.headers.get("Access-Control-Allow-Origin");
-  await kv.put(
-    COMFY_KV_KEY,
-    JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
-    { expirationTtl: COMFY_KV_TTL_SECONDS },
-  );
+  try {
+    await kv.put(
+      COMFY_KV_KEY,
+      JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
+      { expirationTtl: kvWriteExpirationTtl(COMFY_KV_TTL_SECONDS) },
+    );
+  } catch {
+    // Still return the origin JSON; missing cache is better than a Worker 1101 for /studio.
+  }
   const allowed = parseCorsOrigins(env);
   const out = new Headers(upstream.headers);
   out.set("X-Studio-Edge-Cache", "MISS");
@@ -400,11 +411,15 @@ async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace):
     return mergeCors(request, r, allowed);
   }
   const acao = upstream.headers.get("Access-Control-Allow-Origin");
-  await kv.put(
-    HEALTH_KV_KEY,
-    JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
-    { expirationTtl: HEALTH_KV_TTL_SECONDS },
-  );
+  try {
+    await kv.put(
+      HEALTH_KV_KEY,
+      JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
+      { expirationTtl: kvWriteExpirationTtl(HEALTH_KV_TTL_SECONDS) },
+    );
+  } catch {
+    // Same as comfy path: never fail the request because KV write failed.
+  }
   const allowed = parseCorsOrigins(env);
   const out = new Headers(upstream.headers);
   out.set("X-Studio-Edge-Cache", "MISS");

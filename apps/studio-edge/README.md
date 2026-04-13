@@ -41,7 +41,7 @@ npx wrangler dev --var ORIGIN_URL:https://api.example.com
 2. Uncomment `[[kv_namespaces]]` in **`wrangler.toml`** and paste the **`id`**.
 3. Redeploy. Responses for **`GET /api/studio/health`** and **`GET /api/studio/comfy-status`** include **`X-Studio-Edge-Cache: HIT`** or **`MISS`**.
 
-Tune health freshness with wrangler var **`HEALTH_CACHE_TTL_MS`** (milliseconds, default `5000`). Health KV entries expire after **60s** (`expirationTtl`). Comfy-status uses a fixed **~20s** KV TTL (anonymous probe; reduces tunnel chatter when many `/studio` tabs poll).
+Tune health freshness with wrangler var **`HEALTH_CACHE_TTL_MS`** (milliseconds, default `5000`). Health and comfy-status KV writes use **`expirationTtl` ≥ 60s** (Cloudflare KV minimum; comfy used to use ~20s and caused Worker **1101** in production). The edge still treats comfy KV as stale after **~18s** (`COMFY_EDGE_STALE_MS`) so frequent `/studio` polls refresh from origin without waiting for key expiry.
 
 ## Production routing (avoid a fetch loop)
 
