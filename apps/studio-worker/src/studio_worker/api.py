@@ -40,7 +40,6 @@ from studio_worker.scale_config import (
 from studio_worker import __version__ as studio_worker_package_version
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker.sqlite_queue import (
-    count_queue_by_status,
     enqueue_job,
     find_queue_id_by_idempotency,
     get_queue_job,
@@ -52,8 +51,12 @@ from studio_worker.billing_config import stripe_webhook_secret
 from studio_worker.billing_routes import router as billing_router
 from studio_worker.http_context import RequestContextMiddleware
 from studio_worker.rate_limit import check_enqueue_rate_limit
-from studio_worker.sqlite_queue import queue_slo_hints
-from studio_worker.studio_dashboard import jobs_list_dict, studio_dashboard_dict, usage_dict
+from studio_worker.studio_dashboard import (
+    jobs_list_dict,
+    queue_counts_and_slo_raw,
+    studio_dashboard_dict,
+    usage_dict,
+)
 from studio_worker.tenant_context import RequestTenant, api_auth_required, get_request_tenant
 
 # OpenAPI "Example" for GET /api/studio/dashboard (same shapes as /usage + /billing/status + /jobs).
@@ -128,17 +131,27 @@ async def _app_lifespan(_app: FastAPI):
 
     tenants_db.init_tenants_schema()
     init_queue_schema()
+    embedded_stop = threading.Event()
+    embedded_thread: threading.Thread | None = None
     if embedded_queue_worker_enabled():
 
         def _consume_queue() -> None:
-            run_worker_loop(worker_id="api-embedded", poll_interval_s=1.0)
+            run_worker_loop(
+                worker_id="api-embedded",
+                poll_interval_s=1.0,
+                stop_event=embedded_stop,
+            )
 
-        threading.Thread(
+        embedded_thread = threading.Thread(
             target=_consume_queue,
             name="studio-queue-consumer",
             daemon=True,
-        ).start()
+        )
+        embedded_thread.start()
     yield
+    embedded_stop.set()
+    if embedded_thread is not None:
+        embedded_thread.join(timeout=10.0)
 
 
 app = FastAPI(
@@ -170,6 +183,8 @@ def root() -> dict[str, Any]:
         "message": "JSON API — use the paths below (or open /docs for Swagger).",
         "endpoints": {
             "health": "/api/studio/health",
+            "metrics": "/api/studio/metrics",
+            "dashboard": "/api/studio/dashboard",
             "openapi": "/openapi.json",
             "docs": "/docs",
             "redoc": "/redoc",
@@ -237,32 +252,19 @@ async def health() -> HealthResponse:
 
 
 @app.get("/api/studio/metrics", response_model=MetricsResponse)
-def get_metrics(tenant: RequestTenant = Depends(get_request_tenant)) -> MetricsResponse:
+def get_metrics(
+    response: Response,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> MetricsResponse:
+    q, slo_raw = queue_counts_and_slo_raw(tenant)
     if tenant.limits_enforced:
-        q = count_queue_by_status(
-            tenant_id=tenant.tenant_id,
-            include_legacy_unscoped=False,
-        )
         n = count_jobs(
             tenant_id=tenant.tenant_id,
             include_legacy_unscoped=False,
         )
     else:
-        q = count_queue_by_status(tenant_id=None)
         n = count_jobs(tenant_id=None)
-    if tenant.limits_enforced:
-        slo_raw = queue_slo_hints(
-            tenant_id=tenant.tenant_id,
-            include_legacy_unscoped=False,
-        )
-    else:
-        slo_raw = queue_slo_hints(
-            tenant_id=None,
-            include_legacy_unscoped=True,
-        )
-    if queue_backend() != "sqlite":
-        slo_raw["running_count"] = int(q.get("running", 0))
-        slo_raw["pending_claimable_count"] = int(q.get("pending", 0))
+    response.headers["Cache-Control"] = "no-store"
     return MetricsResponse(
         queue=q,
         jobs_indexed=n,
@@ -293,11 +295,15 @@ def get_usage(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, 
         }
     },
 )
-def get_studio_dashboard(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
+def get_studio_dashboard(
+    response: Response,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> dict[str, Any]:
     """
     Single JSON bundle for /studio: usage + billing status + jobs list.
     Prefer this over three parallel GETs through a congested Worker → tunnel → origin path.
     """
+    response.headers["Cache-Control"] = "no-store"
     return studio_dashboard_dict(tenant)
 
 

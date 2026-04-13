@@ -188,15 +188,20 @@ def run_worker_loop(
     poll_interval_s: float = 1.0,
     run_once: bool = False,
     executor: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> None:
     from studio_worker.queue_executor import execute_queued_payload
 
     exec_fn = executor or execute_queued_payload
 
     while True:
+        if stop_event is not None and stop_event.is_set():
+            return
         job = claim_next_job(worker_id=worker_id)
         if job is None:
             if run_once:
+                return
+            if stop_event is not None and stop_event.is_set():
                 return
             time.sleep(poll_interval_s)
             continue
@@ -214,5 +219,7 @@ def run_worker_loop(
         except Exception as e:
             mark_failed(qid, error=str(e), attempts=attempts, max_attempts=max_attempts)
         if run_once:
+            return
+        if stop_event is not None and stop_event.is_set():
             return
         time.sleep(0.05)

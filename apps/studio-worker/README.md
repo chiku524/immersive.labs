@@ -202,10 +202,10 @@ immersive-studio tenants set-tier --tenant-id <uuid> --tier team
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/studio/health` | Worker liveness (`auth_required` flag for clients) |
-| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and **`slo`** (SQLite: oldest pending/running row ages for alerting; tenant-scoped when auth on) |
+| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and **`slo`** (SQLite: oldest pending/running row ages for alerting; tenant-scoped when auth on; **`Cache-Control: no-store`**) |
 | GET | `/api/studio/comfy-status` | ComfyUI `/system_stats` probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits used/cap (requires key when auth on) |
-| GET | `/api/studio/dashboard` | One JSON: **`usage`** + **`billing`** + **`jobs`** (same payloads as `/usage`, `/billing/status`, `/jobs`; `/studio` uses this to reduce tunnel round-trips) |
+| GET | `/api/studio/dashboard` | One JSON: **`usage`** + **`billing`** + **`jobs`** + **`worker_hints`** + **`queue_slo`** (same shapes as `/usage`, `/billing/status`, `/jobs`, and `/metrics` → `slo`; **`Cache-Control: no-store`**) |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack (scoped under `output/packs/…` when auth on) |
 | POST | `/api/studio/jobs/run` | Full job → `output/jobs/job_*/` + `pack.zip` + index |

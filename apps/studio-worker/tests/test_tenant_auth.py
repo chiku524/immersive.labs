@@ -48,8 +48,18 @@ def test_root_returns_api_pointer_json(client_auth_off: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body.get("service") == "immersive-studio-worker"
-    assert body.get("endpoints", {}).get("health") == "/api/studio/health"
+    ep = body.get("endpoints", {})
+    assert ep.get("health") == "/api/studio/health"
+    assert ep.get("metrics") == "/api/studio/metrics"
+    assert ep.get("dashboard") == "/api/studio/dashboard"
     assert body.get("worker_version")
+
+
+def test_dashboard_and_metrics_send_cache_control_no_store(client_auth_off: TestClient) -> None:
+    d = client_auth_off.get("/api/studio/dashboard")
+    m = client_auth_off.get("/api/studio/metrics")
+    assert "no-store" in (d.headers.get("cache-control") or "").lower()
+    assert "no-store" in (m.headers.get("cache-control") or "").lower()
 
 
 def test_favicon_is_no_content(client_auth_off: TestClient) -> None:

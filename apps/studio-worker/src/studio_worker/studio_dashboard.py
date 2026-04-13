@@ -1,5 +1,7 @@
 """
-Shared JSON payloads for /studio: one GET bundles usage + billing + jobs to cut tunnel round-trips.
+Shared JSON payloads for /studio: one GET bundles usage + billing + jobs (+ queue SLO) to cut tunnel round-trips.
+
+Queue depth + SLO hints are shared with ``GET /api/studio/metrics`` via ``queue_counts_and_slo_raw``.
 """
 
 from __future__ import annotations
@@ -88,8 +90,12 @@ def worker_hints_dict() -> dict[str, Any]:
     }
 
 
-def queue_slo_for_tenant(tenant: RequestTenant) -> dict[str, Any]:
-    """Same semantics as ``GET /api/studio/metrics`` → ``slo`` (SQLite ages; other backends fill from counts)."""
+def queue_counts_and_slo_raw(tenant: RequestTenant) -> tuple[dict[str, int], dict[str, Any]]:
+    """
+    Queue row counts by status plus the SLO hint dict (``metrics.slo`` / dashboard ``queue_slo``).
+
+    Non-SQLite backends leave ages to the queue implementation; counts are patched from ``q``.
+    """
     if tenant.limits_enforced:
         q = count_queue_by_status(
             tenant_id=tenant.tenant_id,
@@ -107,10 +113,17 @@ def queue_slo_for_tenant(tenant: RequestTenant) -> dict[str, Any]:
             tenant_id=None,
             include_legacy_unscoped=True,
         )
+    slo_out = dict(slo_raw)
     if queue_backend() != "sqlite":
-        slo_raw["running_count"] = int(q.get("running", 0))
-        slo_raw["pending_claimable_count"] = int(q.get("pending", 0))
-    return dict(slo_raw)
+        slo_out["running_count"] = int(q.get("running", 0))
+        slo_out["pending_claimable_count"] = int(q.get("pending", 0))
+    return q, slo_out
+
+
+def queue_slo_for_tenant(tenant: RequestTenant) -> dict[str, Any]:
+    """Same semantics as ``GET /api/studio/metrics`` → ``slo`` (SQLite ages; other backends fill from counts)."""
+    _, slo = queue_counts_and_slo_raw(tenant)
+    return slo
 
 
 def studio_dashboard_dict(tenant: RequestTenant) -> dict[str, Any]:

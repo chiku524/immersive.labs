@@ -11,6 +11,7 @@
 
 ## Learned Workspace Facts
 
+- The repo **`.gitignore`** excludes **`.cursor/`** so local Cursor hook state and continual-learning indices (which contain machine-specific paths) are not committed.
 - immersive.labs is a monorepo with npm workspaces for apps such as web and studio-edge, plus a Python studio-worker under apps/studio-worker.
 - Production Studio uses a Cloudflare Worker in front of a Cloudflare-tunneled API origin; ORIGIN_URL for the edge Worker must point at the tunnel origin hostname, not the public Worker URL.
 - Full Studio jobs may use Ollama, ComfyUI, and optional Blender mesh export; running all of that on one small VM often correlates with Ollama read timeouts and intermittent tunnel or origin HTTP 502 responses under load.

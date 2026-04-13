@@ -1,6 +1,9 @@
 node_modules
 dist
 .env
+
+# Cursor IDE local state (hooks, continual-learning indices with machine-local paths)
+.cursor/
 # Ephemeral tunnel credential material (rotate-tunnel / local ops)
 scripts/studio-cloudflare-tunnel/.tunnel*.tmp*
 apps/studio-worker/.venv/
