@@ -11,6 +11,12 @@ const HEALTH_PATH = "/api/studio/health";
 const HEALTH_KV_KEY = "studio:health:v1";
 const HEALTH_KV_TTL_SECONDS = 60;
 
+/** Anonymous probe; short KV TTL reduces tunnel load when many clients poll /studio. */
+const COMFY_STATUS_PATH = "/api/studio/comfy-status";
+const COMFY_KV_KEY = "studio:comfy-status:v1";
+const COMFY_KV_TTL_SECONDS = 20;
+const COMFY_EDGE_STALE_MS = 18_000;
+
 export interface Env {
   ORIGIN_URL: string;
   /** Comma-separated browser origins (scheme + host, no path). Mirrors STUDIO_CORS_ORIGINS on the Python worker. */
@@ -166,7 +172,9 @@ async function proxyToOriginWithRetry(request: Request, env: Env): Promise<Respo
   const canRetry =
     (request.method === "GET" || request.method === "HEAD") &&
     url.pathname.startsWith("/api/studio/");
-  const maxAttempts = canRetry ? 3 : 1;
+  // Under load (LLM + Comfy on one VM), tunnel/origin often returns transient 5xx; a few more
+  // attempts with slightly longer gaps helps /studio polling (usage, jobs, billing) recover.
+  const maxAttempts = canRetry ? 5 : 1;
   let last: Response | undefined;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     last = await proxyToOrigin(request, env);
@@ -177,7 +185,7 @@ async function proxyToOriginWithRetry(request: Request, env: Env): Promise<Respo
     if (s !== 502 && s !== 503 && s !== 504 && s !== 524) {
       break;
     }
-    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 300 * (attempt + 1) + attempt * 120));
   }
   return last as Response;
 }
@@ -261,6 +269,70 @@ async function cachedHealth(request: Request, env: Env): Promise<Response | null
     headers.set("Access-Control-Allow-Credentials", "true");
   }
   return new Response(JSON.stringify(entry.body), { status: 200, headers });
+}
+
+async function cachedComfyStatus(request: Request, env: Env): Promise<Response | null> {
+  const kv = env.STUDIO_KV;
+  if (!kv) {
+    return null;
+  }
+  const raw = await kv.get(COMFY_KV_KEY);
+  if (!raw) {
+    return null;
+  }
+  let entry: { t: number; body: unknown; acao: string | null };
+  try {
+    entry = JSON.parse(raw) as { t: number; body: unknown; acao: string | null };
+  } catch {
+    return null;
+  }
+  if (typeof entry.t !== "number" || Date.now() - entry.t > COMFY_EDGE_STALE_MS) {
+    return null;
+  }
+  const allowed = parseCorsOrigins(env);
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "X-Studio-Edge-Cache": "HIT",
+    "X-Studio-Edge-Origin-Host": originHostname(env),
+  });
+  const o = pickAllowOrigin(request, allowed);
+  if (o) {
+    headers.set("Access-Control-Allow-Origin", o);
+    headers.set("Access-Control-Allow-Credentials", "true");
+  } else if (entry.acao) {
+    headers.set("Access-Control-Allow-Origin", entry.acao);
+    headers.set("Access-Control-Allow-Credentials", "true");
+  }
+  return new Response(JSON.stringify(entry.body), { status: 200, headers });
+}
+
+async function fetchAndStoreComfyStatus(request: Request, env: Env, kv: KVNamespace): Promise<Response> {
+  const target = `${originBase(env)}${COMFY_STATUS_PATH}`;
+  const headers = scrubRequestHeaders(request.headers);
+  const upstream = await fetch(new Request(target, { method: "GET", headers, redirect: "manual" }));
+  const text = await upstream.text();
+  let bodyJson: unknown;
+  try {
+    bodyJson = JSON.parse(text) as unknown;
+  } catch {
+    const allowed = parseCorsOrigins(env);
+    const out = new Headers(upstream.headers);
+    out.set("X-Studio-Edge-Cache", "MISS");
+    const r = new Response(text, { status: upstream.status, statusText: upstream.statusText, headers: out });
+    return mergeCors(request, r, allowed);
+  }
+  const acao = upstream.headers.get("Access-Control-Allow-Origin");
+  await kv.put(
+    COMFY_KV_KEY,
+    JSON.stringify({ t: Date.now(), body: bodyJson, acao }),
+    { expirationTtl: COMFY_KV_TTL_SECONDS },
+  );
+  const allowed = parseCorsOrigins(env);
+  const out = new Headers(upstream.headers);
+  out.set("X-Studio-Edge-Cache", "MISS");
+  out.set("X-Studio-Edge-Origin-Host", originHostname(env));
+  const r = new Response(JSON.stringify(bodyJson), { status: upstream.status, headers: out });
+  return mergeCors(request, r, allowed);
 }
 
 /**
@@ -361,6 +433,13 @@ export default {
           return hit;
         }
         return fetchAndStoreHealth(request, env, env.STUDIO_KV);
+      }
+      if (request.method === "GET" && url.pathname === COMFY_STATUS_PATH && env.STUDIO_KV) {
+        const hit = await cachedComfyStatus(request, env);
+        if (hit) {
+          return hit;
+        }
+        return fetchAndStoreComfyStatus(request, env, env.STUDIO_KV);
       }
       const proxied = await proxyToOriginWithRetry(request, env);
       const effective =

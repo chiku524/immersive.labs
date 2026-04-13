@@ -9,6 +9,7 @@
     "build": "npm run build -w @immersive/web",
     "preview": "npm run preview -w @immersive/web",
     "dev:studio-edge": "npm run dev -w @immersive/studio-edge",
-    "deploy:studio-edge": "npm run deploy -w @immersive/studio-edge"
+    "deploy:studio-edge": "npm run deploy -w @immersive/studio-edge",
+    "deploy:web": "npm run build && node scripts/vercel-deploy-prod.mjs"
   }
 }

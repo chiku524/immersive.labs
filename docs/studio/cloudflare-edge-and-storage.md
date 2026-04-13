@@ -48,7 +48,7 @@ Install the S3 extra: `pip install -e ".[s3]"` (or `".[scale]"`).
 
 Use **KV** for data that is **small, eventually consistent, and read-heavy** at the edge:
 
-- Cached **JSON** for `GET /api/studio/health` (short TTL)  
+- Cached **JSON** for `GET /api/studio/health` (short TTL) and **`GET /api/studio/comfy-status`** (shorter TTL; anonymous probe)  
 - **Feature flags** or maintenance mode  
 - **Rate-limit / abuse** counters (with care: KV is not a strong linearizable DB)
 
@@ -83,7 +83,7 @@ Use **KV** for data that is **small, eventually consistent, and read-heavy** at 
 
 **Phase B — Edge Worker (medium risk)** — **implemented:** [`apps/studio-edge`](../../apps/studio-edge) (`@immersive/studio-edge`)  
 - **Reverse proxy** to `ORIGIN_URL` for all paths.  
-- **Optional KV** binding `STUDIO_KV`: short cache for **`GET /api/studio/health`** (`X-Studio-Edge-Cache: HIT|MISS`).  
+- **Optional KV** binding `STUDIO_KV`: short cache for **`GET /api/studio/health`** and **`GET /api/studio/comfy-status`** (`X-Studio-Edge-Cache: HIT|MISS`).  
 - **R2** binding `STUDIO_R2` and **D1** binding `STUDIO_D1` are attached for future edge features (schemas/migrations are not applied automatically).  
 - From repo root: `npm run dev:studio-edge` / `npm run deploy:studio-edge`.  
 - Adjust **DNS / routes** so the **public API hostname** hits the Worker and **`ORIGIN_URL`** uses a **different** hostname that still reaches the tunnel (see [studio-edge README](../../apps/studio-edge/README.md) — avoid fetch loops).

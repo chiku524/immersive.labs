@@ -6,14 +6,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from studio_worker import tenants_db
 from studio_worker.billing_config import stripe_webhook_secret
 from studio_worker.stripe_billing import (
-    billing_catalog_public_flags,
     create_checkout_session_url,
     create_portal_session_url,
     handle_stripe_event,
 )
+from studio_worker.studio_dashboard import billing_status_dict
 from studio_worker.tenant_context import RequestTenant, get_request_tenant
 
 logger = logging.getLogger(__name__)
@@ -122,16 +121,4 @@ def post_portal_session(
 def get_billing_status(
     tenant: RequestTenant = Depends(get_request_tenant),
 ) -> dict[str, Any]:
-    pub = billing_catalog_public_flags()
-    out: dict[str, Any] = {
-        **pub,
-        "tier_id": tenant.tier_id,
-        "stripe_customer_linked": False,
-        "stripe_subscription_id": None,
-    }
-    if tenant.limits_enforced:
-        row = tenants_db.get_tenant(tenant.tenant_id)
-        if row:
-            out["stripe_customer_linked"] = bool(row.get("stripe_customer_id"))
-            out["stripe_subscription_id"] = row.get("stripe_subscription_id")
-    return out
+    return billing_status_dict(tenant)

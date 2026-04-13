@@ -12,7 +12,11 @@ from typing import Any, Callable
 
 from studio_worker.paths import queue_db_path
 
-_lock = threading.RLock()
+# init_schema runs once per queue_db_path() (tests swap tmp paths; production path is stable).
+_schema_init_lock = threading.Lock()
+_queue_schema_initialized_for: str | None = None
+# Serialize enqueue / claim / mark_* so they never share a connection with concurrent readers.
+_write_lock = threading.Lock()
 
 
 def _utc_now() -> str:
@@ -29,7 +33,11 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_schema() -> None:
-    with _lock:
+    global _queue_schema_initialized_for
+    path_key = str(queue_db_path().resolve())
+    with _schema_init_lock:
+        if _queue_schema_initialized_for == path_key:
+            return
         conn = _connect()
         try:
             conn.executescript(
@@ -70,6 +78,7 @@ def init_schema() -> None:
             conn.commit()
         finally:
             conn.close()
+        _queue_schema_initialized_for = path_key
 
 
 class EnqueueOutcome(NamedTuple):
@@ -85,36 +94,35 @@ def count_queue_by_status(
     """Count queue rows per status; optional tenant filter (matches list_queue_jobs semantics)."""
     init_schema()
     counts: dict[str, int] = {}
-    with _lock:
-        conn = _connect()
-        try:
-            if tenant_id is None:
-                rows = conn.execute(
-                    "SELECT status, COUNT(*) AS c FROM queue_jobs GROUP BY status"
-                ).fetchall()
-            elif include_legacy_unscoped:
-                rows = conn.execute(
-                    """
-                    SELECT status, COUNT(*) AS c FROM queue_jobs
-                    WHERE tenant_id = ? OR tenant_id IS NULL
-                    GROUP BY status
-                    """,
-                    (tenant_id,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT status, COUNT(*) AS c FROM queue_jobs
-                    WHERE tenant_id = ?
-                    GROUP BY status
-                    """,
-                    (tenant_id,),
-                ).fetchall()
-            for r in rows:
-                counts[str(r["status"])] = int(r["c"])
-            return counts
-        finally:
-            conn.close()
+    conn = _connect()
+    try:
+        if tenant_id is None:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS c FROM queue_jobs GROUP BY status"
+            ).fetchall()
+        elif include_legacy_unscoped:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS c FROM queue_jobs
+                WHERE tenant_id = ? OR tenant_id IS NULL
+                GROUP BY status
+                """,
+                (tenant_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS c FROM queue_jobs
+                WHERE tenant_id = ?
+                GROUP BY status
+                """,
+                (tenant_id,),
+            ).fetchall()
+        for r in rows:
+            counts[str(r["status"])] = int(r["c"])
+        return counts
+    finally:
+        conn.close()
 
 
 def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) -> str | None:
@@ -123,20 +131,19 @@ def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) ->
         return None
     init_schema()
     tid_coalesce = "" if tenant_id is None else str(tenant_id)
-    with _lock:
-        conn = _connect()
-        try:
-            row = conn.execute(
-                """
-                SELECT id FROM queue_jobs
-                WHERE coalesce(tenant_id, '') = ? AND idempotency_key = ?
-                LIMIT 1
-                """,
-                (tid_coalesce, idempotency_key.strip()),
-            ).fetchone()
-            return str(row["id"]) if row else None
-        finally:
-            conn.close()
+    conn = _connect()
+    try:
+        row = conn.execute(
+            """
+            SELECT id FROM queue_jobs
+            WHERE coalesce(tenant_id, '') = ? AND idempotency_key = ?
+            LIMIT 1
+            """,
+            (tid_coalesce, idempotency_key.strip()),
+        ).fetchone()
+        return str(row["id"]) if row else None
+    finally:
+        conn.close()
 
 
 def enqueue_job(
@@ -154,7 +161,8 @@ def enqueue_job(
     tid = tenant_id if tenant_id is not None else payload.get("tenant_id")
     tid_s = str(tid) if tid is not None else None
     idem = (idempotency_key or "").strip()[:128] or None
-    with _lock:
+    tid_coalesce = "" if tid_s is None else str(tid_s)
+    with _write_lock:
         conn = _connect()
         try:
             try:
@@ -171,9 +179,17 @@ def enqueue_job(
                 conn.commit()
             except sqlite3.IntegrityError:
                 conn.rollback()
-                existing = find_queue_id_by_idempotency(tid_s, idem or "")
-                if existing:
-                    return EnqueueOutcome(existing, True)
+                # Same connection — avoid nested find_queue_id… (would deadlock with _write_lock).
+                row = conn.execute(
+                    """
+                    SELECT id FROM queue_jobs
+                    WHERE coalesce(tenant_id, '') = ? AND idempotency_key = ?
+                    LIMIT 1
+                    """,
+                    (tid_coalesce, (idem or "").strip()),
+                ).fetchone()
+                if row:
+                    return EnqueueOutcome(str(row["id"]), True)
                 raise
         finally:
             conn.close()
@@ -184,7 +200,7 @@ def claim_next_job(*, worker_id: str) -> dict[str, Any] | None:
     """Atomically claim the oldest pending job with attempts remaining."""
     init_schema()
     now = _utc_now()
-    with _lock:
+    with _write_lock:
         conn = _connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
@@ -235,7 +251,7 @@ def mark_completed(
     studio_job_id: str | None,
 ) -> None:
     now = _utc_now()
-    with _lock:
+    with _write_lock:
         conn = _connect()
         try:
             conn.execute(
@@ -265,7 +281,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
         status = "dead"
     else:
         status = "pending"
-    with _lock:
+    with _write_lock:
         conn = _connect()
         try:
             clear_idem = "1" if status == "dead" else "0"
@@ -294,24 +310,23 @@ def get_queue_job(
     include_legacy_unscoped: bool = False,
 ) -> dict[str, Any] | None:
     init_schema()
-    with _lock:
-        conn = _connect()
-        try:
-            row = conn.execute(
-                "SELECT * FROM queue_jobs WHERE id = ?", (queue_id,)
-            ).fetchone()
-            if row is None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM queue_jobs WHERE id = ?", (queue_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        d = _row_to_dict(row)
+        if tenant_id is not None:
+            row_tid = d.get("tenant_id")
+            if row_tid != tenant_id and not (
+                include_legacy_unscoped and row_tid is None
+            ):
                 return None
-            d = _row_to_dict(row)
-            if tenant_id is not None:
-                row_tid = d.get("tenant_id")
-                if row_tid != tenant_id and not (
-                    include_legacy_unscoped and row_tid is None
-                ):
-                    return None
-            return d
-        finally:
-            conn.close()
+        return d
+    finally:
+        conn.close()
 
 
 def list_queue_jobs(
@@ -322,42 +337,41 @@ def list_queue_jobs(
 ) -> list[dict[str, Any]]:
     init_schema()
     limit = max(1, min(limit, 500))
-    with _lock:
-        conn = _connect()
-        try:
-            if tenant_id is None:
+    conn = _connect()
+    try:
+        if tenant_id is None:
+            rows = conn.execute(
+                """
+                SELECT * FROM queue_jobs
+                ORDER BY datetime(created_at) DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            if include_legacy_unscoped:
                 rows = conn.execute(
                     """
                     SELECT * FROM queue_jobs
+                    WHERE tenant_id = ? OR tenant_id IS NULL
                     ORDER BY datetime(created_at) DESC
                     LIMIT ?
                     """,
-                    (limit,),
+                    (tenant_id, limit),
                 ).fetchall()
             else:
-                if include_legacy_unscoped:
-                    rows = conn.execute(
-                        """
-                        SELECT * FROM queue_jobs
-                        WHERE tenant_id = ? OR tenant_id IS NULL
-                        ORDER BY datetime(created_at) DESC
-                        LIMIT ?
-                        """,
-                        (tenant_id, limit),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        """
-                        SELECT * FROM queue_jobs
-                        WHERE tenant_id = ?
-                        ORDER BY datetime(created_at) DESC
-                        LIMIT ?
-                        """,
-                        (tenant_id, limit),
-                    ).fetchall()
-            return [_row_to_dict(r) for r in rows]
-        finally:
-            conn.close()
+                rows = conn.execute(
+                    """
+                    SELECT * FROM queue_jobs
+                    WHERE tenant_id = ?
+                    ORDER BY datetime(created_at) DESC
+                    LIMIT ?
+                    """,
+                    (tenant_id, limit),
+                ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

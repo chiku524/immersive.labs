@@ -57,6 +57,28 @@ If the worker URL is wrong or the worker is down, the `/studio` page shows a hea
 ### Observability (built-in)
 
 - **`GET /api/studio/metrics`** — JSON with **`queue`** counts per status (`pending`, `running`, `completed`, `dead`, …) and **`jobs_indexed`** (rows in the job index). Tenant-scoped when `STUDIO_API_AUTH_REQUIRED=1`; global counts in local dev mode. Use for dashboards or alerting (poll or scrape).
+- **`GET /api/studio/dashboard`** — Same **`usage`**, **`billing`**, and **`jobs`** payloads as the three separate GETs, in one response (see § Production API stability below).
+
+**Shipping updates:** [deploy-recent-changes.md](./deploy-recent-changes.md) — order for redeploying **studio-edge**, **web** (Vercel), and the **Python worker** on your host.
+
+### Production API stability (Ollama, tunnel, VM capacity)
+
+When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (tunnel host) → FastAPI** on a **small VM**, intermittent **502**/**524** HTML from the tunnel is common if the box is saturated. Mitigations:
+
+1. **Ollama (LLM spec)**  
+   - Prefer a **smaller/faster** model (`STUDIO_OLLAMA_MODEL`, e.g. `tinyllama`) or **`mock`** on the `/studio` UI for layout testing.  
+   - **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (seconds, **30–3600**, default **900** in code): raise only if generations legitimately need longer; the queue worker thread is **blocked for the entire read**, so long timeouts make the VM feel “stuck” and worsen concurrent HTTP failures.  
+   - Add **RAM/swap** if Ollama swaps under Comfy + Blender.
+
+2. **Tunnel / DNS**  
+   - Keep the **tunnel hostname** used in **`ORIGIN_URL`** (e.g. **`api-origin`**) on **DNS only (grey cloud)** — proxied orange cloud adds timeouts. See [apps/studio-edge/README.md](../../apps/studio-edge/README.md) and [scripts/studio-cloudflare-tunnel/add-tunnel-cname.sh](../../scripts/studio-cloudflare-tunnel/add-tunnel-cname.sh) (`CLOUDFLARE_TUNNEL_CNAME_PROXIED=false`).  
+   - Watch **`cloudflared`** and **`uvicorn`/Docker** logs when 502s appear.
+
+3. **Capacity**  
+   - **Ollama + ComfyUI + Blender** on one **e2-micro**-class host routinely causes **read timeouts** and **HTTP 502** bursts. Upgrade the VM, run **`STUDIO_EMBEDDED_QUEUE_WORKER=0`** with a **separate** `immersive-studio queue-worker` process, or offload Comfy to another machine (`STUDIO_COMFY_URL`).
+
+4. **Fewer round-trips**  
+   - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, and **`jobs`** in one JSON object (same shapes as **`/api/studio/usage`**, **`/api/studio/billing/status`**, **`/api/studio/jobs`**). The `/studio` page uses this to reduce parallel GETs through the Worker.
 
 ---
 

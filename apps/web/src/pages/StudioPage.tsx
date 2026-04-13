@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import type {
+  StudioBillingStatus,
+  StudioComfyStatusPayload,
+  StudioDashboardPayload,
+  StudioJobSummary,
+  StudioUsageInfo,
+} from "@immersive/studio-types";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
@@ -9,36 +16,6 @@ const API_KEY_STORAGE = "immersive_studio_api_key";
 
 type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
 type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
-
-type JobSummary = {
-  job_id: string;
-  folder: string;
-  created_at: string;
-  status: string;
-  summary: string;
-  has_textures: boolean;
-  error: string | null;
-};
-
-type UsageInfo = {
-  limits_enforced: boolean;
-  tier_id: string;
-  tier_name: string;
-  period: string | null;
-  credits_used: number;
-  credits_cap: number | null;
-  textures_allowed: boolean;
-  max_concurrent_jobs: number | null;
-};
-
-type BillingStatus = {
-  stripe_checkout_available: boolean;
-  checkout_tiers: string[];
-  portal_needs_customer?: boolean;
-  stripe_customer_linked: boolean;
-  stripe_subscription_id: string | null;
-  tier_id: string;
-};
 
 /** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
 function comfyLocalhostRefused(detail: string | null | undefined, url: string): boolean {
@@ -90,6 +67,50 @@ async function readApiJson<T>(r: Response): Promise<T> {
 const STUDIO_QUEUE_POLL_MS = 2000;
 const STUDIO_QUEUE_MAX_WAIT_MS = 45 * 60 * 1000;
 
+/** Tunnel / origin often returns transient 5xx when the VM is busy (e.g. Ollama + Comfy). */
+const RETRYABLE_HTTP = new Set([502, 503, 504, 524, 530]);
+
+function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException && e.name === "AbortError";
+}
+
+function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const t = window.setTimeout(() => resolve(), ms);
+    const onAbort = () => {
+      window.clearTimeout(t);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function fetchWithTransientRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+): Promise<Response> {
+  const signal = init.signal ?? undefined;
+  let last: Response | undefined;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    if (attempt > 0) {
+      await delay(400 * attempt, signal);
+    }
+    last = await fetch(url, init);
+    if (last.ok || !RETRYABLE_HTTP.has(last.status)) {
+      break;
+    }
+  }
+  return last as Response;
+}
+
 type QueueJobRow = {
   status: string;
   last_error?: string | null;
@@ -134,11 +155,13 @@ export function StudioPage() {
   const [healthErrorHint, setHealthErrorHint] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [usage, setUsage] = useState<UsageInfo | null>(null);
-  const [billing, setBilling] = useState<BillingStatus | null>(null);
-  const [comfy, setComfy] = useState<{ reachable: boolean; url: string; detail: string | null } | null>(null);
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [usage, setUsage] = useState<StudioUsageInfo | null>(null);
+  const [billing, setBilling] = useState<StudioBillingStatus | null>(null);
+  const [comfy, setComfy] = useState<StudioComfyStatusPayload | null>(null);
+  const [jobs, setJobs] = useState<StudioJobSummary[]>([]);
   const [jobsRoot, setJobsRoot] = useState<string | null>(null);
+  /** Aborts in-flight queue polling when leaving /studio or starting a new run. */
+  const jobPollAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     try {
@@ -168,7 +191,7 @@ export function StudioPage() {
     }
   }, [apiKey]);
 
-  const checkHealth = useCallback(() => {
+  const checkHealth = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
       setHealth("error");
       setHealthErrorHint(null);
@@ -177,8 +200,11 @@ export function StudioPage() {
     setHealth("checking");
     setHealthErrorHint(null);
     setWorkerVersion(null);
-    fetch(`${STUDIO_API_BASE}/api/studio/health`)
+    void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/health`, { signal })
       .then(async (r) => {
+        if (signal?.aborted) {
+          return;
+        }
         if (!r.ok) {
           setHealth("error");
           setWorkerVersion(null);
@@ -195,11 +221,17 @@ export function StudioPage() {
         }
         try {
           const j = await readApiJson<{ auth_required?: boolean; worker_version?: string }>(r);
+          if (signal?.aborted) {
+            return;
+          }
           setHealth("ok");
           setHealthErrorHint(null);
           setAuthRequired(Boolean(j?.auth_required));
           setWorkerVersion(typeof j?.worker_version === "string" ? j.worker_version : null);
         } catch {
+          if (signal?.aborted) {
+            return;
+          }
           setHealth("error");
           setWorkerVersion(null);
           setHealthErrorHint(
@@ -207,115 +239,124 @@ export function StudioPage() {
           );
         }
       })
-      .catch(() => {
+      .catch((e) => {
+        if (signal?.aborted || isAbortError(e)) {
+          return;
+        }
         setHealth("error");
         setWorkerVersion(null);
         setHealthErrorHint("Network error — the browser could not complete a request to the Studio API (offline, CORS, or blocked).");
       });
   }, []);
 
-  const refreshUsage = useCallback(() => {
+  /** One GET bundles usage + billing + jobs (fewer tunnel round-trips when the VM is busy). */
+  const refreshDashboard = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
+      setJobs([]);
+      setUsage(null);
+      setBilling(null);
       return;
     }
-    fetch(`${STUDIO_API_BASE}/api/studio/usage`, { headers: authHeaders() })
+    void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/dashboard`, {
+      headers: authHeaders(),
+      signal,
+    })
       .then(async (r) => {
+        if (signal?.aborted) {
+          return null;
+        }
         if (!r.ok) {
           return null;
         }
         try {
-          return await readApiJson<UsageInfo>(r);
+          return await readApiJson<StudioDashboardPayload>(r);
         } catch {
           return null;
         }
       })
-      .then((u) => setUsage(u))
-      .catch(() => setUsage(null));
-  }, [authHeaders]);
-
-  const refreshBilling = useCallback(() => {
-    if (!STUDIO_API_READY) {
-      return;
-    }
-    fetch(`${STUDIO_API_BASE}/api/studio/billing/status`, { headers: authHeaders() })
-      .then(async (r) => {
-        if (!r.ok) {
-          return null;
+      .then((d) => {
+        if (signal?.aborted || !d) {
+          return;
         }
-        try {
-          return await readApiJson<BillingStatus>(r);
-        } catch {
-          return null;
+        setUsage(d.usage);
+        setBilling(d.billing);
+        setJobs(d.jobs?.jobs ?? []);
+        if (d.jobs?.jobs_root) {
+          setJobsRoot(d.jobs.jobs_root);
         }
       })
-      .then((b) => setBilling(b))
-      .catch(() => setBilling(null));
+      .catch((e) => {
+        if (signal?.aborted || isAbortError(e)) {
+          return;
+        }
+        setJobs([]);
+        setUsage(null);
+        setBilling(null);
+      });
   }, [authHeaders]);
 
-  const refreshComfy = useCallback(() => {
+  const refreshComfy = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
       setComfy(null);
       return;
     }
-    fetch(`${STUDIO_API_BASE}/api/studio/comfy-status`)
+    void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/comfy-status`, { signal })
       .then(async (r) => {
+        if (signal?.aborted) {
+          return null;
+        }
         try {
-          return await readApiJson<{ reachable: boolean; url: string; detail: string | null }>(r);
+          return await readApiJson<StudioComfyStatusPayload>(r);
         } catch {
           return { reachable: false, url: "", detail: "request failed" };
         }
       })
-      .then(setComfy)
-      .catch(() => setComfy({ reachable: false, url: "", detail: "request failed" }));
+      .then((v) => {
+        if (signal?.aborted || v == null) {
+          return;
+        }
+        setComfy(v);
+      })
+      .catch((e) => {
+        if (signal?.aborted || isAbortError(e)) {
+          return;
+        }
+        setComfy({ reachable: false, url: "", detail: "request failed" });
+      });
   }, []);
-
-  const refreshJobs = useCallback(() => {
-    if (!STUDIO_API_READY) {
-      setJobs([]);
-      return;
-    }
-    fetch(`${STUDIO_API_BASE}/api/studio/jobs`, { headers: authHeaders() })
-      .then(async (r) => {
-        try {
-          return await readApiJson<{ jobs: JobSummary[]; jobs_root?: string }>(r);
-        } catch {
-          return { jobs: [] as JobSummary[] };
-        }
-      })
-      .then((data) => {
-        setJobs(data.jobs ?? []);
-        if (data.jobs_root) {
-          setJobsRoot(data.jobs_root);
-        }
-      })
-      .catch(() => setJobs([]));
-  }, [authHeaders]);
 
   useEffect(() => {
     if (!STUDIO_API_READY) {
       setHealth("error");
       return;
     }
-    checkHealth();
-    refreshComfy();
+    const ac = new AbortController();
+    checkHealth(ac.signal);
+    refreshComfy(ac.signal);
+    return () => ac.abort();
   }, [checkHealth, refreshComfy]);
 
   useEffect(() => {
     if (!STUDIO_API_READY) {
       return;
     }
-    refreshJobs();
-    refreshUsage();
-    refreshBilling();
-    // Full jobs (textures + mesh) saturate a small VM; fewer concurrent polls reduces pressure on tunnel/origin.
+    const ac = new AbortController();
+    void refreshDashboard(ac.signal);
+    // Full jobs (textures + mesh) saturate a small VM; poll less often while a job is in flight.
     const pollMs = jobLoading ? 30_000 : 5000;
-    const t = window.setInterval(() => {
-      refreshJobs();
-      refreshUsage();
-      refreshBilling();
-    }, pollMs);
-    return () => window.clearInterval(t);
-  }, [refreshBilling, refreshJobs, refreshUsage, jobLoading]);
+    const t = window.setInterval(() => void refreshDashboard(ac.signal), pollMs);
+    return () => {
+      ac.abort();
+      window.clearInterval(t);
+    };
+  }, [refreshDashboard, jobLoading]);
+
+  useEffect(
+    () => () => {
+      jobPollAbortRef.current?.abort();
+    },
+    [],
+  );
 
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -405,6 +446,10 @@ export function StudioPage() {
     setError(null);
     setPackResult(null);
     setJobResult(null);
+    jobPollAbortRef.current?.abort();
+    const runAc = new AbortController();
+    jobPollAbortRef.current = runAc;
+    const signal = runAc.signal;
     try {
       // Enqueue + poll: Cloudflare Worker → origin fetch times out on long synchronous /jobs/run
       // (textures + mesh). Short requests stay under proxy limits.
@@ -414,6 +459,7 @@ export function StudioPage() {
           : `web-${Date.now()}`;
       const enqRes = await fetch(`${STUDIO_API_BASE}/api/studio/queue/jobs`, {
         method: "POST",
+        signal,
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           prompt,
@@ -442,10 +488,17 @@ export function StudioPage() {
       const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
       let lastStatus = "unknown";
       while (Date.now() < deadline) {
-        const pr = await fetch(`${STUDIO_API_BASE}/api/studio/queue/jobs/${queueId}`, {
-          headers: authHeaders(),
-        });
+        if (signal.aborted) {
+          return;
+        }
+        const pr = await fetchWithTransientRetry(
+          `${STUDIO_API_BASE}/api/studio/queue/jobs/${queueId}`,
+          { headers: authHeaders(), signal },
+        );
         const row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
+        if (signal.aborted) {
+          return;
+        }
         if (!pr.ok) {
           throw new Error(formatApiDetail(row.detail));
         }
@@ -463,21 +516,27 @@ export function StudioPage() {
             texture_logs: data.texture_logs ?? [],
             mesh_logs: data.mesh_logs ?? [],
           });
-          refreshJobs();
+          void refreshDashboard();
           return;
         }
         if (row.status === "dead") {
           throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
         }
-        await new Promise((res) => window.setTimeout(res, STUDIO_QUEUE_POLL_MS));
+        await delay(STUDIO_QUEUE_POLL_MS, signal);
       }
       throw new Error(
         `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
       );
     } catch (err) {
+      if (signal.aborted || isAbortError(err)) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
     } finally {
+      if (jobPollAbortRef.current === runAc) {
+        jobPollAbortRef.current = null;
+      }
       setJobLoading(false);
     }
   }
@@ -633,7 +692,7 @@ export function StudioPage() {
                       <code>VITE_STUDIO_API_PROXY</code> in <code>apps/web/.env.development.local</code>.
                     </>
                   )}{" "}
-                  <button type="button" className="studio-retry" onClick={checkHealth}>
+                  <button type="button" className="studio-retry" onClick={() => checkHealth()}>
                     Retry
                   </button>
                   {healthErrorHint ? (
@@ -669,11 +728,7 @@ export function StudioPage() {
                 type="button"
                 className="btn btn-ghost"
                 disabled={!STUDIO_API_READY}
-                onClick={() => {
-                  refreshUsage();
-                  refreshJobs();
-                  refreshBilling();
-                }}
+                onClick={() => void refreshDashboard()}
               >
                 Refresh usage & jobs
               </button>
@@ -776,7 +831,7 @@ export function StudioPage() {
                   )}
                 </span>
               ) : null}
-              <button type="button" className="studio-retry" onClick={refreshComfy}>
+              <button type="button" className="studio-retry" onClick={() => void refreshComfy()}>
                 Refresh
               </button>
             </div>
@@ -961,7 +1016,7 @@ export function StudioPage() {
               <h2 id="jobs-heading" className="studio-jobs-title">
                 Recent jobs
               </h2>
-              <button type="button" className="studio-retry" disabled={!STUDIO_API_READY} onClick={refreshJobs}>
+              <button type="button" className="studio-retry" disabled={!STUDIO_API_READY} onClick={() => void refreshDashboard()}>
                 Refresh now
               </button>
             </div>

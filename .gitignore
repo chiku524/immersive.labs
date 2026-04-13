@@ -9,3 +9,6 @@ apps/studio-worker/.venv/
 *.local
 .DS_Store
 *.tsbuildinfo
+
+.vercel
+.env*.local

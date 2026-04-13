@@ -13,7 +13,7 @@ from starlette.responses import FileResponse, RedirectResponse, Response
 from studio_worker import tenants_db
 from studio_worker.comfy_client import comfy_reachability
 from studio_worker.job_runner import run_studio_job
-from studio_worker.jobs_store import count_jobs, get_job_record, list_jobs
+from studio_worker.jobs_store import count_jobs, get_job_record
 from studio_worker.attribution import write_pack_attribution
 from studio_worker.pack_writer import write_pack
 from studio_worker.paths import (
@@ -45,7 +45,34 @@ from studio_worker.sqlite_queue import (
 )
 from studio_worker.billing_config import stripe_webhook_secret
 from studio_worker.billing_routes import router as billing_router
+from studio_worker.studio_dashboard import jobs_list_dict, studio_dashboard_dict, usage_dict
 from studio_worker.tenant_context import RequestTenant, api_auth_required, get_request_tenant
+
+# OpenAPI "Example" for GET /api/studio/dashboard (same shapes as /usage + /billing/status + /jobs).
+_STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
+    "usage": {
+        "limits_enforced": False,
+        "tier_id": "dev",
+        "tier_name": "Local dev",
+        "period": None,
+        "credits_used": 0,
+        "credits_cap": None,
+        "credits_generate_spec": 1,
+        "credits_run_job": 1,
+        "credits_run_job_textures": 5,
+        "textures_allowed": True,
+        "max_concurrent_jobs": None,
+    },
+    "billing": {
+        "stripe_checkout_available": False,
+        "checkout_tiers": [],
+        "portal_needs_customer": True,
+        "stripe_customer_linked": False,
+        "stripe_subscription_id": None,
+        "tier_id": "dev",
+    },
+    "jobs": {"jobs": [], "jobs_root": "/path/to/output/jobs"},
+}
 from studio_worker.tiers import CREDIT_COST_GENERATE_SPEC, CREDIT_COST_RUN_JOB, CREDIT_COST_RUN_JOB_TEXTURES
 
 
@@ -209,34 +236,28 @@ def comfy_status() -> dict[str, Any]:
 
 @app.get("/api/studio/usage")
 def get_usage(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
-    if not tenant.limits_enforced:
-        return {
-            "limits_enforced": False,
-            "tier_id": tenant.tier_id,
-            "tier_name": tenant.tier.display_name,
-            "period": None,
-            "credits_used": 0,
-            "credits_cap": None,
-            "credits_generate_spec": CREDIT_COST_GENERATE_SPEC,
-            "credits_run_job": CREDIT_COST_RUN_JOB,
-            "credits_run_job_textures": CREDIT_COST_RUN_JOB_TEXTURES,
-            "textures_allowed": True,
-            "max_concurrent_jobs": None,
+    return usage_dict(tenant)
+
+
+@app.get(
+    "/api/studio/dashboard",
+    responses={
+        200: {
+            "description": "Bundled usage, billing status, and jobs list (one round-trip).",
+            "content": {
+                "application/json": {
+                    "example": _STUDIO_DASHBOARD_OPENAPI_EXAMPLE,
+                }
+            },
         }
-    used, period = tenants_db.get_usage_row(tenant.tenant_id)
-    return {
-        "limits_enforced": True,
-        "tier_id": tenant.tier_id,
-        "tier_name": tenant.tier.display_name,
-        "period": period,
-        "credits_used": used,
-        "credits_cap": tenant.tier.monthly_credits,
-        "credits_generate_spec": CREDIT_COST_GENERATE_SPEC,
-        "credits_run_job": CREDIT_COST_RUN_JOB,
-        "credits_run_job_textures": CREDIT_COST_RUN_JOB_TEXTURES,
-        "textures_allowed": tenant.tier.textures_allowed,
-        "max_concurrent_jobs": tenant.tier.max_concurrent_jobs,
-    }
+    },
+)
+def get_studio_dashboard(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
+    """
+    Single JSON bundle for /studio: usage + billing status + jobs list.
+    Prefer this over three parallel GETs through a congested Worker → tunnel → origin path.
+    """
+    return studio_dashboard_dict(tenant)
 
 
 @app.post("/api/studio/generate-spec", response_model=GenerateSpecResponse)
@@ -465,13 +486,7 @@ def post_run_job(
 
 @app.get("/api/studio/jobs")
 def get_jobs(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
-    return {
-        "jobs": list_jobs(
-            tenant_id=tenant.tenant_id,
-            include_legacy_unscoped=not tenant.limits_enforced,
-        ),
-        "jobs_root": str(jobs_root().resolve()),
-    }
+    return jobs_list_dict(tenant)
 
 
 @app.get("/api/studio/jobs/{job_id}/download", response_model=None)

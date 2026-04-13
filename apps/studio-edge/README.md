@@ -35,13 +35,13 @@ Override origin for one run:
 npx wrangler dev --var ORIGIN_URL:https://api.example.com
 ```
 
-## Optional: KV cache for health
+## Optional: KV cache for health and comfy-status
 
 1. Create a namespace: `npx wrangler kv namespace create STUDIO_KV`
 2. Uncomment `[[kv_namespaces]]` in **`wrangler.toml`** and paste the **`id`**.
-3. Redeploy. Responses for **`GET /api/studio/health`** include **`X-Studio-Edge-Cache: HIT`** or **`MISS`**.
+3. Redeploy. Responses for **`GET /api/studio/health`** and **`GET /api/studio/comfy-status`** include **`X-Studio-Edge-Cache: HIT`** or **`MISS`**.
 
-Tune freshness with wrangler var **`HEALTH_CACHE_TTL_MS`** (milliseconds, default `5000`). KV entries expire after **60s** (`expirationTtl`).
+Tune health freshness with wrangler var **`HEALTH_CACHE_TTL_MS`** (milliseconds, default `5000`). Health KV entries expire after **60s** (`expirationTtl`). Comfy-status uses a fixed **~20s** KV TTL (anonymous probe; reduces tunnel chatter when many `/studio` tabs poll).
 
 ## Production routing (avoid a fetch loop)
 
@@ -122,8 +122,9 @@ If **`X-Studio-Edge-Origin-Host: api-origin.immersivelabs.space`** but the JSON 
 
 1. **Same tunnel, multiple connectors** — In [Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → your tunnel → **Connectors**, you should see **only** the host that should serve traffic (e.g. the GCE VM). A second laptop or old VM still running **`cloudflared`** with the same tunnel token will receive a share of requests; remove or stop stale connectors.
 2. **Remotely managed ingress** — If public hostnames are edited in the dashboard, they can **override** `/etc/cloudflared/config.yml` on the VM. Ensure **`api-origin.immersivelabs.space` → `http://127.0.0.1:8787`** (or the correct connector service) matches what you expect.
-3. **KV health cache** — After fixing origin, purge once:  
-   `npx wrangler kv key delete --remote --binding=STUDIO_KV studio:health:v1`
+3. **KV edge caches** — After fixing origin, purge stale JSON once if needed:  
+   - Health: `npx wrangler kv key delete --remote --binding=STUDIO_KV studio:health:v1`  
+   - Comfy probe: `npx wrangler kv key delete --remote --binding=STUDIO_KV studio:comfy-status:v1`
 
 **`ORIGIN_URL` secret:** must be the tunnel hostname (e.g. `https://api-origin.immersivelabs.space`), set with:
 

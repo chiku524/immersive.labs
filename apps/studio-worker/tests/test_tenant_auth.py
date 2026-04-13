@@ -114,3 +114,25 @@ def test_usage_with_valid_key(client_auth_on) -> None:
     assert body["limits_enforced"] is True
     assert body["tier_id"] == "indie"
     assert body["credits_cap"] == 600
+
+
+def test_dashboard_matches_individual_endpoints_auth_off(client_auth_off: TestClient) -> None:
+    d = client_auth_off.get("/api/studio/dashboard").json()
+    u = client_auth_off.get("/api/studio/usage").json()
+    j = client_auth_off.get("/api/studio/jobs").json()
+    b = client_auth_off.get("/api/studio/billing/status").json()
+    assert d["usage"] == u
+    assert d["jobs"] == j
+    assert d["billing"] == b
+
+
+def test_dashboard_401_without_key(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STUDIO_API_AUTH_REQUIRED", "1")
+    monkeypatch.setattr(
+        "studio_worker.paths.tenants_db_path", lambda: tmp_path / "t-dash.sqlite"
+    )
+    from studio_worker.api import app
+
+    with TestClient(app) as c:
+        r = c.get("/api/studio/dashboard")
+        assert r.status_code == 401

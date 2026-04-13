@@ -64,3 +64,62 @@ export interface StudioJobManifest {
     mesh_pipeline?: string;
   };
 }
+
+// --- HTTP API JSON (worker FastAPI) — keep aligned with studio_dashboard + api routes ---
+
+/** Row from `GET /api/studio/jobs` → `jobs[]`. */
+export interface StudioJobSummary {
+  job_id: string;
+  folder: string;
+  created_at: string;
+  status: string;
+  summary: string;
+  has_textures: boolean;
+  error: string | null;
+}
+
+/** `GET /api/studio/usage` and `dashboard.usage`. */
+export interface StudioUsageInfo {
+  limits_enforced: boolean;
+  tier_id: string;
+  tier_name: string;
+  period: string | null;
+  credits_used: number;
+  credits_cap: number | null;
+  /** Present when worker returns credit pricing hints (optional in UI). */
+  credits_generate_spec?: number;
+  credits_run_job?: number;
+  credits_run_job_textures?: number;
+  textures_allowed: boolean;
+  max_concurrent_jobs: number | null;
+}
+
+/** `GET /api/studio/billing/status` and `dashboard.billing`. */
+export interface StudioBillingStatus {
+  stripe_checkout_available: boolean;
+  checkout_tiers: string[];
+  portal_needs_customer?: boolean;
+  stripe_customer_linked: boolean;
+  stripe_subscription_id: string | null;
+  tier_id: string;
+}
+
+/** `GET /api/studio/jobs` body (also nested as `dashboard.jobs`). */
+export interface StudioJobsListPayload {
+  jobs: StudioJobSummary[];
+  jobs_root: string;
+}
+
+/** `GET /api/studio/dashboard` — bundles usage + billing + jobs for one round-trip. */
+export interface StudioDashboardPayload {
+  usage: StudioUsageInfo;
+  billing: StudioBillingStatus;
+  jobs: StudioJobsListPayload;
+}
+
+/** `GET /api/studio/comfy-status`. */
+export interface StudioComfyStatusPayload {
+  reachable: boolean;
+  url: string;
+  detail: string | null;
+}

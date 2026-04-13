@@ -123,6 +123,7 @@ All studio JSON routes are under **`/api/studio/…`** on the worker host.
 | GET | `/api/studio/metrics` | Queue counts by status + `jobs_indexed` (tenant-scoped when auth on) |
 | GET | `/api/studio/comfy-status` | ComfyUI probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits (key when auth on) |
+| GET | `/api/studio/dashboard` | **`usage`**, **`billing`**, **`jobs`** in one JSON (same shapes as the three separate GETs; preferred for congested Worker → tunnel paths) |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack |
 | POST | `/api/studio/jobs/run` | Synchronous full job |
@@ -263,6 +264,8 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 2. Set **`VITE_STUDIO_API_URL`** in that project to the **public worker URL** (HTTPS).
 3. Run **`immersive-studio serve`** (or gunicorn/uvicorn) on a **VM, container, or metal** with a **persistent volume** for `output/` (or equivalent for Postgres/Redis/S3 if you moved storage).
 
+**After code changes:** [deploy-recent-changes.md](./deploy-recent-changes.md) (Worker → **studio-edge** → web order; Wrangler + Vercel CLI notes).
+
 **Zero-cost VM path (GCP):** step-by-step **`e2-micro`**, Docker image from this repo, HTTPS (Cloudflare Tunnel or Caddy), and Vercel env vars — [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md).
 
 **Checklist**
@@ -300,6 +303,7 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 | [unity-export-conventions.md](./unity-export-conventions.md) | Units, folders, colliders |
 | [hardening.md](./hardening.md) | Moderation, quotas, attribution, CI |
 | [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) | Free GCP `e2-micro`, Docker worker, HTTPS, Vercel |
+| [deploy-recent-changes.md](./deploy-recent-changes.md) | Redeploy studio-edge, web (Vercel), and worker after merges |
 | [cloudflare-edge-and-storage.md](./cloudflare-edge-and-storage.md) | Workers / R2 / D1 / KV vs Python VM; **R2** via existing env |
 | [stripe-monitoring-and-emails.md](./stripe-monitoring-and-emails.md) | Billing operations |
 | [apps/studio-worker/README.md](../../apps/studio-worker/README.md) | CLI, full HTTP table, **full env table**, Stripe setup, Blender |

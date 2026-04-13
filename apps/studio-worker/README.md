@@ -205,6 +205,7 @@ immersive-studio tenants set-tier --tenant-id <uuid> --tier team
 | GET | `/api/studio/metrics` | Queue counts by status + `jobs_indexed` (tenant-scoped when auth on) |
 | GET | `/api/studio/comfy-status` | ComfyUI `/system_stats` probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits used/cap (requires key when auth on) |
+| GET | `/api/studio/dashboard` | One JSON: **`usage`** + **`billing`** + **`jobs`** (same payloads as `/usage`, `/billing/status`, `/jobs`; `/studio` uses this to reduce tunnel round-trips) |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack (scoped under `output/packs/…` when auth on) |
 | POST | `/api/studio/jobs/run` | Full job → `output/jobs/job_*/` + `pack.zip` + index |
@@ -227,6 +228,7 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `900` | Max seconds to wait on Ollama `/api/chat` read (**30–3600**); long values block the queue worker. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |
