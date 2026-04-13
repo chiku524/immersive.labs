@@ -56,7 +56,7 @@ If the worker URL is wrong or the worker is down, the `/studio` page shows a hea
 
 ### Observability (built-in)
 
-- **`GET /api/studio/metrics`** — JSON with **`queue`** counts per status (`pending`, `running`, `completed`, `dead`, …) and **`jobs_indexed`** (rows in the job index). Tenant-scoped when `STUDIO_API_AUTH_REQUIRED=1`; global counts in local dev mode. Use for dashboards or alerting (poll or scrape).
+- **`GET /api/studio/metrics`** — JSON with **`queue`** counts per status (`pending`, `running`, `completed`, `dead`, …), **`jobs_indexed`**, and **`slo`** (on SQLite: ages of the oldest claimable pending row and oldest running row — useful for alerting). Tenant-scoped when `STUDIO_API_AUTH_REQUIRED=1`; global counts in local dev mode. For splitting API vs queue under load, see [production-queue-split.md](./production-queue-split.md) and [security-operational-checklist.md](./security-operational-checklist.md).
 - **`GET /api/studio/dashboard`** — Same **`usage`**, **`billing`**, and **`jobs`** payloads as the three separate GETs, in one response (see § Production API stability below).
 
 **Shipping updates:** [deploy-recent-changes.md](./deploy-recent-changes.md) — order for redeploying **studio-edge**, **web** (Vercel), and the **Python worker** on your host.
@@ -78,7 +78,7 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
    - **Ollama + ComfyUI + Blender** on one **e2-micro**-class host routinely causes **read timeouts** and **HTTP 502** bursts. Upgrade the VM, run **`STUDIO_EMBEDDED_QUEUE_WORKER=0`** with a **separate** `immersive-studio queue-worker` process, or offload Comfy to another machine (`STUDIO_COMFY_URL`).
 
 4. **Fewer round-trips**  
-   - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, and **`jobs`** in one JSON object (same shapes as **`/api/studio/usage`**, **`/api/studio/billing/status`**, **`/api/studio/jobs`**). The `/studio` page uses this to reduce parallel GETs through the Worker.
+   - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, **`jobs`**, and **`worker_hints`** (Ollama timeout/model/URL plus whether the queue consumer is embedded in the API process) in one JSON object. The `/studio` page uses this to reduce parallel GETs through the Worker and to show tuning context next to recent jobs.
 
 ---
 

@@ -3,7 +3,9 @@ import type {
   StudioComfyStatusPayload,
   StudioDashboardPayload,
   StudioJobSummary,
+  StudioQueueSloSnapshot,
   StudioUsageInfo,
+  StudioWorkerHints,
 } from "@immersive/studio-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -32,6 +34,34 @@ function comfyLocalhostRefused(detail: string | null | undefined, url: string): 
     d.includes("econnrefused") ||
     d.includes("could not be made") ||
     d.includes("failed to establish")
+  );
+}
+
+/** Human-readable age for queue SLO fields (worker returns seconds as float). */
+function formatQueueAgeSeconds(seconds: number | null | undefined): string | null {
+  if (seconds == null || Number.isNaN(seconds)) {
+    return null;
+  }
+  const s = Math.max(0, seconds);
+  if (s < 120) {
+    return `${Math.round(s)}s`;
+  }
+  const m = s / 60;
+  if (m < 120) {
+    return `${Math.round(m)}m`;
+  }
+  return `${(m / 60).toFixed(1)}h`;
+}
+
+function StudioQueueSloLine({ q }: { q: StudioQueueSloSnapshot }) {
+  const po = formatQueueAgeSeconds(q.pending_oldest_age_seconds);
+  const ro = formatQueueAgeSeconds(q.running_oldest_age_seconds);
+  return (
+    <p className="studio-queue-slo">
+      Queue snapshot: <strong>{q.pending_claimable_count}</strong> claimable pending
+      {po ? <> (oldest ~{po})</> : null}, <strong>{q.running_count}</strong> running
+      {ro ? <> (longest ~{ro})</> : null}.
+    </p>
   );
 }
 
@@ -397,6 +427,10 @@ export function StudioPage() {
   const [comfy, setComfy] = useState<StudioComfyStatusPayload | null>(null);
   const [jobs, setJobs] = useState<StudioJobSummary[]>([]);
   const [jobsRoot, setJobsRoot] = useState<string | null>(null);
+  const [workerHints, setWorkerHints] = useState<StudioWorkerHints | null>(null);
+  const [queueSlo, setQueueSlo] = useState<StudioQueueSloSnapshot | null>(null);
+  /** When true, slow down dashboard polling (tab in background). */
+  const [dashboardPollSlow, setDashboardPollSlow] = useState(false);
   /** Aborts in-flight queue polling when leaving /studio or starting a new run. */
   const jobPollAbortRef = useRef<AbortController | null>(null);
 
@@ -492,6 +526,8 @@ export function StudioPage() {
       setJobs([]);
       setUsage(null);
       setBilling(null);
+      setWorkerHints(null);
+      setQueueSlo(null);
       return;
     }
     void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/dashboard`, {
@@ -521,6 +557,8 @@ export function StudioPage() {
         if (d.jobs?.jobs_root) {
           setJobsRoot(d.jobs.jobs_root);
         }
+        setWorkerHints(d.worker_hints ?? null);
+        setQueueSlo(d.queue_slo ?? null);
       })
       .catch((e) => {
         if (signal?.aborted || isAbortError(e)) {
@@ -529,6 +567,8 @@ export function StudioPage() {
         setJobs([]);
         setUsage(null);
         setBilling(null);
+        setWorkerHints(null);
+        setQueueSlo(null);
       });
   }, [authHeaders]);
 
@@ -578,19 +618,26 @@ export function StudioPage() {
   }, [checkHealth, refreshComfy]);
 
   useEffect(() => {
+    const onVis = () => setDashboardPollSlow(document.visibilityState === "hidden");
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  useEffect(() => {
     if (!STUDIO_API_READY) {
       return;
     }
     const ac = new AbortController();
     void refreshDashboard(ac.signal);
-    // Full jobs (textures + mesh) saturate a small VM; poll less often while a job is in flight.
-    const pollMs = jobLoading ? 30_000 : 5000;
+    // Full jobs saturate a small VM; background tabs poll less to ease tunnel + origin load.
+    const pollMs = jobLoading ? 30_000 : dashboardPollSlow ? 90_000 : 5000;
     const t = window.setInterval(() => void refreshDashboard(ac.signal), pollMs);
     return () => {
       ac.abort();
       window.clearInterval(t);
     };
-  }, [refreshDashboard, jobLoading]);
+  }, [refreshDashboard, jobLoading, dashboardPollSlow]);
 
   useEffect(
     () => () => {
@@ -1122,6 +1169,15 @@ export function StudioPage() {
               <input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} />
               Mock mode (no Ollama — deterministic spec for wiring)
             </label>
+            {!mock && workerHints ? (
+              <p className="studio-ollama-hint">
+                Full jobs call Ollama at <code>{workerHints.ollama_base_url}</code> (model{" "}
+                <code>{workerHints.ollama_model}</code>, read timeout{" "}
+                <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code>). For quick UI checks, use mock mode;
+                on the VM raise <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, add RAM/swap, or set a smaller{" "}
+                <code>STUDIO_OLLAMA_MODEL</code> if specs time out.
+              </p>
+            ) : null}
 
             <label className="studio-check">
               <input
@@ -1219,15 +1275,51 @@ export function StudioPage() {
                   </ul>
                 </details>
               ) : null}
-              <button
-                type="button"
-                className="btn btn-primary studio-download"
-                disabled={!STUDIO_API_READY}
-                onClick={() => void downloadJobZip(jobResult.job_id)}
-              >
-                Download pack.zip
-              </button>
+              <div className="studio-job-result-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary studio-download"
+                  disabled={!STUDIO_API_READY}
+                  onClick={() => void downloadJobZip(jobResult.job_id)}
+                >
+                  Download pack.zip
+                </button>
+                {billing?.stripe_customer_linked ? (
+                  <button type="button" className="btn btn-ghost" onClick={() => void openStripePortal()}>
+                    Open Stripe billing
+                  </button>
+                ) : null}
+              </div>
             </div>
+          ) : null}
+
+          {workerHints && STUDIO_API_READY ? (
+            <section className="studio-worker-hints" aria-label="Worker LLM and queue settings">
+              <h2 className="studio-worker-hints-title">Worker LLM and queue</h2>
+              <p className="studio-worker-hints-body">
+                Ollama read timeout: <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code> (
+                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max 3600). Model <code>{workerHints.ollama_model}</code> (
+                <code>STUDIO_OLLAMA_MODEL</code>) at <code>{workerHints.ollama_base_url}</code> (
+                <code>STUDIO_OLLAMA_URL</code>). Queue consumer:{" "}
+                {workerHints.embedded_queue_worker ? (
+                  <>
+                    <strong>embedded</strong> in this API process (default for SQLite). To reduce load spikes and
+                    tunnel 502s during long runs, run a separate <code>immersive-studio queue-worker</code> and set{" "}
+                    <code>STUDIO_EMBEDDED_QUEUE_WORKER=0</code> on the API container.
+                  </>
+                ) : (
+                  <>
+                    <strong>not embedded</strong> — a dedicated queue worker process should be consuming jobs.
+                  </>
+                )}
+              </p>
+              <p className="studio-worker-hints-body">
+                Ollama retries once automatically after a read timeout (2s pause). Optional{" "}
+                <code>STUDIO_OLLAMA_STREAM=1</code> uses streaming responses from Ollama (may help with large outputs).
+                If jobs still fail, prefer mock mode for wiring, a faster model, more VM memory, or a higher read
+                timeout (each attempt can block the queue worker for that long).
+              </p>
+            </section>
           ) : null}
 
           <section className="studio-jobs" aria-labelledby="jobs-heading">
@@ -1239,10 +1331,24 @@ export function StudioPage() {
                 Refresh now
               </button>
             </div>
+            {queueSlo && STUDIO_API_READY ? <StudioQueueSloLine q={queueSlo} /> : null}
             {jobs.length === 0 ? (
-              <p className="studio-jobs-empty">No jobs yet. Run a full job to populate the index.</p>
+              <div className="studio-jobs-empty">
+                <p className="studio-jobs-empty-title">No jobs in your index yet</p>
+                <p className="studio-jobs-empty-body">
+                  Run <strong>Run full job</strong> below (try <strong>Mock mode</strong> first to verify the pipeline
+                  without Ollama). Failed runs still appear here with full error text — expand the error row when
+                  present.
+                </p>
+              </div>
             ) : (
               <div className="studio-table-wrap">
+                <p className="studio-jobs-phase-hint">
+                  Typical flow: <strong>queued</strong> → worker runs <strong>spec</strong> (Ollama unless mock) →
+                  optional <strong>textures</strong> / <strong>mesh</strong> → <strong>pack.zip</strong>.{" "}
+                  <code>completed_with_errors</code> means the pack finished but Comfy or mesh reported issues (see
+                  error row and download logs).
+                </p>
                 <table className="studio-table">
                   <thead>
                     <tr>
@@ -1253,9 +1359,9 @@ export function StudioPage() {
                       <th scope="col">Download</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {jobs.map((j) => (
-                      <tr key={j.job_id}>
+                  {jobs.map((j) => (
+                    <tbody key={j.job_id}>
+                      <tr>
                         <td>
                           <code className="studio-table-mono">{j.created_at}</code>
                         </td>
@@ -1264,8 +1370,19 @@ export function StudioPage() {
                           <div className="studio-table-sub">{j.job_id}</div>
                         </td>
                         <td>
-                          {j.status}
-                          {j.error ? <div className="studio-table-err">{j.error}</div> : null}
+                          <span
+                            className={
+                              j.status === "failed"
+                                ? "studio-job-status studio-job-status--bad"
+                                : j.status === "completed_with_errors"
+                                  ? "studio-job-status studio-job-status--warn"
+                                  : j.status === "completed"
+                                    ? "studio-job-status studio-job-status--ok"
+                                    : "studio-job-status"
+                            }
+                          >
+                            {j.status}
+                          </span>
                         </td>
                         <td>{j.has_textures ? "yes" : "no"}</td>
                         <td>
@@ -1279,8 +1396,16 @@ export function StudioPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
+                      {j.error ? (
+                        <tr className="studio-job-error-row">
+                          <td colSpan={5}>
+                            <div className="studio-job-error-label">Error detail</div>
+                            <pre className="studio-job-error-text">{j.error}</pre>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  ))}
                 </table>
               </div>
             )}

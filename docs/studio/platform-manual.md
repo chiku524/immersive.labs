@@ -120,16 +120,17 @@ All studio JSON routes are under **`/api/studio/…`** on the worker host.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/studio/health` | Liveness; `auth_required`, Stripe webhook flag |
-| GET | `/api/studio/metrics` | Queue counts by status + `jobs_indexed` (tenant-scoped when auth on) |
+| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and `slo` snapshot (tenant-scoped when auth on) |
 | GET | `/api/studio/comfy-status` | ComfyUI probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits (key when auth on) |
-| GET | `/api/studio/dashboard` | **`usage`**, **`billing`**, **`jobs`** in one JSON (same shapes as the three separate GETs; preferred for congested Worker → tunnel paths) |
+| GET | `/api/studio/dashboard` | **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`** in one JSON (preferred for congested Worker → tunnel paths) |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack |
 | POST | `/api/studio/jobs/run` | Synchronous full job |
 | POST | `/api/studio/queue/jobs` | Enqueue async job |
 | GET | `/api/studio/queue/jobs` | List queue rows |
 | GET | `/api/studio/queue/jobs/{queue_id}` | Single queue row |
+| GET | `/api/studio/queue/jobs/{queue_id}/events` | SSE (`text/event-stream`): push queue row updates for `/studio` (falls back to GET polling if the stream fails) |
 | GET | `/api/studio/jobs` | List persisted jobs |
 | GET | `/api/studio/jobs/{job_id}/download` | `pack.zip` file or **302** to remote URL if blob storage enabled |
 | GET | `/api/studio/paths` | Debug paths + `queue_backend`, `redis_queue_engine`, `tenants_backend`, `job_artifacts_backend`, `postgres_configured` |
@@ -250,7 +251,7 @@ Full guide: [packages/studio-unity/README.md](../../packages/studio-unity/README
 | Endpoint / practice | Use |
 |---------------------|-----|
 | `GET /api/studio/health` | Uptime checks; `auth_required` for clients |
-| `GET /api/studio/metrics` | Queue depth by status + indexed job count (for dashboards) |
+| `GET /api/studio/metrics` | Queue depth, `jobs_indexed`, and `slo` ages (for dashboards / alerting) |
 | `GET /api/studio/paths` | Confirm `jobs_root`, DB paths, active backends |
 | **Backups** | Snapshot `tenants.sqlite`, `queue.sqlite`, `output/jobs/` (and any remote bucket policy if using blob storage) |
 

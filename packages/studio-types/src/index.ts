@@ -110,11 +110,30 @@ export interface StudioJobsListPayload {
   jobs_root: string;
 }
 
+/** `GET /api/studio/dashboard` → `worker_hints` (operator tuning, not secrets). */
+export interface StudioWorkerHints {
+  ollama_read_timeout_s: number;
+  ollama_model: string;
+  ollama_base_url: string;
+  /** When true, the SQLite queue consumer runs inside the API process. */
+  embedded_queue_worker: boolean;
+}
+
+/** `GET /api/studio/dashboard` → `queue_slo` (matches ``GET /api/studio/metrics`` → ``slo``). */
+export interface StudioQueueSloSnapshot {
+  pending_oldest_age_seconds: number | null;
+  running_oldest_age_seconds: number | null;
+  pending_claimable_count: number;
+  running_count: number;
+}
+
 /** `GET /api/studio/dashboard` — bundles usage + billing + jobs for one round-trip. */
 export interface StudioDashboardPayload {
   usage: StudioUsageInfo;
   billing: StudioBillingStatus;
   jobs: StudioJobsListPayload;
+  worker_hints?: StudioWorkerHints;
+  queue_slo?: StudioQueueSloSnapshot;
 }
 
 /** `GET /api/studio/comfy-status`. */

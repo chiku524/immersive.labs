@@ -36,6 +36,24 @@ mark_completed = _qb.mark_completed
 mark_failed = _qb.mark_failed
 run_worker_loop = _qb.run_worker_loop
 
+if _backend == "sqlite":
+    queue_slo_hints = _qb.queue_slo_hints
+else:
+
+    def queue_slo_hints(
+        *,
+        tenant_id: str | None = None,
+        include_legacy_unscoped: bool = False,
+    ) -> dict[str, object]:
+        """Non-SQLite backends: ages unknown here; use queue metrics + external store."""
+        return {
+            "pending_oldest_age_seconds": None,
+            "running_oldest_age_seconds": None,
+            "pending_claimable_count": 0,
+            "running_count": 0,
+        }
+
+
 __all__ = [
     "EnqueueOutcome",
     "QueueWorkerConfig",
@@ -50,4 +68,5 @@ __all__ = [
     "mark_failed",
     "queue_db_path",
     "run_worker_loop",
+    "queue_slo_hints",
 ]

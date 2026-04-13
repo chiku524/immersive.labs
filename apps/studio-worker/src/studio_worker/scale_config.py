@@ -164,3 +164,16 @@ def vercel_blob_api_url() -> str:
 
 def blob_api_version() -> str:
     return os.environ.get("VERCEL_BLOB_API_VERSION", "12").strip() or "12"
+
+
+def embedded_queue_worker_enabled() -> bool:
+    """
+    When true, the API process runs an embedded SQLite queue consumer thread.
+    Mirrors ``STUDIO_EMBEDDED_QUEUE_WORKER`` + ``STUDIO_QUEUE_BACKEND`` (see ``api`` lifespan).
+    """
+    raw = os.environ.get("STUDIO_EMBEDDED_QUEUE_WORKER", "").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    return queue_backend() == "sqlite"

@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.responses import FileResponse, RedirectResponse, Response, StreamingResponse
@@ -31,6 +31,7 @@ from studio_worker.paths import (
 )
 from studio_worker.scale_config import (
     database_url,
+    embedded_queue_worker_enabled,
     job_artifacts_backend,
     queue_backend,
     redis_queue_engine,
@@ -49,6 +50,9 @@ from studio_worker.sqlite_queue import (
 )
 from studio_worker.billing_config import stripe_webhook_secret
 from studio_worker.billing_routes import router as billing_router
+from studio_worker.http_context import RequestContextMiddleware
+from studio_worker.rate_limit import check_enqueue_rate_limit
+from studio_worker.sqlite_queue import queue_slo_hints
 from studio_worker.studio_dashboard import jobs_list_dict, studio_dashboard_dict, usage_dict
 from studio_worker.tenant_context import RequestTenant, api_auth_required, get_request_tenant
 
@@ -76,6 +80,18 @@ _STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
         "tier_id": "dev",
     },
     "jobs": {"jobs": [], "jobs_root": "/path/to/output/jobs"},
+    "worker_hints": {
+        "ollama_read_timeout_s": 1200.0,
+        "ollama_model": "llama3.2",
+        "ollama_base_url": "http://127.0.0.1:11434",
+        "embedded_queue_worker": True,
+    },
+    "queue_slo": {
+        "pending_oldest_age_seconds": None,
+        "running_oldest_age_seconds": None,
+        "pending_claimable_count": 0,
+        "running_count": 0,
+    },
 }
 from studio_worker.tiers import CREDIT_COST_GENERATE_SPEC, CREDIT_COST_RUN_JOB, CREDIT_COST_RUN_JOB_TEXTURES
 
@@ -101,25 +117,18 @@ def _cors_allow_origins() -> list[str]:
     ]
 
 
-def _embedded_queue_worker_enabled() -> bool:
-    """
-    When true, a daemon thread runs the SQLite/Redis/Postgres queue consumer inside the API process.
-    Default ON for sqlite-only deployments (single Docker container on GCE). Set STUDIO_EMBEDDED_QUEUE_WORKER=0
-    if you run a dedicated `immersive-studio queue-worker` process.
-    """
-    raw = os.environ.get("STUDIO_EMBEDDED_QUEUE_WORKER", "").strip().lower()
-    if raw in ("0", "false", "no"):
-        return False
-    if raw in ("1", "true", "yes"):
-        return True
-    return queue_backend() == "sqlite"
-
-
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
+    import logging
+
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+    for _name in ("studio.access", "studio.job"):
+        logging.getLogger(_name).setLevel(logging.INFO)
+
     tenants_db.init_tenants_schema()
     init_queue_schema()
-    if _embedded_queue_worker_enabled():
+    if embedded_queue_worker_enabled():
 
         def _consume_queue() -> None:
             run_worker_loop(worker_id="api-embedded", poll_interval_s=1.0)
@@ -146,6 +155,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestContextMiddleware)
 
 
 @app.get("/", include_in_schema=False)
@@ -199,11 +209,21 @@ class HealthResponse(BaseModel):
     )
 
 
+class QueueSloSnapshot(BaseModel):
+    """SQLite queue backlog hints for alerting (other backends may return null ages)."""
+
+    pending_oldest_age_seconds: float | None = None
+    running_oldest_age_seconds: float | None = None
+    pending_claimable_count: int = 0
+    running_count: int = 0
+
+
 class MetricsResponse(BaseModel):
     """Lightweight operator snapshot: queue depth by status + indexed job count."""
 
     queue: dict[str, int]
     jobs_indexed: int
+    slo: QueueSloSnapshot
 
 
 @app.get("/api/studio/health", response_model=HealthResponse)
@@ -230,7 +250,24 @@ def get_metrics(tenant: RequestTenant = Depends(get_request_tenant)) -> MetricsR
     else:
         q = count_queue_by_status(tenant_id=None)
         n = count_jobs(tenant_id=None)
-    return MetricsResponse(queue=q, jobs_indexed=n)
+    if tenant.limits_enforced:
+        slo_raw = queue_slo_hints(
+            tenant_id=tenant.tenant_id,
+            include_legacy_unscoped=False,
+        )
+    else:
+        slo_raw = queue_slo_hints(
+            tenant_id=None,
+            include_legacy_unscoped=True,
+        )
+    if queue_backend() != "sqlite":
+        slo_raw["running_count"] = int(q.get("running", 0))
+        slo_raw["pending_claimable_count"] = int(q.get("pending", 0))
+    return MetricsResponse(
+        queue=q,
+        jobs_indexed=n,
+        slo=QueueSloSnapshot(**slo_raw),
+    )
 
 
 @app.get("/api/studio/comfy-status")
@@ -370,7 +407,15 @@ class EnqueueJobResponse(BaseModel):
     deduplicated: bool = False
 
 
-@app.post("/api/studio/queue/jobs", response_model=EnqueueJobResponse)
+def _guard_enqueue_rate_limit(request: Request, tenant: RequestTenant = Depends(get_request_tenant)) -> None:
+    check_enqueue_rate_limit(request, tenant)
+
+
+@app.post(
+    "/api/studio/queue/jobs",
+    response_model=EnqueueJobResponse,
+    dependencies=[Depends(_guard_enqueue_rate_limit)],
+)
 def post_enqueue_job(
     body: EnqueueJobRequest,
     tenant: RequestTenant = Depends(get_request_tenant),

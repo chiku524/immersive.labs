@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +25,8 @@ from studio_worker.zip_pack import zip_directory
 
 if TYPE_CHECKING:
     from studio_worker.tenant_context import RequestTenant
+
+_log = logging.getLogger("studio.job")
 
 
 def run_studio_job(
@@ -64,6 +67,14 @@ def run_studio_job(
         job_id = allocate_job_id()
         folder = new_job_folder_name(job_id)
         out_dir = job_pack_dir(folder)
+        _log.info(
+            "job_begin job_id=%s folder=%s mock=%s textures=%s export_mesh=%s",
+            job_id,
+            folder,
+            use_mock,
+            generate_textures,
+            export_mesh,
+        )
 
         if out_dir.exists():
             shutil.rmtree(out_dir)
@@ -82,6 +93,7 @@ def run_studio_job(
                 use_mock=use_mock,
             )
         except Exception as e:
+            _log.warning("job_spec_failed job_id=%s err=%s", job_id, e)
             register_job_entry(
                 job_id=job_id,
                 folder=folder,
@@ -94,6 +106,7 @@ def run_studio_job(
             raise
 
         llm_label = None if use_mock else f"ollama:{ollama_model()}"
+        _log.info("job_spec_ok job_id=%s asset_id=%s llm=%s", job_id, spec.get("asset_id"), llm_label)
         prof = comfy_profile()
         image_pipeline = f"comfyui:{prof}_pbr_v1"
         if generate_textures:
@@ -165,6 +178,7 @@ def run_studio_job(
         )
 
         status = "completed" if not errors else "completed_with_errors"
+        _log.info("job_complete job_id=%s status=%s errors=%s", job_id, status, len(errors))
         register_job_entry(
             job_id=job_id,
             folder=folder,

@@ -1,11 +1,11 @@
-# Local smoke test (from repo root is easiest):
+# Local smoke (repo root):
 #   docker compose -f apps/studio-worker/docker-compose.yml up --build
 #
-# STUDIO_CORS_ORIGINS: comma-separated. Dev default below; production example:
-#   https://immersivelabs.space,https://www.immersivelabs.space
+# Split API vs queue consumer (recommended when debugging 502s under load):
+#   - studio-worker: HTTP API with STUDIO_EMBEDDED_QUEUE_WORKER=0
+#   - studio-queue-worker: immersive-studio queue-worker (same volume + queue DB)
 #
-# STUDIO_COMFY_URL: hosted ComfyUI for texture jobs. Override for local ComfyUI:
-#   STUDIO_COMFY_URL=http://127.0.0.1:8188 docker compose -f apps/studio-worker/docker-compose.yml up
+# STUDIO_CORS_ORIGINS: comma-separated. STUDIO_COMFY_URL for local ComfyUI override.
 
 services:
   studio-worker:
@@ -17,8 +17,25 @@ services:
     environment:
       STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-https://comfy.immersivelabs.space}
       STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
+      STUDIO_EMBEDDED_QUEUE_WORKER: ${STUDIO_EMBEDDED_QUEUE_WORKER:-1}
     volumes:
       - studio_output:/repo/apps/studio-worker/output
+
+  # Start with: docker compose --profile split up
+  # Set STUDIO_EMBEDDED_QUEUE_WORKER=0 on studio-worker when using this profile (see docs/studio/production-queue-split.md).
+  studio-queue-worker:
+    profiles:
+      - split
+    build:
+      context: ../..
+      dockerfile: apps/studio-worker/Dockerfile
+    command: ["immersive-studio", "queue-worker", "--worker-id", "compose-q"]
+    environment:
+      STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-https://comfy.immersivelabs.space}
+    volumes:
+      - studio_output:/repo/apps/studio-worker/output
+    depends_on:
+      - studio-worker
 
 volumes:
   studio_output:

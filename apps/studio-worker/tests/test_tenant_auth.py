@@ -1,9 +1,20 @@
 from __future__ import annotations
 
-import os
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _assert_queue_slo_matches_between_requests(a: dict[str, Any], b: dict[str, Any]) -> None:
+    """Ages are computed per request; two sequential HTTP calls can differ by a few ms."""
+    assert set(a.keys()) == set(b.keys())
+    assert a["pending_claimable_count"] == b["pending_claimable_count"]
+    assert a["running_count"] == b["running_count"]
+    for k in ("pending_oldest_age_seconds", "running_oldest_age_seconds"):
+        assert (a[k] is None) == (b[k] is None)
+        if a[k] is not None:
+            assert abs(float(a[k]) - float(b[k])) < 2.0
 
 
 @pytest.fixture
@@ -90,8 +101,14 @@ def test_metrics_ok_when_auth_disabled(client_auth_off: TestClient) -> None:
     body = r.json()
     assert "queue" in body
     assert "jobs_indexed" in body
+    assert "slo" in body
     assert isinstance(body["queue"], dict)
     assert isinstance(body["jobs_indexed"], int)
+    slo = body["slo"]
+    assert "pending_oldest_age_seconds" in slo
+    assert "running_oldest_age_seconds" in slo
+    assert "pending_claimable_count" in slo
+    assert "running_count" in slo
 
 
 def test_protected_route_401_without_key(monkeypatch, tmp_path) -> None:
@@ -116,14 +133,44 @@ def test_usage_with_valid_key(client_auth_on) -> None:
     assert body["credits_cap"] == 600
 
 
+def test_dashboard_queue_slo_matches_metrics_with_auth(client_auth_on) -> None:
+    c, key, _tid = client_auth_on
+    auth = {"Authorization": f"Bearer {key}"}
+    d = c.get("/api/studio/dashboard", headers=auth).json()
+    m = c.get("/api/studio/metrics", headers=auth).json()
+    _assert_queue_slo_matches_between_requests(d["queue_slo"], m["slo"])
+
+
 def test_dashboard_matches_individual_endpoints_auth_off(client_auth_off: TestClient) -> None:
     d = client_auth_off.get("/api/studio/dashboard").json()
     u = client_auth_off.get("/api/studio/usage").json()
     j = client_auth_off.get("/api/studio/jobs").json()
     b = client_auth_off.get("/api/studio/billing/status").json()
+    m = client_auth_off.get("/api/studio/metrics").json()
     assert d["usage"] == u
     assert d["jobs"] == j
     assert d["billing"] == b
+    _assert_queue_slo_matches_between_requests(d["queue_slo"], m["slo"])
+
+
+def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
+    r = client_auth_off.get("/api/studio/dashboard")
+    assert r.status_code == 200
+    d = r.json()
+    wh = d.get("worker_hints")
+    assert isinstance(wh, dict)
+    assert "ollama_read_timeout_s" in wh
+    assert "ollama_model" in wh
+    assert "ollama_base_url" in wh
+    assert "embedded_queue_worker" in wh
+    qs = d.get("queue_slo")
+    assert isinstance(qs, dict)
+    assert set(qs.keys()) >= {
+        "pending_oldest_age_seconds",
+        "running_oldest_age_seconds",
+        "pending_claimable_count",
+        "running_count",
+    }
 
 
 def test_dashboard_401_without_key(monkeypatch, tmp_path) -> None:

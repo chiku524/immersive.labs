@@ -125,6 +125,94 @@ def count_queue_by_status(
         conn.close()
 
 
+def _age_seconds_from_created_at(created_at: str) -> float | None:
+    """Parse queue job ISO timestamp (with Z) to age in seconds."""
+    raw = (created_at or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        started = datetime.fromisoformat(raw)
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        return max(0.0, (datetime.now(tz=UTC) - started).total_seconds())
+    except ValueError:
+        return None
+
+
+def _tenant_where_sql(
+    tenant_id: str | None, include_legacy_unscoped: bool
+) -> tuple[str, list[Any]]:
+    if tenant_id is None:
+        return "", []
+    if include_legacy_unscoped:
+        return " AND (tenant_id = ? OR tenant_id IS NULL)", [tenant_id]
+    return " AND tenant_id = ?", [tenant_id]
+
+
+def queue_slo_hints(
+    *,
+    tenant_id: str | None = None,
+    include_legacy_unscoped: bool = False,
+) -> dict[str, Any]:
+    """
+    Lightweight SLO fields for metrics / alerting (SQLite queue only).
+    ``pending_oldest_age_seconds``: oldest *claimable* pending row (attempts < max_attempts).
+    """
+    init_schema()
+    tw, tparams = _tenant_where_sql(tenant_id, include_legacy_unscoped)
+    conn = _connect()
+    try:
+        row_p = conn.execute(
+            f"""
+            SELECT created_at FROM queue_jobs
+            WHERE status = 'pending' AND attempts < max_attempts{tw}
+            ORDER BY datetime(created_at) ASC LIMIT 1
+            """,
+            tparams,
+        ).fetchone()
+        pending_oldest = None
+        if row_p and row_p["created_at"]:
+            pending_oldest = _age_seconds_from_created_at(str(row_p["created_at"]))
+
+        row_r = conn.execute(
+            f"""
+            SELECT updated_at FROM queue_jobs
+            WHERE status = 'running'{tw}
+            ORDER BY datetime(updated_at) ASC LIMIT 1
+            """,
+            tparams,
+        ).fetchone()
+        running_oldest = None
+        if row_r and row_r["updated_at"]:
+            running_oldest = _age_seconds_from_created_at(str(row_r["updated_at"]))
+
+        row_pc = conn.execute(
+            f"""
+            SELECT COUNT(*) AS c FROM queue_jobs
+            WHERE status = 'pending' AND attempts < max_attempts{tw}
+            """,
+            tparams,
+        ).fetchone()
+        pending_claimable = int(row_pc["c"]) if row_pc else 0
+
+        row_rc = conn.execute(
+            f"SELECT COUNT(*) AS c FROM queue_jobs WHERE status = 'running'{tw}",
+            tparams,
+        ).fetchone()
+        running_count = int(row_rc["c"]) if row_rc else 0
+
+        return {
+            "pending_oldest_age_seconds": pending_oldest,
+            "running_oldest_age_seconds": running_oldest,
+            "pending_claimable_count": pending_claimable,
+            "running_count": running_count,
+        }
+    finally:
+        conn.close()
+
+
 def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) -> str | None:
     """Return existing queue job id for this tenant + key, or None."""
     if not idempotency_key.strip():

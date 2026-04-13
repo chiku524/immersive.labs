@@ -202,7 +202,7 @@ immersive-studio tenants set-tier --tenant-id <uuid> --tier team
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/studio/health` | Worker liveness (`auth_required` flag for clients) |
-| GET | `/api/studio/metrics` | Queue counts by status + `jobs_indexed` (tenant-scoped when auth on) |
+| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and **`slo`** (SQLite: oldest pending/running row ages for alerting; tenant-scoped when auth on) |
 | GET | `/api/studio/comfy-status` | ComfyUI `/system_stats` probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits used/cap (requires key when auth on) |
 | GET | `/api/studio/dashboard` | One JSON: **`usage`** + **`billing`** + **`jobs`** (same payloads as `/usage`, `/billing/status`, `/jobs`; `/studio` uses this to reduce tunnel round-trips) |
@@ -229,7 +229,10 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
-| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `900` | Max seconds to wait on Ollama `/api/chat` read (**30–3600**); long values block the queue worker. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `1200` | Max seconds to wait on Ollama `/api/chat` read per attempt (**30–3600**); the client retries once after a read timeout. Long values block the queue worker. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_STREAM` | off | Set `1` / `true` to use Ollama **`stream: true`** (NDJSON); validate for your model. |
+| `STUDIO_RATE_LIMIT_ENQUEUE_PER_MINUTE` | `60` | Sliding-window cap on **`POST /api/studio/queue/jobs`** per API key / IP bucket; **`0`** disables. |
+| `STUDIO_QUEUE_SSE_POLL_S` | `1` | Server poll interval (seconds) for **`GET /queue/jobs/{id}/events`** (SSE). |
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |
