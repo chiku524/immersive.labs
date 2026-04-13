@@ -22,7 +22,8 @@ READ_ENV=()
 cd /opt/immersive.labs
 sudo git fetch origin
 sudo git reset --hard origin/main
-sudo DOCKER_BUILDKIT=0 docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .
+# Default BuildKit on (Docker 20.10+). Drop DOCKER_BUILDKIT=0 to avoid legacy-builder deprecation noise.
+sudo docker build -f apps/studio-worker/Dockerfile -t immersive-studio-worker:local .
 sudo docker stop studio-worker 2>/dev/null || true
 sudo docker rm studio-worker 2>/dev/null || true
 if [[ "$NET_MODE" == "bridge" ]]; then
@@ -52,7 +53,8 @@ else
     immersive-studio-worker:local \
     immersive-studio serve --host 127.0.0.1 --port 8787
 fi
-# Uvicorn may not accept connections for a second or two right after start.
+# Uvicorn binds shortly after the container starts; avoid a noisy immediate "connection refused".
+sleep 3
 for i in 1 2 3 4 5 6 7 8 9 10; do
   if curl -fsS http://127.0.0.1:8787/api/studio/health; then
     echo "OK: studio-worker rebuilt and health check passed."
