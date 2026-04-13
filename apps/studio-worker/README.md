@@ -212,6 +212,7 @@ immersive-studio tenants set-tier --tenant-id <uuid> --tier team
 | POST | `/api/studio/queue/jobs` | Enqueue async job (SQLite or Postgres); optional `idempotency_key` dedupes per tenant; response `deduplicated` |
 | GET | `/api/studio/queue/jobs` | Recent queue rows (tenant-scoped when auth on) |
 | GET | `/api/studio/queue/jobs/{queue_id}` | Single queue row |
+| GET | `/api/studio/queue/jobs/{queue_id}/events` | **SSE** (`text/event-stream`): pushes `event: job` when the row changes (same JSON as GET row); `/studio` uses `fetch` streaming with `Authorization`, then falls back to polling if the stream fails |
 | GET | `/api/studio/jobs` | List persisted jobs + `jobs_root` path (tenant-scoped when auth on) |
 | GET | `/api/studio/jobs/{job_id}/download` | Download `pack.zip` (local file) or **302** to a remote URL when `STUDIO_JOB_ARTIFACTS` uploads zips |
 | GET | `/api/studio/paths` | Debug paths + active backends (`queue_backend`, `redis_queue_engine` when Redis, `tenants_backend`, …) |

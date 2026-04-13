@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 import threading
+import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from starlette.responses import FileResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 
 from studio_worker import tenants_db
 from studio_worker.comfy_client import comfy_reachability
@@ -447,6 +451,86 @@ def get_queue_job_by_id(
     if row is None:
         raise HTTPException(status_code=404, detail="Unknown queue_id")
     return row
+
+
+def _queue_job_sse_poll_interval_s() -> float:
+    raw = os.environ.get("STUDIO_QUEUE_SSE_POLL_S", "").strip()
+    if not raw:
+        return 1.0
+    try:
+        v = float(raw)
+    except ValueError:
+        return 1.0
+    return max(0.25, min(v, 10.0))
+
+
+async def _queue_job_event_bytes(
+    queue_id: str,
+    tenant: RequestTenant,
+) -> AsyncIterator[bytes]:
+    """
+    Server-sent events for a single queue row (same JSON shape as GET …/queue/jobs/{id}).
+    Emits ``event: job`` when the row changes, ``: ping`` for proxies, ``event: error`` then closes
+    when the row is unknown to this tenant.
+    """
+    poll_s = _queue_job_sse_poll_interval_s()
+    ping_every_s = 20.0
+    max_duration_s = 46 * 60
+    deadline = time.monotonic() + max_duration_s
+    last_serialized: str | None = None
+    last_ping = time.monotonic()
+
+    try:
+        while time.monotonic() < deadline:
+            row = await asyncio.to_thread(
+                get_queue_job,
+                queue_id,
+                tenant_id=tenant.tenant_id,
+                include_legacy_unscoped=not tenant.limits_enforced,
+            )
+            if row is None:
+                err = json.dumps({"detail": "Unknown queue_id"}, separators=(",", ":"))
+                yield f"event: error\ndata: {err}\n\n".encode()
+                return
+
+            serialized = json.dumps(row, sort_keys=True, default=str, separators=(",", ":"))
+            if serialized != last_serialized:
+                last_serialized = serialized
+                yield f"event: job\ndata: {serialized}\n\n".encode()
+
+            status = row.get("status")
+            if status in ("completed", "dead"):
+                return
+
+            now = time.monotonic()
+            if now - last_ping >= ping_every_s:
+                yield b": ping\n\n"
+                last_ping = now
+
+            await asyncio.sleep(poll_s)
+    except asyncio.CancelledError:
+        return
+
+    tout = json.dumps({"detail": "queue SSE max duration exceeded"}, separators=(",", ":"))
+    yield f"event: error\ndata: {tout}\n\n".encode()
+
+
+@app.get("/api/studio/queue/jobs/{queue_id}/events")
+async def stream_queue_job_events(
+    queue_id: str,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> StreamingResponse:
+    """``text/event-stream`` — push queue row updates; browsers use ``fetch`` + streaming (custom auth headers)."""
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        _queue_job_event_bytes(queue_id, tenant),
+        media_type="text/event-stream",
+        headers=headers,
+    )
 
 
 @app.post("/api/studio/jobs/run", response_model=RunJobResponse)

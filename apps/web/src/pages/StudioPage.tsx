@@ -140,6 +140,170 @@ function parseComfyStatusResponse(r: Response, text: string): StudioComfyStatusP
 const STUDIO_QUEUE_POLL_MS = 2000;
 const STUDIO_QUEUE_MAX_WAIT_MS = 45 * 60 * 1000;
 
+class SseTransportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SseTransportError";
+  }
+}
+
+/**
+ * ``GET …/queue/jobs/{id}/events`` (``text/event-stream``) with ``Authorization`` — EventSource cannot set headers.
+ * Throws {@link SseTransportError} for proxy/stream issues so the caller can fall back to GET polling.
+ */
+async function consumeQueueJobSse(
+  eventsUrl: string,
+  auth: Record<string, string>,
+  signal: AbortSignal,
+): Promise<QueueJobRow> {
+  let res: Response;
+  try {
+    res = await fetch(eventsUrl, {
+      method: "GET",
+      headers: { Accept: "text/event-stream", ...auth },
+      signal,
+      cache: "no-store",
+    });
+  } catch (e) {
+    if (signal.aborted || isAbortError(e)) {
+      throw e;
+    }
+    throw new SseTransportError(e instanceof Error ? e.message : "fetch failed");
+  }
+  if (res.status === 401 || res.status === 403) {
+    const t = await res.text();
+    throw new Error(
+      res.status === 401
+        ? "Unauthorized (check Studio API key)."
+        : `Forbidden: ${t.slice(0, 200)}`,
+    );
+  }
+  if (!res.ok) {
+    throw new SseTransportError(`SSE endpoint HTTP ${res.status}`);
+  }
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (!ct.includes("text/event-stream")) {
+    throw new SseTransportError(`Expected text/event-stream, got ${ct || "(empty)"}`);
+  }
+  if (!res.body) {
+    throw new SseTransportError("SSE response has no body");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      let eventName = "message";
+      const dataLines: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith(":")) {
+          continue;
+        }
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trimStart());
+        }
+      }
+      const dataStr = dataLines.join("\n");
+      if (!dataStr) {
+        continue;
+      }
+      if (eventName === "error") {
+        let detail = dataStr;
+        try {
+          const j = JSON.parse(dataStr) as { detail?: unknown };
+          if (typeof j.detail === "string") {
+            detail = j.detail;
+          }
+        } catch {
+          /* use raw */
+        }
+        throw new Error(detail);
+      }
+      if (eventName === "job") {
+        let row: QueueJobRow;
+        try {
+          row = JSON.parse(dataStr) as QueueJobRow;
+        } catch {
+          throw new SseTransportError("Invalid job JSON in SSE payload");
+        }
+        if (row.status === "completed") {
+          return row;
+        }
+        if (row.status === "dead") {
+          throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
+        }
+      }
+    }
+  }
+  throw new SseTransportError("SSE stream closed before job reached a terminal status");
+}
+
+async function pollQueueJobUntilTerminal(
+  queueId: string,
+  auth: Record<string, string>,
+  signal: AbortSignal,
+): Promise<QueueJobRow> {
+  const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
+  let lastStatus = "unknown";
+  while (Date.now() < deadline) {
+    if (signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    const pr = await fetchWithTransientRetry(
+      `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}`,
+      { headers: auth, signal },
+    );
+    const row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
+    if (signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    if (!pr.ok) {
+      throw new Error(formatApiDetail(row.detail));
+    }
+    lastStatus = row.status;
+    if (row.status === "completed") {
+      return row;
+    }
+    if (row.status === "dead") {
+      throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
+    }
+    await delay(STUDIO_QUEUE_POLL_MS, signal);
+  }
+  throw new Error(
+    `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
+  );
+}
+
+/** Try queue SSE first; fall back to 2s GET polling if the edge or browser does not keep the stream open. */
+async function waitForQueueJobCompletion(
+  queueId: string,
+  auth: Record<string, string>,
+  signal: AbortSignal,
+): Promise<QueueJobRow> {
+  const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
+  try {
+    return await consumeQueueJobSse(eventsUrl, auth, signal);
+  } catch (e) {
+    if (signal.aborted || isAbortError(e)) {
+      throw e;
+    }
+    if (e instanceof SseTransportError) {
+      return await pollQueueJobUntilTerminal(queueId, auth, signal);
+    }
+    throw e;
+  }
+}
+
 /** Tunnel / origin often returns transient 5xx when the VM is busy (e.g. Ollama + Comfy). */
 const RETRYABLE_HTTP = new Set([502, 503, 504, 524, 530]);
 
@@ -562,48 +726,26 @@ export function StudioPage() {
         throw new Error("Enqueue response missing queue_id");
       }
 
-      const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
-      let lastStatus = "unknown";
-      while (Date.now() < deadline) {
-        if (signal.aborted) {
-          return;
-        }
-        const pr = await fetchWithTransientRetry(
-          `${STUDIO_API_BASE}/api/studio/queue/jobs/${queueId}`,
-          { headers: authHeaders(), signal },
-        );
-        const row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
-        if (signal.aborted) {
-          return;
-        }
-        if (!pr.ok) {
-          throw new Error(formatApiDetail(row.detail));
-        }
-        lastStatus = row.status;
-        if (row.status === "completed") {
-          const data = row.result;
-          if (!data) {
-            throw new Error("Job completed without result payload");
-          }
-          setSpec(data.spec ?? null);
-          setJobResult({
-            job_id: data.job_id ?? "?",
-            zip_path: data.zip_path ?? "",
-            errors: data.errors ?? [],
-            texture_logs: data.texture_logs ?? [],
-            mesh_logs: data.mesh_logs ?? [],
-          });
-          void refreshDashboard();
-          return;
-        }
-        if (row.status === "dead") {
-          throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
-        }
-        await delay(STUDIO_QUEUE_POLL_MS, signal);
+      const row = await waitForQueueJobCompletion(queueId, authHeaders(), signal);
+      if (signal.aborted) {
+        return;
       }
-      throw new Error(
-        `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
-      );
+      if (row.status !== "completed") {
+        throw new Error(`Unexpected terminal queue status: ${row.status}`);
+      }
+      const data = row.result;
+      if (!data) {
+        throw new Error("Job completed without result payload");
+      }
+      setSpec(data.spec ?? null);
+      setJobResult({
+        job_id: data.job_id ?? "?",
+        zip_path: data.zip_path ?? "",
+        errors: data.errors ?? [],
+        texture_logs: data.texture_logs ?? [],
+        mesh_logs: data.mesh_logs ?? [],
+      });
+      void refreshDashboard();
     } catch (err) {
       if (signal.aborted || isAbortError(err)) {
         return;
