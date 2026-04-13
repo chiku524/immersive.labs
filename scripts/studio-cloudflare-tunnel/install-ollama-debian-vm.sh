@@ -41,6 +41,12 @@ done
 
 ollama pull "$FIRST_PULL"
 
+# Docker bridge → host:11434 is often blocked by ufw; vm-rebuild defaults to --network host + 127.0.0.1:11434.
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi 'Status: active'; then
+  ufw allow from 172.17.0.0/16 to any port 11434 proto tcp comment 'Ollama from default Docker bridge' >/dev/null 2>&1 || true
+  ufw allow from 172.18.0.0/16 to any port 11434 proto tcp comment 'Ollama from alt Docker bridge' >/dev/null 2>&1 || true
+  echo "UFW active: added allow rules for Docker networks → port 11434 (if supported by this ufw version)."
+fi
+
 echo "OK: Ollama listening on 0.0.0.0:11434; pulled ${FIRST_PULL}."
-echo "Recreate studio-worker with STUDIO_OLLAMA_URL=http://172.17.0.1:11434 (default in vm-rebuild) or host.docker.internal; see vm-rebuild-studio-worker.sh."
-echo "If the worker still cannot reach Ollama, check host firewall (ufw): allow traffic from docker0 to port 11434."
+echo "Recreate studio-worker: vm-rebuild defaults to Docker --network host and STUDIO_OLLAMA_URL=http://127.0.0.1:11434 (see vm-rebuild-studio-worker.sh)."

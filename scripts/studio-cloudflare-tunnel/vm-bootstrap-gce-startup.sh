@@ -91,21 +91,37 @@ fi
 COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
 OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
-OLLAMA_URL="${OLLAMA_META:-http://172.17.0.1:11434}"
+NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
 
 docker stop studio-worker 2>/dev/null || true
 docker rm studio-worker 2>/dev/null || true
-docker run -d --name studio-worker --restart unless-stopped \
-  --add-host=host.docker.internal:host-gateway \
-  -p 127.0.0.1:8787:8787 \
-  -e STUDIO_CORS_ORIGINS="${CORS}" \
-  -e STUDIO_COMFY_URL="${COMFY_URL}" \
-  -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
-  -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
-  -v studio-output:/repo/apps/studio-worker/output \
-  immersive-studio-worker:local
+if [[ "$NET_MODE" == "bridge" ]]; then
+  BRIDGE_GW="$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null | tr -d '\r\n')"
+  [[ -z "$BRIDGE_GW" ]] && BRIDGE_GW="172.17.0.1"
+  OLLAMA_URL="${OLLAMA_META:-http://${BRIDGE_GW}:11434}"
+  docker run -d --name studio-worker --restart unless-stopped \
+    --add-host=host.docker.internal:host-gateway \
+    -p 127.0.0.1:8787:8787 \
+    -e STUDIO_CORS_ORIGINS="${CORS}" \
+    -e STUDIO_COMFY_URL="${COMFY_URL}" \
+    -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
+    -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    -v studio-output:/repo/apps/studio-worker/output \
+    immersive-studio-worker:local
+else
+  OLLAMA_URL="${OLLAMA_META:-http://127.0.0.1:11434}"
+  docker run -d --name studio-worker --restart unless-stopped \
+    --network host \
+    -e STUDIO_CORS_ORIGINS="${CORS}" \
+    -e STUDIO_COMFY_URL="${COMFY_URL}" \
+    -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
+    -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    -v studio-output:/repo/apps/studio-worker/output \
+    immersive-studio-worker:local \
+    immersive-studio serve --host 127.0.0.1 --port 8787
+fi
 
 touch /var/lib/immersive-studio-bootstrapped
 echo "Bootstrap complete; studio-worker running. $(date -uIs)"

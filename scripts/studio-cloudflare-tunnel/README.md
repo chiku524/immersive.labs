@@ -10,7 +10,7 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`vm-bootstrap-gce-startup.sh`](./vm-bootstrap-gce-startup.sh) | **GCE startup script:** swap, Docker, clone/build image, `docker run` with **`STUDIO_CORS_ORIGINS`** and **`STUDIO_COMFY_URL`** from instance metadata. |
 | [`studio-cors-origins.txt`](./studio-cors-origins.txt) | One comma-separated line for **`gcloud --metadata-from-file=STUDIO_CORS_ORIGINS=…`** (commas safe). |
 | [`install-cloudflared-debian.sh`](./install-cloudflared-debian.sh) | Install **cloudflared** on Debian/Ubuntu. |
-| [`install-ollama-debian-vm.sh`](./install-ollama-debian-vm.sh) | Install **Ollama** on the VM host (`OLLAMA_HOST=0.0.0.0`); default pull **`tinyllama`** (small disk). **`vm-rebuild`** defaults **`STUDIO_OLLAMA_URL`** to **`http://172.17.0.1:11434`** (Docker bridge); metadata or **`host.docker.internal`** overrides still apply. |
+| [`install-ollama-debian-vm.sh`](./install-ollama-debian-vm.sh) | Install **Ollama** on the VM host (`OLLAMA_HOST=0.0.0.0`); default pull **`tinyllama`**. **`vm-rebuild`** defaults to Docker **`--network host`** + **`STUDIO_OLLAMA_URL=http://127.0.0.1:11434`**; metadata **`STUDIO_DOCKER_NETWORK=bridge`** restores bridge + port publish. |
 | [`cloudflared-service-install.sh`](./cloudflared-service-install.sh) | **`cloudflared service install <token>`** (run as root) for **remotely managed** tunnels. |
 | [`cloudflared-config-gce-immersive-api.yml`](./cloudflared-config-gce-immersive-api.yml) | Example **locally managed** named tunnel: **`api-origin.…` → 8787**, **`comfy.…` → 8188**. Match routes in Zero Trust if you use dashboard config instead. |
 | [`cloudflared-config.yml.example`](./cloudflared-config.yml.example) | Generic named-tunnel template. |
