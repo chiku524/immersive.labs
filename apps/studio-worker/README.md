@@ -204,19 +204,19 @@ immersive-studio tenants set-tier --tenant-id <uuid> --tier team
 | GET | `/api/studio/health` | Worker liveness (`auth_required` flag for clients) |
 | GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and **`slo`** (SQLite: oldest pending/running row ages for alerting; tenant-scoped when auth on; **`Cache-Control: no-store`**) |
 | GET | `/api/studio/comfy-status` | ComfyUI `/system_stats` probe (no API key) |
-| GET | `/api/studio/usage` | Tier + monthly credits used/cap (requires key when auth on) |
+| GET | `/api/studio/usage` | Tier + monthly credits used/cap (requires key when auth on; **`Cache-Control: no-store`**) |
 | GET | `/api/studio/dashboard` | One JSON: **`usage`** + **`billing`** + **`jobs`** + **`worker_hints`** + **`queue_slo`** (same shapes as `/usage`, `/billing/status`, `/jobs`, and `/metrics` → `slo`; **`Cache-Control: no-store`**) |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack (scoped under `output/packs/…` when auth on) |
 | POST | `/api/studio/jobs/run` | Full job → `output/jobs/job_*/` + `pack.zip` + index |
 | POST | `/api/studio/queue/jobs` | Enqueue async job (SQLite or Postgres); optional `idempotency_key` dedupes per tenant; response `deduplicated` |
-| GET | `/api/studio/queue/jobs` | Recent queue rows (tenant-scoped when auth on) |
-| GET | `/api/studio/queue/jobs/{queue_id}` | Single queue row |
+| GET | `/api/studio/queue/jobs` | Recent queue rows (tenant-scoped when auth on; **`Cache-Control: no-store`**) |
+| GET | `/api/studio/queue/jobs/{queue_id}` | Single queue row (**`no-store`** on success) |
 | GET | `/api/studio/queue/jobs/{queue_id}/events` | **SSE** (`text/event-stream`): pushes `event: job` when the row changes (same JSON as GET row); `/studio` uses `fetch` streaming with `Authorization`, then falls back to polling if the stream fails |
-| GET | `/api/studio/jobs` | List persisted jobs + `jobs_root` path (tenant-scoped when auth on) |
-| GET | `/api/studio/jobs/{job_id}/download` | Download `pack.zip` (local file) or **302** to a remote URL when `STUDIO_JOB_ARTIFACTS` uploads zips |
-| GET | `/api/studio/paths` | Debug paths + active backends (`queue_backend`, `redis_queue_engine` when Redis, `tenants_backend`, …) |
-| GET | `/api/studio/billing/status` | Stripe readiness + linked customer (requires key when auth on) |
+| GET | `/api/studio/jobs` | List persisted jobs + `jobs_root` path (tenant-scoped when auth on; **`Cache-Control: no-store`**) |
+| GET | `/api/studio/jobs/{job_id}/download` | Download `pack.zip` (local file) or **302** to a remote URL when `STUDIO_JOB_ARTIFACTS` uploads zips (**`no-store`**) |
+| GET | `/api/studio/paths` | Debug paths + active backends (`queue_backend`, `redis_queue_engine` when Redis, `tenants_backend`, …; **`no-store`**) |
+| GET | `/api/studio/billing/status` | Stripe readiness + linked customer (requires key when auth on; **`Cache-Control: no-store`**) |
 | POST | `/api/studio/billing/checkout-session` | Returns Stripe Checkout URL for `{ "tier": "indie" \| "team" }` |
 | POST | `/api/studio/billing/portal-session` | Returns Stripe Customer Portal URL (manage/cancel) |
 | POST | `/api/studio/billing/webhook` | Stripe webhooks (signing secret); **no API key** |

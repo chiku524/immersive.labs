@@ -56,8 +56,9 @@ If the worker URL is wrong or the worker is down, the `/studio` page shows a hea
 
 ### Observability (built-in)
 
-- **`GET /api/studio/metrics`** — JSON with **`queue`** counts per status (`pending`, `running`, `completed`, `dead`, …), **`jobs_indexed`**, and **`slo`** (on SQLite: ages of the oldest claimable pending row and oldest running row — useful for alerting). Tenant-scoped when `STUDIO_API_AUTH_REQUIRED=1`; global counts in local dev mode. For splitting API vs queue under load, see [production-queue-split.md](./production-queue-split.md) and [security-operational-checklist.md](./security-operational-checklist.md).
-- **`GET /api/studio/dashboard`** — Same **`usage`**, **`billing`**, and **`jobs`** payloads as the three separate GETs, in one response (see § Production API stability below).
+- **`GET /api/studio/metrics`** — JSON with **`queue`** counts per status (`pending`, `running`, `completed`, `dead`, …), **`jobs_indexed`**, and **`slo`** (on SQLite: ages of the oldest claimable pending row and oldest running row — useful for alerting). Tenant-scoped when `STUDIO_API_AUTH_REQUIRED=1`; global counts in local dev mode. Responses use **`Cache-Control: no-store`** so proxies do not serve stale operator data. For splitting API vs queue under load, see [production-queue-split.md](./production-queue-split.md) and [security-operational-checklist.md](./security-operational-checklist.md).
+- **`GET /api/studio/dashboard`** — Same **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`**, and **`queue_slo`** payloads as the separate GETs / metrics SLO, in one response (see § Production API stability below). Also **`no-store`**.
+- **Other tenant / operator GETs** — **`/api/studio/usage`**, **`/jobs`**, **`/queue/jobs`**, **`/billing/status`**, **`/paths`**, and successful **`/jobs/{id}/download`** responses send **`no-store`** for the same reason.
 
 **Shipping updates:** [deploy-recent-changes.md](./deploy-recent-changes.md) — order for redeploying **studio-edge**, **web** (Vercel), and the **Python worker** on your host.
 
@@ -75,10 +76,11 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
    - Watch **`cloudflared`** and **`uvicorn`/Docker** logs when 502s appear.
 
 3. **Capacity**  
-   - **Ollama + ComfyUI + Blender** on one **e2-micro**-class host routinely causes **read timeouts** and **HTTP 502** bursts. Upgrade the VM, run **`STUDIO_EMBEDDED_QUEUE_WORKER=0`** with a **separate** `immersive-studio queue-worker` process, or offload Comfy to another machine (`STUDIO_COMFY_URL`).
+   - **Ollama + ComfyUI + Blender** on one **e2-micro**-class host routinely causes **read timeouts** and **HTTP 502** bursts. Upgrade the VM, run **`STUDIO_EMBEDDED_QUEUE_WORKER=0`** with a **separate** `immersive-studio queue-worker` process, or offload Comfy to another machine (`STUDIO_COMFY_URL`).  
+   - **Embedded consumer lifecycle:** with **`STUDIO_EMBEDDED_QUEUE_WORKER=1`**, the API starts a background queue poller. On **process shutdown** (SIGTERM, container stop, or FastAPI **`TestClient`** teardown), the worker signals that loop to exit and **joins** the thread briefly so a stray consumer does not keep running after the app context or patched DB paths change (important for tests and rolling deploys).
 
 4. **Fewer round-trips**  
-   - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, **`jobs`**, and **`worker_hints`** (Ollama timeout/model/URL plus whether the queue consumer is embedded in the API process) in one JSON object. The `/studio` page uses this to reduce parallel GETs through the Worker and to show tuning context next to recent jobs.
+   - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`**, and **`queue_slo`** (same fields as **`GET /api/studio/metrics` → `slo`**) in one JSON object. The `/studio` page uses this to reduce parallel GETs through the Worker and to show tuning context next to recent jobs.
 
 ---
 

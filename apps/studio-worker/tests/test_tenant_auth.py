@@ -62,6 +62,21 @@ def test_dashboard_and_metrics_send_cache_control_no_store(client_auth_off: Test
     assert "no-store" in (m.headers.get("cache-control") or "").lower()
 
 
+def test_tenant_scoped_get_routes_send_cache_control_no_store(client_auth_off: TestClient) -> None:
+    """Operator / billing / job list responses must not be cached by intermediaries."""
+    paths = (
+        "/api/studio/usage",
+        "/api/studio/jobs",
+        "/api/studio/queue/jobs",
+        "/api/studio/billing/status",
+        "/api/studio/paths",
+    )
+    for path in paths:
+        r = client_auth_off.get(path)
+        assert r.status_code == 200, path
+        assert "no-store" in (r.headers.get("cache-control") or "").lower(), path
+
+
 def test_favicon_is_no_content(client_auth_off: TestClient) -> None:
     r = client_auth_off.get("/favicon.ico")
     assert r.status_code == 204

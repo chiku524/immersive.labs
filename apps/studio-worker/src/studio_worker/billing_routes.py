@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from studio_worker.billing_config import stripe_webhook_secret
@@ -119,6 +119,8 @@ def post_portal_session(
 
 @router.get("/status")
 def get_billing_status(
+    response: Response,
     tenant: RequestTenant = Depends(get_request_tenant),
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
     return billing_status_dict(tenant)

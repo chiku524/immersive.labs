@@ -120,10 +120,10 @@ All studio JSON routes are under **`/api/studio/…`** on the worker host.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/studio/health` | Liveness; `auth_required`, Stripe webhook flag |
-| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and `slo` snapshot (tenant-scoped when auth on) |
+| GET | `/api/studio/metrics` | Queue counts by status, `jobs_indexed`, and `slo` snapshot (tenant-scoped when auth on); **`no-store`** |
 | GET | `/api/studio/comfy-status` | ComfyUI probe (no API key) |
 | GET | `/api/studio/usage` | Tier + monthly credits (key when auth on) |
-| GET | `/api/studio/dashboard` | **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`** in one JSON (preferred for congested Worker → tunnel paths) |
+| GET | `/api/studio/dashboard` | **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`**, **`queue_slo`** in one JSON (preferred for congested Worker → tunnel paths); **`Cache-Control: no-store`** |
 | POST | `/api/studio/generate-spec` | Prompt → validated spec |
 | POST | `/api/studio/pack` | Ad-hoc pack |
 | POST | `/api/studio/jobs/run` | Synchronous full job |
@@ -135,6 +135,8 @@ All studio JSON routes are under **`/api/studio/…`** on the worker host.
 | GET | `/api/studio/jobs/{job_id}/download` | `pack.zip` file or **302** to remote URL if blob storage enabled |
 | GET | `/api/studio/paths` | Debug paths + `queue_backend`, `redis_queue_engine`, `tenants_backend`, `job_artifacts_backend`, `postgres_configured` |
 | GET/POST | `/api/studio/billing/*` | Stripe Checkout, Portal, webhook |
+
+**Caching:** tenant-scoped and operator **`GET`** responses for **`usage`**, **`jobs`**, **`queue/jobs`**, **`queue/jobs/{id}`** (success), **`billing/status`**, **`paths`**, **`metrics`**, **`dashboard`**, and **`jobs/{id}/download`** include **`Cache-Control: no-store`**.
 
 **Authentication:** `Authorization: Bearer <key>` or **`X-API-Key`** when **`STUDIO_API_AUTH_REQUIRED=1`**.
 

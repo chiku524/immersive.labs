@@ -278,7 +278,11 @@ def comfy_status() -> dict[str, Any]:
 
 
 @app.get("/api/studio/usage")
-def get_usage(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
+def get_usage(
+    response: Response,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
     return usage_dict(tenant)
 
 
@@ -477,9 +481,11 @@ def post_enqueue_job(
 
 @app.get("/api/studio/queue/jobs")
 def get_queue_jobs(
+    response: Response,
     limit: int = 50,
     tenant: RequestTenant = Depends(get_request_tenant),
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
     return {
         "jobs": list_queue_jobs(
             limit=limit,
@@ -491,6 +497,7 @@ def get_queue_jobs(
 
 @app.get("/api/studio/queue/jobs/{queue_id}")
 def get_queue_job_by_id(
+    response: Response,
     queue_id: str,
     tenant: RequestTenant = Depends(get_request_tenant),
 ) -> dict[str, Any]:
@@ -501,6 +508,7 @@ def get_queue_job_by_id(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Unknown queue_id")
+    response.headers["Cache-Control"] = "no-store"
     return row
 
 
@@ -620,7 +628,11 @@ def post_run_job(
 
 
 @app.get("/api/studio/jobs")
-def get_jobs(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, Any]:
+def get_jobs(
+    response: Response,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
     return jobs_list_dict(tenant)
 
 
@@ -638,7 +650,11 @@ def download_job_zip(
         raise HTTPException(status_code=404, detail="Unknown job_id")
     remote = rec.get("pack_zip_url")
     if isinstance(remote, str) and remote.startswith(("http://", "https://")):
-        return RedirectResponse(url=remote, status_code=302)
+        return RedirectResponse(
+            url=remote,
+            status_code=302,
+            headers={"Cache-Control": "no-store"},
+        )
     folder = str(rec.get("folder") or "")
     if not folder:
         raise HTTPException(status_code=404, detail="Unknown job_id")
@@ -649,11 +665,16 @@ def download_job_zip(
         path=str(zip_path),
         filename=f"immersive-studio-{job_id}.zip",
         media_type="application/zip",
+        headers={"Cache-Control": "no-store"},
     )
 
 
 @app.get("/api/studio/paths")
-def studio_paths(tenant: RequestTenant = Depends(get_request_tenant)) -> dict[str, str]:
+def studio_paths(
+    response: Response,
+    tenant: RequestTenant = Depends(get_request_tenant),
+) -> dict[str, str]:
+    response.headers["Cache-Control"] = "no-store"
     return {
         "jobs_root": str(jobs_root().resolve()),
         "studio_worker_root": str(studio_worker_root().resolve()),
