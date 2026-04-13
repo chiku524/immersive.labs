@@ -94,6 +94,9 @@ OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
 NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
+READ_META="$(read_metadata_attr STUDIO_OLLAMA_READ_TIMEOUT_S | tr -d '\r\n')"
+READ_ENV=()
+[[ -n "$READ_META" ]] && READ_ENV=(-e "STUDIO_OLLAMA_READ_TIMEOUT_S=${READ_META}")
 
 docker stop studio-worker 2>/dev/null || true
 docker rm studio-worker 2>/dev/null || true
@@ -108,6 +111,7 @@ if [[ "$NET_MODE" == "bridge" ]]; then
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    "${READ_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local
 else
@@ -118,6 +122,7 @@ else
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    "${READ_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local \
     immersive-studio serve --host 127.0.0.1 --port 8787

@@ -13,6 +13,9 @@
 # Or the same via env (positional args win when set):
 #   SUBDOMAIN=api-origin TUNNEL_ID=52513248-... ZONE=immersivelabs.space bash scripts/.../add-tunnel-cname.sh
 #
+# Tunnel CNAME is often better DNS-only (grey cloud) to avoid Cloudflare HTTP 524 on slow origins:
+#   CLOUDFLARE_TUNNEL_CNAME_PROXIED=false bash scripts/.../add-tunnel-cname.sh api-origin <uuid> immersivelabs.space
+#
 # Git Bash: if curl fails with "URL rejected: Malformed input", pull latest (MSYS2_ARG_CONV_EXCL + id trim).
 #
 set -euo pipefail
@@ -71,16 +74,25 @@ for r in d.get('result')or[]:
         print(r['id'])
 " <<<"$list_json")
 
-echo "Creating CNAME ${FQDN} -> ${CNAME_TARGET} (proxied)..."
-body="$("$PY" -c "
-import json
+prox_note="proxied"
+case "${CLOUDFLARE_TUNNEL_CNAME_PROXIED:-true}" in
+  0|false|False|FALSE|no|No|NO) prox_note="DNS only (grey cloud)" ;;
+esac
+echo "Creating CNAME ${FQDN} -> ${CNAME_TARGET} (${prox_note})..."
+body="$(
+  SUB="$SUB" CNAME_TARGET="$CNAME_TARGET" TUNNEL_ID="$TUNNEL_ID" \
+    CLOUDFLARE_TUNNEL_CNAME_PROXIED="${CLOUDFLARE_TUNNEL_CNAME_PROXIED:-true}" \
+    "$PY" -c "
+import json, os
+raw = os.environ.get('CLOUDFLARE_TUNNEL_CNAME_PROXIED', 'true').lower()
+proxied = raw not in ('0', 'false', 'no', 'off')
 print(json.dumps({
-  'type':'CNAME',
-  'name':'${SUB}',
-  'content':'${CNAME_TARGET}',
+  'type': 'CNAME',
+  'name': os.environ['SUB'],
+  'content': os.environ['CNAME_TARGET'],
   'ttl': 1,
-  'proxied': True,
-  'comment': 'cloudflared tunnel ${TUNNEL_ID}',
+  'proxied': proxied,
+  'comment': 'cloudflared tunnel ' + os.environ['TUNNEL_ID'],
 }))
 ")"
 resp="$(curl -fsS "${hdr[@]}" -X POST "${BASE}/zones/${zone_id}/dns_records" -d "$body")"

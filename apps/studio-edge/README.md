@@ -78,6 +78,14 @@ The Worker turns upstream **HTML error pages** (common for **502 / 503 / 524 / 5
 
 **Checks:** from your laptop, `curl -sS -o /dev/null -w '%{http_code}\n' "$ORIGIN_URL/api/studio/health"` (same URL as **`wrangler secret`**). On the VM: `systemctl is-active cloudflared`, `curl -sS http://127.0.0.1:8787/api/studio/health`. **Idempotent `GET /api/studio/*`** requests are **retried briefly** at the edge to ride out transient tunnel blips.
 
+### HTTP **524** (origin timeout) on **`api-origin`**
+
+**524** usually means **Cloudflare’s proxy** (orange cloud on the **`api-origin`** DNS record) gave up waiting for a response from the tunnel/origin chain — often while the Python worker is **busy for a long time** (e.g. slow **Ollama** on a small VM). Mitigations:
+
+1. **DNS only (grey cloud)** for **`api-origin`** — tunnel hostnames often work better **without** the extra proxied hop. Recreate the CNAME with **`CLOUDFLARE_TUNNEL_CNAME_PROXIED=false`** when running **`add-tunnel-cname.sh`**, or turn off proxying in the Cloudflare DNS dashboard for **`api-origin`**.
+2. **Python:** raise **`STUDIO_OLLAMA_READ_TIMEOUT_S`** only if reads are legitimately long; default in code is now **900s** for Ollama `/api/chat`. Prefer **faster models / more RAM** on the VM so each job finishes sooner.
+3. Keep **`/studio`** on the **queued** full-job path (short HTTP requests); avoid any **multi-minute synchronous** API call through **`api`** / **`api-origin`** behind Cloudflare.
+
 ## R2 and D1 on this Worker
 
 Production bindings (see **`wrangler.toml`**):

@@ -16,6 +16,9 @@ NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 # tinyllama fits e2-micro disks; set metadata STUDIO_OLLAMA_MODEL=llama3.2 when you have space.
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
+READ_META="$(read_metadata_attr STUDIO_OLLAMA_READ_TIMEOUT_S | tr -d '\r\n')"
+READ_ENV=()
+[[ -n "$READ_META" ]] && READ_ENV=(-e "STUDIO_OLLAMA_READ_TIMEOUT_S=${READ_META}")
 cd /opt/immersive.labs
 sudo git fetch origin
 sudo git reset --hard origin/main
@@ -33,6 +36,7 @@ if [[ "$NET_MODE" == "bridge" ]]; then
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    "${READ_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local
 else
@@ -43,6 +47,7 @@ else
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
+    "${READ_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local \
     immersive-studio serve --host 127.0.0.1 --port 8787
