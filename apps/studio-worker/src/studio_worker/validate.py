@@ -29,6 +29,10 @@ REQUIRED_MATERIAL_ROLES: dict[str, set[str]] = {
 RESOLUTION_HINT_ALLOWED: tuple[int, ...] = (512, 1024, 2048, 4096)
 _RESOLUTION_HINT_TOKEN = re.compile(r"\b(512|1024|2048|4096)\b")
 
+_MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
+_UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
+_POLY_BUDGET_ALIASES = ("poly_budget_tri", "poly_budget_triangle")
+
 
 def load_asset_validator() -> Draft202012Validator:
     schema_path = asset_spec_schema_path()
@@ -190,13 +194,105 @@ def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
         slot["resolution_hint"] = _parse_resolution_hint(slot["resolution_hint"])
 
 
+def _rename_poly_budget_aliases(spec: dict[str, Any]) -> None:
+    """LLMs often emit ``poly_budget_tri`` instead of ``poly_budget_tris``."""
+    for alt in _POLY_BUDGET_ALIASES:
+        if alt not in spec:
+            continue
+        raw = spec.pop(alt)
+        if spec.get("poly_budget_tris") is not None:
+            continue
+        try:
+            if isinstance(raw, bool):
+                raise ValueError
+            spec["poly_budget_tris"] = int(float(str(raw).strip()))
+        except (TypeError, ValueError):
+            pass
+
+
+def _role_from_palette_dict(item: dict[str, Any]) -> str | None:
+    role = item.get("role")
+    if isinstance(role, str) and role.strip().lower() in _MATERIAL_ROLE_SET:
+        return role.strip().lower()
+    rid = item.get("id")
+    if isinstance(rid, str) and rid.strip().lower() in _MATERIAL_ROLE_SET:
+        return rid.strip().lower()
+    return None
+
+
+def _recover_material_slots_from_misplaced_palette(spec: dict[str, Any]) -> None:
+    """
+    Models sometimes put slot-shaped objects under ``palette`` (which must only be #RRGGBB strings).
+    Recover ``material_slots`` when missing/empty and strip the invalid palette.
+    """
+    pal = spec.get("palette")
+    if not isinstance(pal, list) or not pal:
+        return
+    if all(isinstance(x, str) for x in pal):
+        return
+    slots: list[dict[str, Any]] = []
+    for i, item in enumerate(pal):
+        if not isinstance(item, dict):
+            continue
+        role = _role_from_palette_dict(item)
+        if role is None:
+            continue
+        res_raw = (
+            item.get("resolution_hint")
+            or item.get("resolution_hinit")
+            or item.get("resolution")
+            or item.get("res")
+        )
+        hint = _parse_resolution_hint(res_raw)
+        sid = item.get("id")
+        if isinstance(sid, str) and sid.strip() and sid.strip().lower() not in _MATERIAL_ROLE_SET:
+            slot_id = sid.strip()
+        else:
+            slot_id = f"{role}_slot_{i}"
+        slot: dict[str, Any] = {"id": slot_id, "role": role, "resolution_hint": hint}
+        notes = item.get("notes")
+        if isinstance(notes, str) and notes.strip():
+            slot["notes"] = notes.strip()
+        slots.append(slot)
+
+    existing = spec.get("material_slots")
+    if slots and (not isinstance(existing, list) or len(existing) == 0):
+        spec["material_slots"] = slots
+
+    if any(isinstance(x, dict) for x in pal):
+        spec.pop("palette", None)
+
+
+def _default_tags_if_missing(spec: dict[str, Any]) -> None:
+    raw = spec.get("tags")
+    if isinstance(raw, list):
+        cleaned = [x.strip() for x in raw if isinstance(x, str) and x.strip()]
+        if cleaned:
+            spec["tags"] = cleaned
+            return
+    spec["tags"] = ["generated"]
+
+
+def _default_unity_collider(spec: dict[str, Any]) -> None:
+    unity = spec.get("unity")
+    if not isinstance(unity, dict):
+        return
+    c = unity.get("collider")
+    if c not in _UNITY_COLLIDERS:
+        unity["collider"] = "box"
+
+
 def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     """Normalize common LLM JSON quirks before JSON Schema validation."""
     if not isinstance(spec, dict):
         return
+    _rename_poly_budget_aliases(spec)
     _coerce_target_height_m(spec)
     _coerce_generation_negative_prompt(spec)
+    _recover_material_slots_from_misplaced_palette(spec)
     _coerce_material_slot_resolution_hints(spec)
+    _default_tags_if_missing(spec)
+    _default_unity_collider(spec)
 
 
 def normalize_asset_spec(spec: dict[str, Any]) -> None:

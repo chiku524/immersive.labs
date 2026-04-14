@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from studio_worker.mock_spec import build_mock_spec
 from studio_worker.validate import load_asset_validator, validate_asset_spec
 
@@ -86,3 +88,49 @@ def test_material_slot_resolution_hint_json_quoted_number_string() -> None:
     spec["material_slots"][0]["resolution_hint"] = '"2048"'
     validate_asset_spec(spec)
     assert spec["material_slots"][0]["resolution_hint"] == 2048
+
+
+def test_poly_budget_tri_alias_normalized() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    del spec["poly_budget_tris"]
+    spec["poly_budget_tri"] = 8000
+    validate_asset_spec(spec)
+    assert spec["poly_budget_tris"] == 8000
+    assert "poly_budget_tri" not in spec
+
+
+def test_llm_misplaces_slots_in_palette_recover_tags_collider() -> None:
+    """Regression: Ollama sometimes emits poly_budget_tri, dicts under palette, omits tags/collider."""
+    spec: dict[str, Any] = {
+        "spec_version": "0.1",
+        "asset_id": "prop_crate_wood_01",
+        "display_name": "Deep Sea Critter",
+        "category": "prop",
+        "style_preset": "toon_bold",
+        "poly_budget_tri": 5000,
+        "target_height_m": 1.0,
+        "palette": [
+            {"id": "albedo", "resolution_hinit": 512},
+            {"id": "orm", "resolution_hinit": 1024},
+        ],
+        "variants": [
+            {"variant_id": "1", "label": "Low Resolution"},
+            {"variant_id": "2", "label": "High Resolution"},
+        ],
+        "generation": {
+            "source_prompt": "Echo the user's creative brief faithfully",
+            "reference_assets": ["props/crates"],
+        },
+        "unity": {"import_subfolder": "Prop/Crates"},
+    }
+    validate_asset_spec(spec)
+    assert spec["poly_budget_tris"] == 5000
+    assert "palette" not in spec
+    assert spec["unity"]["collider"] == "box"
+    assert spec["tags"] == ["generated"]
+    roles = {s["role"] for s in spec["material_slots"]}
+    assert roles == {"albedo", "orm"}
