@@ -20,23 +20,30 @@ def ollama_model() -> str:
 
 
 def ollama_read_timeout_s() -> float:
-    """Max seconds to wait for a single Ollama /api/chat response (connect uses a shorter cap)."""
+    """Base seconds for each Ollama /api/chat read (connect uses a shorter cap). Second attempt uses 1.5× capped at 3600."""
     raw = os.environ.get("STUDIO_OLLAMA_READ_TIMEOUT_S", "").strip()
     if raw:
         try:
             return max(30.0, min(float(raw), 3600.0))
         except ValueError:
             pass
-    # Default raised from 900s: small VMs + larger models often need 15–25+ minutes without timing out.
-    return 1200.0
+    # Default: 30m base read; full-job spec on slow VMs often exceeds 15m. Override via env or use mock / smaller models.
+    return 1800.0
+
+
+def _ollama_followup_read_s(base: float) -> float:
+    """Second httpx read attempt: 1.5× base, still capped at 3600s."""
+    return min(base * 1.5, 3600.0)
 
 
 def _ollama_wants_stream() -> bool:
     return os.environ.get("STUDIO_OLLAMA_STREAM", "").strip().lower() in ("1", "true", "yes")
 
 
-def _chat_completion_stream(system: str, user: str, *, model: str | None, read_s: float) -> str:
-    """Ollama ``stream: true`` — accumulates assistant deltas (NDJSON lines)."""
+def _chat_completion_stream_once(
+    system: str, user: str, *, model: str | None, read_s: float
+) -> str:
+    """Single streaming /api/chat attempt; may raise ReadTimeout."""
     m = model or ollama_model()
     url = f"{ollama_base_url()}/api/chat"
     payload: dict[str, Any] = {
@@ -51,28 +58,41 @@ def _chat_completion_stream(system: str, user: str, *, model: str | None, read_s
     timeout = httpx.Timeout(read_s, connect=min(15.0, read_s))
     parts: list[str] = []
     with httpx.Client() as client:
+        with client.stream("POST", url, json=payload, timeout=timeout) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                raw = line.strip()
+                if not raw:
+                    continue
+                try:
+                    chunk: dict[str, Any] = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if chunk.get("done"):
+                    break
+                msg = chunk.get("message") or {}
+                c = msg.get("content")
+                if isinstance(c, str) and c:
+                    parts.append(c)
+    out = "".join(parts).strip()
+    if not out:
+        raise RuntimeError("Ollama stream returned no assistant text (check model and server logs).")
+    return out
+
+
+def _chat_completion_stream(system: str, user: str, *, model: str | None, read_s: float) -> str:
+    """Ollama ``stream: true`` — accumulates assistant deltas (NDJSON lines). Retries once with a longer read."""
+    read0 = read_s
+    read1 = _ollama_followup_read_s(read_s)
+    last: httpx.ReadTimeout | None = None
+    for attempt, attempt_read in enumerate((read0, read1)):
         try:
-            with client.stream("POST", url, json=payload, timeout=timeout) as r:
-                r.raise_for_status()
-                for line in r.iter_lines():
-                    raw = line.strip()
-                    if not raw:
-                        continue
-                    try:
-                        chunk: dict[str, Any] = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    if chunk.get("done"):
-                        break
-                    msg = chunk.get("message") or {}
-                    c = msg.get("content")
-                    if isinstance(c, str) and c:
-                        parts.append(c)
+            return _chat_completion_stream_once(system, user, model=model, read_s=attempt_read)
         except httpx.ReadTimeout as e:
-            raise RuntimeError(
-                f"Ollama stream read timed out at {ollama_base_url()} after ~{read_s:.0f}s ({e!r}). "
-                "Unset STUDIO_OLLAMA_STREAM, raise STUDIO_OLLAMA_READ_TIMEOUT_S, or use mock mode."
-            ) from e
+            last = e
+            if attempt == 0:
+                time.sleep(2.0)
+                continue
         except httpx.ConnectTimeout as e:
             raise RuntimeError(
                 f"Ollama connect timed out at {ollama_base_url()} ({e!r}). "
@@ -80,10 +100,13 @@ def _chat_completion_stream(system: str, user: str, *, model: str | None, read_s
             ) from e
         except httpx.RequestError as e:
             raise RuntimeError(f"Could not reach Ollama at {ollama_base_url()}: {e}") from e
-    out = "".join(parts).strip()
-    if not out:
-        raise RuntimeError("Ollama stream returned no assistant text (check model and server logs).")
-    return out
+    assert last is not None
+    raise RuntimeError(
+        f"Ollama stream read timed out at {ollama_base_url()} after 2 attempts "
+        f"(~{read0:.0f}s then ~{read1:.0f}s per attempt; {last!r}). "
+        f"Raise STUDIO_OLLAMA_READ_TIMEOUT_S (base is {read0:.0f}s from env or default), "
+        "unset STUDIO_OLLAMA_STREAM if unstable, or use mock mode."
+    ) from last
 
 
 def chat_completion(system: str, user: str, *, model: str | None = None, timeout_s: float | None = None) -> str:
@@ -101,10 +124,11 @@ def chat_completion(system: str, user: str, *, model: str | None = None, timeout
         ],
         "options": {"temperature": 0.35},
     }
-    # Short connect; long read (LLM generation on small VMs routinely exceeds 120s).
-    timeout = httpx.Timeout(read_s, connect=min(15.0, read_s))
+    read0 = read_s
+    read1 = _ollama_followup_read_s(read_s)
     r: httpx.Response | None = None
-    for attempt in range(2):
+    for attempt, attempt_read in enumerate((read0, read1)):
+        timeout = httpx.Timeout(attempt_read, connect=min(15.0, attempt_read))
         try:
             r = httpx.post(url, json=payload, timeout=timeout)
             break
@@ -113,8 +137,10 @@ def chat_completion(system: str, user: str, *, model: str | None = None, timeout
                 time.sleep(2.0)
                 continue
             raise RuntimeError(
-                f"Ollama read timed out at {ollama_base_url()} after ~{read_s:.0f}s (2 attempts, {e!r}). "
-                "Raise STUDIO_OLLAMA_READ_TIMEOUT_S (seconds), add RAM/swap, use a smaller model (STUDIO_OLLAMA_MODEL), or mock mode."
+                f"Ollama read timed out at {ollama_base_url()} after 2 attempts "
+                f"(~{read0:.0f}s then ~{read1:.0f}s per read; {e!r}). "
+                f"Raise STUDIO_OLLAMA_READ_TIMEOUT_S (base seconds is {read0:.0f} from env or default; max 3600), "
+                "add RAM/swap, use a smaller model (STUDIO_OLLAMA_MODEL), or mock mode."
             ) from e
         except httpx.ConnectTimeout as e:
             raise RuntimeError(
