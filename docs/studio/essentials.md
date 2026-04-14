@@ -82,6 +82,10 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
 4. **Fewer round-trips**  
    - **`GET /api/studio/dashboard`** returns **`usage`**, **`billing`**, **`jobs`**, **`worker_hints`**, and **`queue_slo`** (same fields as **`GET /api/studio/metrics` → `slo`**) in one JSON object. The `/studio` page uses this to reduce parallel GETs through the Worker and to show tuning context next to recent jobs.
 
+5. **Errors that look like two different failures**  
+   - **`No JSON object found in model output`** comes from **`POST /api/studio/generate-spec`** (or the spec step inside a full job): Ollama returned prose, an empty body, or malformed JSON. It is unrelated to **`502`** from the edge unless the browser retried spec generation while the tunnel was unhealthy.  
+   - **`Gateway or tunnel returned HTTP 502 HTML…`** means **`api.immersivelabs.space`** (Cloudflare Worker) could not get JSON from **`ORIGIN_URL`** (usually **`https://api-origin…`**). Fix origin health and DNS (grey cloud on **`api-origin`**) first; the studio-edge Worker already retries idempotent **`GET /api/studio/*`** a few times on transient 5xx.
+
 ---
 
 ## 2. Asset spec and naming
