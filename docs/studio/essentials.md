@@ -68,7 +68,7 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
 
 1. **Ollama (LLM spec)**  
    - Prefer a **smaller/faster** model (`STUDIO_OLLAMA_MODEL`, e.g. `tinyllama`) or **`mock`** on the `/studio` UI for layout testing.  
-   - **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (seconds, **30–3600**, default **1800** when unset): base read timeout per Ollama attempt; the worker **retries once** after a read timeout with a longer second read (~**1.5×** base, capped at **3600**). The queue worker thread is **blocked for each read**, so very long bases make the VM feel “stuck” and worsen concurrent HTTP failures. If you still see **~900s** timeouts, an older **GCE metadata** or env value is probably pinning **900** — raise or remove it.  
+   - **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (seconds, **30–7200**, default **3000** when unset): base read timeout per Ollama attempt; the worker **retries once** after a read timeout with a longer second read (~**1.5×** base, capped at **7200**). Ollama completes the HTTP response when generation finishes — you do **not** wait out the full timeout on success. A higher cap mostly matters if the model **hangs** (the queue worker thread stays blocked until the read times out). If you still see **~900s** timeouts, **GCE metadata** or Docker env is likely still **900** — raise or remove it.  
    - Add **RAM/swap** if Ollama swaps under Comfy + Blender.
 
 2. **Tunnel / DNS**  

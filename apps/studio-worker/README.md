@@ -229,7 +229,7 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
-| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `1800` | Base seconds for each Ollama `/api/chat` read (**30–3600**); after a read timeout the client retries **once** with ~**1.5×** this base (capped **3600**/attempt). Long bases block the queue worker. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `3000` | Base seconds for each Ollama `/api/chat` read (**30–7200**); after a read timeout the client retries **once** with ~**1.5×** this base (capped **7200**/attempt). The HTTP read ends as soon as Ollama responds — long caps mainly hurt if the model hangs (worker thread blocked). See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
 | `STUDIO_OLLAMA_STREAM` | off | Set `1` / `true` to use Ollama **`stream: true`** (NDJSON); validate for your model. |
 | `STUDIO_RATE_LIMIT_ENQUEUE_PER_MINUTE` | `60` | Sliding-window cap on **`POST /api/studio/queue/jobs`** per API key / IP bucket; **`0`** disables. |
 | `STUDIO_QUEUE_SSE_POLL_S` | `1` | Server poll interval (seconds) for **`GET /queue/jobs/{id}/events`** (SSE). |

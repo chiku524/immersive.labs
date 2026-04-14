@@ -1298,7 +1298,7 @@ export function StudioPage() {
               <h2 className="studio-worker-hints-title">Worker LLM and queue</h2>
               <p className="studio-worker-hints-body">
                 Ollama read timeout: <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code> (
-                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max 3600). Model <code>{workerHints.ollama_model}</code> (
+                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max 7200). Model <code>{workerHints.ollama_model}</code> (
                 <code>STUDIO_OLLAMA_MODEL</code>) at <code>{workerHints.ollama_base_url}</code> (
                 <code>STUDIO_OLLAMA_URL</code>). Queue consumer:{" "}
                 {workerHints.embedded_queue_worker ? (
