@@ -35,6 +35,7 @@ list_queue_jobs = _qb.list_queue_jobs
 mark_completed = _qb.mark_completed
 mark_failed = _qb.mark_failed
 run_worker_loop = _qb.run_worker_loop
+update_queue_job_progress = _qb.update_queue_job_progress
 
 if _backend == "sqlite":
     queue_slo_hints = _qb.queue_slo_hints
@@ -69,4 +70,5 @@ __all__ = [
     "queue_db_path",
     "run_worker_loop",
     "queue_slo_hints",
+    "update_queue_job_progress",
 ]

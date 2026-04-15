@@ -15,6 +15,8 @@ def test_run_txt2image_workflow_happy_path(monkeypatch: pytest.MonkeyPatch) -> N
     respx.post(f"{base}/prompt").mock(
         return_value=httpx.Response(200, json={"prompt_id": "pid-1"})
     )
+    # Targeted /history/{id} not implemented → 404 → fallback to full /history (legacy).
+    respx.get(f"{base}/history/pid-1").mock(return_value=httpx.Response(404, text="not found"))
     hist_empty = httpx.Response(200, json={})
     hist_done = httpx.Response(
         200,
@@ -35,6 +37,42 @@ def test_run_txt2image_workflow_happy_path(monkeypatch: pytest.MonkeyPatch) -> N
         },
     )
     respx.get(f"{base}/history").mock(side_effect=[hist_empty, hist_done])
+    respx.get(f"{base}/view").mock(
+        return_value=httpx.Response(200, content=b"\x89PNG\r\n\x1a\n\x00\x00")
+    )
+
+    workflow = {"7": {"class_type": "SaveImage", "inputs": {}}}
+    png = run_txt2image_workflow(workflow, base_url=base)
+    assert png.startswith(b"\x89PNG")
+
+
+@respx.mock
+def test_run_txt2image_workflow_targeted_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When ``GET /history/{prompt_id}`` returns outputs, skip polling the full history map."""
+    base = "http://comfy.targeted"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+
+    respx.post(f"{base}/prompt").mock(
+        return_value=httpx.Response(200, json={"prompt_id": "pid-fast"})
+    )
+    respx.get(f"{base}/history/pid-fast").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "outputs": {
+                    "7": {
+                        "images": [
+                            {
+                                "filename": "fast.png",
+                                "subfolder": "",
+                                "type": "output",
+                            }
+                        ]
+                    }
+                }
+            },
+        )
+    )
     respx.get(f"{base}/view").mock(
         return_value=httpx.Response(200, content=b"\x89PNG\r\n\x1a\n\x00\x00")
     )

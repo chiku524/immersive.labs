@@ -185,6 +185,7 @@ async function consumeQueueJobSse(
   eventsUrl: string,
   auth: Record<string, string>,
   signal: AbortSignal,
+  onProgress?: (row: QueueJobRow) => void,
 ): Promise<QueueJobRow> {
   let res: Response;
   try {
@@ -272,6 +273,9 @@ async function consumeQueueJobSse(
         if (row.status === "dead") {
           throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
         }
+        if (onProgress && (row.status === "running" || row.status === "pending")) {
+          onProgress(row);
+        }
       }
     }
   }
@@ -282,6 +286,7 @@ async function pollQueueJobUntilTerminal(
   queueId: string,
   auth: Record<string, string>,
   signal: AbortSignal,
+  onProgress?: (row: QueueJobRow) => void,
 ): Promise<QueueJobRow> {
   const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
   let lastStatus = "unknown";
@@ -307,6 +312,9 @@ async function pollQueueJobUntilTerminal(
     if (row.status === "dead") {
       throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
     }
+    if (onProgress && (row.status === "running" || row.status === "pending")) {
+      onProgress(row);
+    }
     await delay(STUDIO_QUEUE_POLL_MS, signal);
   }
   throw new Error(
@@ -319,16 +327,17 @@ async function waitForQueueJobCompletion(
   queueId: string,
   auth: Record<string, string>,
   signal: AbortSignal,
+  onProgress?: (row: QueueJobRow) => void,
 ): Promise<QueueJobRow> {
   const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
   try {
-    return await consumeQueueJobSse(eventsUrl, auth, signal);
+    return await consumeQueueJobSse(eventsUrl, auth, signal, onProgress);
   } catch (e) {
     if (signal.aborted || isAbortError(e)) {
       throw e;
     }
     if (e instanceof SseTransportError) {
-      return await pollQueueJobUntilTerminal(queueId, auth, signal);
+      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress);
     }
     throw e;
   }
@@ -381,6 +390,15 @@ async function fetchWithTransientRetry(
 type QueueJobRow = {
   status: string;
   last_error?: string | null;
+  /** In-flight pipeline step (e.g. Comfy textures) while status is running. */
+  progress?: {
+    phase?: string;
+    done?: number;
+    total?: number;
+    label?: string;
+    width?: number;
+    height?: number;
+  } | null;
   result?: {
     job_id?: string;
     folder?: string;
@@ -404,6 +422,8 @@ export function StudioPage() {
   const [loading, setLoading] = useState(false);
   const [packLoading, setPackLoading] = useState(false);
   const [jobLoading, setJobLoading] = useState(false);
+  /** Long job: Comfy / mesh sub-step from queue ``progress`` field (SSE or poll). */
+  const [jobRunProgress, setJobRunProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spec, setSpec] = useState<Record<string, unknown> | null>(null);
   const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
@@ -732,6 +752,7 @@ export function StudioPage() {
     }
     setJobLoading(true);
     setError(null);
+    setJobRunProgress(null);
     setPackResult(null);
     setJobResult(null);
     jobPollAbortRef.current?.abort();
@@ -773,7 +794,17 @@ export function StudioPage() {
         throw new Error("Enqueue response missing queue_id");
       }
 
-      const row = await waitForQueueJobCompletion(queueId, authHeaders(), signal);
+      const row = await waitForQueueJobCompletion(queueId, authHeaders(), signal, (r) => {
+        const p = r.progress;
+        if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
+          const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
+          setJobRunProgress(
+            `Textures ${p.done}/${p.total}${p.label ? ` · ${p.label}` : ""}${w}`,
+          );
+        } else {
+          setJobRunProgress(null);
+        }
+      });
       if (signal.aborted) {
         return;
       }
@@ -792,6 +823,7 @@ export function StudioPage() {
         texture_logs: data.texture_logs ?? [],
         mesh_logs: data.mesh_logs ?? [],
       });
+      setJobRunProgress(null);
       void refreshDashboard();
     } catch (err) {
       if (signal.aborted || isAbortError(err)) {
@@ -803,6 +835,7 @@ export function StudioPage() {
       if (jobPollAbortRef.current === runAc) {
         jobPollAbortRef.current = null;
       }
+      setJobRunProgress(null);
       setJobLoading(false);
     }
   }
@@ -1230,9 +1263,14 @@ export function StudioPage() {
                 {jobLoading ? "Running job…" : "Run full job"}
               </button>
             </div>
+            {jobLoading && jobRunProgress ? (
+              <p className="studio-job-run-progress" role="status" aria-live="polite">
+                {jobRunProgress}
+              </p>
+            ) : null}
           </form>
 
-          {error ? <pre className="studio-error">{error}</pre> : null}
+          {error ? <pre className="studio-error studio-error--prominent">{error}</pre> : null}
 
           {meta ? (
             <p className="studio-meta">
@@ -1310,7 +1348,15 @@ export function StudioPage() {
                 <code>{workerHints.ollama_model}</code> (<code>STUDIO_OLLAMA_MODEL</code>) at{" "}
                 <code>{workerHints.ollama_base_url}</code> (<code>STUDIO_OLLAMA_URL</code>). ComfyUI per-image wait:{" "}
                 <code>{Math.round(workerHints.comfy_image_wait_s ?? 420)}s</code> (<code>STUDIO_COMFY_IMAGE_WAIT_S</code>
-                ). Queue consumer:{" "}
+                ); parallel texture calls: <code>{workerHints.comfy_max_concurrent ?? 1}</code> (
+                <code>STUDIO_COMFY_MAX_CONCURRENT</code>
+                ). Texture size cap: <code>{workerHints.texture_global_max_side ?? "—"}</code>px (
+                <code>STUDIO_TEXTURE_MAX_SIDE</code>
+                ). Queue backend: <code>{workerHints.queue_backend ?? "sqlite"}</code>
+                {workerHints.postgres_configured ? " (Postgres URL set)" : ""}
+                {workerHints.redis_configured ? " (Redis URL set)" : ""}. Job order: textures{" "}
+                {workerHints.job_textures_before_mesh ? "before" : "after"} mesh (
+                <code>STUDIO_JOB_TEXTURES_BEFORE_MESH</code>). Queue consumer:{" "}
                 {workerHints.embedded_queue_worker ? (
                   <>
                     <strong>embedded</strong> in this API process (default for SQLite). To reduce load spikes and
@@ -1371,7 +1417,14 @@ export function StudioPage() {
                     </tr>
                   </thead>
                   {jobs.map((j) => (
-                    <tbody key={j.job_id}>
+                    <tbody
+                      key={j.job_id}
+                      className={
+                        j.status === "failed" || j.status === "completed_with_errors"
+                          ? "studio-jobs-tbody-issue"
+                          : undefined
+                      }
+                    >
                       <tr>
                         <td>
                           <code className="studio-table-mono">{j.created_at}</code>

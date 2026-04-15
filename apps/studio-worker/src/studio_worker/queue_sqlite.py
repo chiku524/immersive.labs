@@ -64,6 +64,8 @@ def init_schema() -> None:
                 conn.execute("ALTER TABLE queue_jobs ADD COLUMN tenant_id TEXT")
             if "idempotency_key" not in cols:
                 conn.execute("ALTER TABLE queue_jobs ADD COLUMN idempotency_key TEXT")
+            if "progress_json" not in cols:
+                conn.execute("ALTER TABLE queue_jobs ADD COLUMN progress_json TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_queue_tenant_created ON queue_jobs (tenant_id, created_at)"
             )
@@ -332,6 +334,26 @@ def claim_next_job(*, worker_id: str) -> dict[str, Any] | None:
             conn.close()
 
 
+def update_queue_job_progress(queue_id: str, progress: dict[str, Any]) -> None:
+    """Persist in-flight job progress (e.g. texture pass) for GET /queue/jobs/{id} and SSE."""
+    now = _utc_now()
+    blob = json.dumps(progress, separators=(",", ":"), default=str)[:8000]
+    with _write_lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """
+                UPDATE queue_jobs
+                SET progress_json = ?, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (blob, now, queue_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
 def mark_completed(
     queue_id: str,
     *,
@@ -349,6 +371,7 @@ def mark_completed(
                     result_json = ?,
                     studio_job_id = ?,
                     last_error = NULL,
+                    progress_json = NULL,
                     updated_at = ?
                 WHERE id = ?
                 """,
@@ -379,6 +402,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
                 SET status = ?,
                     last_error = ?,
                     worker_id = NULL,
+                    progress_json = NULL,
                     updated_at = ?,
                     idempotency_key = CASE WHEN ? = '1' THEN NULL ELSE idempotency_key END
                 WHERE id = ?
@@ -476,6 +500,14 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
             d["result"] = None
     else:
         d["result"] = None
+    pj = d.get("progress_json")
+    if pj:
+        try:
+            d["progress"] = json.loads(str(pj))
+        except json.JSONDecodeError:
+            d["progress"] = None
+    else:
+        d["progress"] = None
     return d
 
 
@@ -516,7 +548,8 @@ def run_worker_loop(
             time.sleep(poll_interval_s)
             continue
         qid = job["id"]
-        payload = job["payload"]
+        payload = dict(job["payload"])
+        payload["_queue_id"] = qid
         attempts = job["attempts"]
         max_attempts = job["max_attempts"]
         try:

@@ -19,6 +19,7 @@ from studio_worker.mesh_export import (
     export_mesh_default_from_env,
     try_export_placeholder_for_pack,
 )
+from studio_worker.scale_config import job_textures_before_mesh
 from studio_worker.texture_pipeline import comfy_profile, generate_pbr_textures_for_spec
 from studio_worker.tiers import CREDIT_COST_RUN_JOB, CREDIT_COST_RUN_JOB_TEXTURES
 from studio_worker.zip_pack import zip_directory
@@ -40,6 +41,7 @@ def run_studio_job(
     comfy_base_url: str | None = None,
     request_tenant: RequestTenant | None = None,
     export_mesh: bool = False,
+    queue_id: str | None = None,
 ) -> dict[str, Any]:
     rt: RequestTenant | None = request_tenant
     slot_held = False
@@ -123,7 +125,10 @@ def run_studio_job(
         )
 
         do_mesh = bool(export_mesh) or export_mesh_default_from_env()
-        if do_mesh:
+        tex_first = job_textures_before_mesh()
+
+        def _mesh_step() -> None:
+            nonlocal mesh_logs, errors, manifest
             m_ok_logs, m_errs = try_export_placeholder_for_pack(out_dir, spec)
             mesh_logs.extend(m_ok_logs)
             errors.extend(m_errs)
@@ -132,10 +137,14 @@ def run_studio_job(
                 json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
             )
 
-        if generate_textures:
+        def _texture_step() -> None:
+            nonlocal texture_logs, has_textures, errors, manifest
             try:
                 written, texture_logs = generate_pbr_textures_for_spec(
-                    spec, out_dir, base_url=comfy_base_url
+                    spec,
+                    out_dir,
+                    base_url=comfy_base_url,
+                    queue_id=queue_id,
                 )
                 has_textures = len(written) > 0
                 manifest["toolchain"]["image_pipeline"] = f"comfyui:{prof}_pbr_v1+ok"
@@ -145,11 +154,21 @@ def run_studio_job(
             except Exception as e:
                 errors.append(str(e))
                 has_textures = False
-                # Keep enough of the message for Comfy JSON (node_errors); 200 chars was too short for zip review.
                 manifest["toolchain"]["image_pipeline"] = f"comfyui:error:{str(e)}"[:4000]
                 (out_dir / "manifest.json").write_text(
                     json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
                 )
+
+        if tex_first:
+            if generate_textures:
+                _texture_step()
+            if do_mesh:
+                _mesh_step()
+        else:
+            if do_mesh:
+                _mesh_step()
+            if generate_textures:
+                _texture_step()
 
         write_pack_attribution(out_dir, spec=spec, manifest=manifest, meta=meta)
 

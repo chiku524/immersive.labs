@@ -177,3 +177,56 @@ def embedded_queue_worker_enabled() -> bool:
     if raw in ("1", "true", "yes"):
         return True
     return queue_backend() == "sqlite"
+
+
+def comfy_max_concurrent() -> int:
+    """Parallel ComfyUI image requests per job (threads). Default 1; cap 8."""
+    raw = os.environ.get("STUDIO_COMFY_MAX_CONCURRENT", "1").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 1
+    return max(1, min(n, 8))
+
+
+def job_textures_before_mesh() -> bool:
+    """
+    When true, run Comfy texture passes before Blender mesh export (faster pack download
+    when mesh is optional or slow). Default false preserves previous order (mesh then textures).
+    """
+    return os.environ.get("STUDIO_JOB_TEXTURES_BEFORE_MESH", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def texture_global_max_side() -> int:
+    """Hard cap for generated texture width/height (pixels). Clamped 256–8192."""
+    raw = os.environ.get("STUDIO_TEXTURE_MAX_SIDE", "").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 4096
+    return max(256, min(n, 8192))
+
+
+def texture_style_max_side(style_preset: str) -> int:
+    """
+    Default per-style cap before global cap. Override with STUDIO_TEXTURE_MAX_SIDE_<STYLE>
+    (uppercase, e.g. STUDIO_TEXTURE_MAX_SIDE_TOON_BOLD=1024).
+    """
+    key = str(style_preset or "toon_bold").lower().replace(" ", "_")
+    env_name = f"STUDIO_TEXTURE_MAX_SIDE_{key.upper()}"
+    raw = os.environ.get(env_name, "").strip()
+    if raw:
+        try:
+            return max(256, min(int(raw), 8192))
+        except ValueError:
+            pass
+    defaults: dict[str, int] = {
+        "toon_bold": 1024,
+        "anime_stylized": 1024,
+        "realistic_hd_pbr": 2048,
+    }
+    return defaults.get(key, 1024)

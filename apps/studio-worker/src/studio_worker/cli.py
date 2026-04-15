@@ -128,6 +128,27 @@ def _doctor_comfy_dns_hint(detail: str | None) -> None:
 def _cmd_doctor(args: argparse.Namespace) -> int:
     from studio_worker.comfy_client import DEFAULT_COMFY_BASE_URL, comfy_reachability
     from studio_worker.mesh_export import resolve_blender_executable
+    from studio_worker.scale_config import (
+        database_url,
+        embedded_queue_worker_enabled,
+        queue_backend,
+        redis_url,
+    )
+
+    qb = queue_backend()
+    print("Queue / scale:")
+    print(f"  STUDIO_QUEUE_BACKEND effective: {qb}")
+    print(f"  DATABASE_URL set: {bool(database_url())}")
+    print(f"  STUDIO_REDIS_URL / REDIS_URL set: {bool(redis_url())}")
+    print(
+        "  STUDIO_EMBEDDED_QUEUE_WORKER: "
+        f"{'on' if embedded_queue_worker_enabled() else 'off'}"
+        " — set to 0 and run `queue-worker` separately to keep the API responsive under heavy jobs."
+    )
+    print(
+        "  Docs: docs/studio/scaling-multiprocess-queue.md — Redis/Postgres queue extras: "
+        "pip install 'immersive-studio[redis]' or '[postgres]'."
+    )
 
     comfy_probe = (args.comfy_url or "").strip() or None
     c = comfy_reachability(base_url=comfy_probe)

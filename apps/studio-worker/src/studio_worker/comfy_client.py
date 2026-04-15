@@ -157,6 +157,67 @@ def fetch_history(*, base_url: str | None = None) -> dict[str, Any]:
     return data
 
 
+def _unwrap_prompt_history_entry(data: Any, prompt_id: str) -> dict[str, Any] | None:
+    """Normalize ComfyUI history JSON to a single prompt record or None if not ready."""
+    if not isinstance(data, dict):
+        return None
+    if isinstance(data.get(prompt_id), dict):
+        ent = data[prompt_id]
+        return ent if isinstance(ent, dict) else None
+    # Some builds return the prompt record directly (no outer id key).
+    if data.get("outputs") is not None or isinstance(data.get("status"), dict):
+        return data
+    return None
+
+
+def fetch_history_prompt_entry(
+    prompt_id: str,
+    *,
+    base_url: str | None = None,
+) -> dict[str, Any] | None:
+    """
+    Prefer ``GET /history/{prompt_id}`` when ComfyUI supports it (smaller than full /history).
+    Returns the prompt's history object, or None if still pending / not present yet.
+    On HTTP errors other than 404, falls back to full ``/history`` and extracts ``prompt_id``.
+    """
+    import os
+
+    mode = os.environ.get("STUDIO_COMFY_HISTORY_MODE", "").strip().lower()
+    if mode in ("full", "legacy"):
+        full = fetch_history(base_url=base_url)
+        ent = full.get(prompt_id)
+        return ent if isinstance(ent, dict) else None
+
+    base = (base_url or comfy_base_url()).rstrip("/")
+    try:
+        r = httpx.get(
+            f"{base}/history/{prompt_id}",
+            timeout=60.0,
+            headers=_comfy_http_headers(),
+            follow_redirects=True,
+        )
+    except httpx.RequestError:
+        full = fetch_history(base_url=base_url)
+        ent = full.get(prompt_id)
+        return ent if isinstance(ent, dict) else None
+    if r.status_code in (404, 405) or r.status_code >= 400:
+        full = fetch_history(base_url=base_url)
+        ent = full.get(prompt_id)
+        return ent if isinstance(ent, dict) else None
+    try:
+        data = r.json()
+    except json.JSONDecodeError:
+        full = fetch_history(base_url=base_url)
+        ent = full.get(prompt_id)
+        return ent if isinstance(ent, dict) else None
+    ent = _unwrap_prompt_history_entry(data, prompt_id)
+    if ent is not None:
+        return ent
+    full = fetch_history(base_url=base_url)
+    ent = full.get(prompt_id)
+    return ent if isinstance(ent, dict) else None
+
+
 def wait_for_prompt(
     prompt_id: str,
     *,
@@ -167,8 +228,13 @@ def wait_for_prompt(
     deadline = time.monotonic() + timeout_s
     last: dict[str, Any] | None = None
     while time.monotonic() < deadline:
-        hist = fetch_history(base_url=base_url)
-        last = hist.get(prompt_id)
+        try:
+            last = fetch_history_prompt_entry(prompt_id, base_url=base_url)
+        except ComfyUIError:
+            hist = fetch_history(base_url=base_url)
+            last = hist.get(prompt_id)
+            if not isinstance(last, dict):
+                last = None
         if isinstance(last, dict):
             if last.get("outputs"):
                 return last

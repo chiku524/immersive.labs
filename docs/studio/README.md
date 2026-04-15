@@ -13,6 +13,8 @@ Engineers and collaborators implementing the studio worker, ComfyUI graphs, Blen
 | **Web (`/docs`)** | **On-site documentation hub** in `apps/web` — overview, quick start, ComfyUI, GCP + Cloudflare, Unity pointers (semantic HTML; mirrors this index for end users). |
 | **[platform-manual.md](./platform-manual.md)** | **Platform hub:** table of contents, end-to-end orientation, links to every studio doc + worker README |
 | **[essentials.md](./essentials.md)** | **Single reference:** env vars, **SQLite vs managed DB**, packs, Blender, Unity, CI, billing |
+| **[scaling-multiprocess-queue.md](./scaling-multiprocess-queue.md)** | Split API vs `queue-worker`, Redis/Postgres queue backends, Comfy concurrency |
+| **[fab-export-checklist.md](./fab-export-checklist.md)** | Epic FAB / marketplace technical checklist for generated packs |
 | **[scripts/studio-cloudflare-tunnel/README.md](../../scripts/studio-cloudflare-tunnel/README.md)** | **GCE + tunnel scripts** — file table, `STUDIO_COMFY_URL` vs tunnel hostnames |
 | **[releasing.md](./releasing.md)** | **PyPI releases:** version bump, schema sync, tags, GitHub Release, TestPyPI |
 | [DECISIONS.md](./DECISIONS.md) | Phase 0 decisions (first preset, worker language, URP) |

@@ -203,6 +203,7 @@ def enqueue_job(
                 "max_attempts": str(max_attempts),
                 "last_error": "",
                 "result_json": "",
+                "progress_json": "",
                 "studio_job_id": "",
                 "worker_id": "",
                 "created_at": now,
@@ -291,6 +292,20 @@ def claim_next_job(*, worker_id: str) -> dict[str, Any] | None:
         }
 
 
+def update_queue_job_progress(queue_id: str, progress: dict[str, Any]) -> None:
+    now = _utc_now()
+    blob = json.dumps(progress, separators=(",", ":"), default=str)[:8000]
+    r = _redis()
+    with _write_lock():
+        st = r.hget(_k_job(queue_id), "status")
+        if st != "running":
+            return
+        r.hset(
+            _k_job(queue_id),
+            mapping={"progress_json": blob, "updated_at": now},
+        )
+
+
 def mark_completed(
     queue_id: str,
     *,
@@ -307,6 +322,7 @@ def mark_completed(
                 "result_json": json.dumps(result),
                 "studio_job_id": studio_job_id or "",
                 "last_error": "",
+                "progress_json": "",
                 "updated_at": now,
             },
         )
@@ -332,6 +348,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
                     "status": status,
                     "last_error": err,
                     "worker_id": "",
+                    "progress_json": "",
                     "updated_at": now,
                     "idempotency_key": "",
                 },
@@ -343,6 +360,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
                     "status": status,
                     "last_error": err,
                     "worker_id": "",
+                    "progress_json": "",
                     "updated_at": now,
                 },
             )
@@ -367,6 +385,14 @@ def _row_from_hash(d: dict[str, str]) -> dict[str, Any]:
             out["result"] = None
     else:
         out["result"] = None
+    pj = out.get("progress_json") or ""
+    if pj:
+        try:
+            out["progress"] = json.loads(str(pj))
+        except json.JSONDecodeError:
+            out["progress"] = None
+    else:
+        out["progress"] = None
     for empty_key in ("last_error", "studio_job_id", "worker_id", "tenant_id", "idempotency_key"):
         if out.get(empty_key) == "":
             out[empty_key] = None
@@ -469,7 +495,8 @@ def run_worker_loop(
             time.sleep(poll_interval_s)
             continue
         qid = job["id"]
-        payload = job["payload"]
+        payload = dict(job["payload"])
+        payload["_queue_id"] = qid
         attempts = job["attempts"]
         max_attempts = job["max_attempts"]
         try:

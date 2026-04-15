@@ -28,6 +28,8 @@ def build_albedo_workflow(
     filename_prefix: str,
     steps: int | None = None,
     cfg: float | None = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> dict[str, Any]:
     profile = profile.lower().strip()
     if profile == "sdxl":
@@ -36,14 +38,18 @@ def build_albedo_workflow(
             steps = 28
         if cfg is None:
             cfg = 6.5
+        default_w, default_h = 1024, 1024
     else:
         wf = copy.deepcopy(load_sd15_template())
         if steps is None:
             steps = 24
         if cfg is None:
             cfg = 7.0
+        default_w, default_h = 512, 512
 
     wf["1"]["inputs"]["ckpt_name"] = checkpoint_name
+    wf["2"]["inputs"]["width"] = int(width) if width is not None else default_w
+    wf["2"]["inputs"]["height"] = int(height) if height is not None else default_h
     wf["3"]["inputs"]["text"] = positive
     wf["4"]["inputs"]["text"] = negative
     wf["5"]["inputs"]["seed"] = int(seed) & 0xFFFFFFFFFFFFFFFF

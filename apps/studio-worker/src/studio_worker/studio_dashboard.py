@@ -11,6 +11,15 @@ from typing import Any
 from studio_worker import tenants_db
 from studio_worker.jobs_store import list_jobs
 from studio_worker.comfy_client import comfy_image_wait_timeout_s
+from studio_worker.scale_config import (
+    comfy_max_concurrent,
+    embedded_queue_worker_enabled,
+    job_textures_before_mesh,
+    queue_backend,
+    texture_global_max_side,
+    redis_url,
+    database_url,
+)
 from studio_worker.ollama_client import (
     ollama_base_url,
     ollama_model,
@@ -19,7 +28,6 @@ from studio_worker.ollama_client import (
     ollama_use_stream,
 )
 from studio_worker.paths import jobs_root
-from studio_worker.scale_config import embedded_queue_worker_enabled, queue_backend
 from studio_worker.sqlite_queue import count_queue_by_status, queue_slo_hints
 from studio_worker.stripe_billing import billing_catalog_public_flags
 from studio_worker.tenant_context import RequestTenant
@@ -89,6 +97,7 @@ def jobs_list_dict(tenant: RequestTenant) -> dict[str, Any]:
 
 def worker_hints_dict() -> dict[str, Any]:
     """Non-secret operator hints for /studio (LLM timeouts, queue topology)."""
+    qb = queue_backend()
     return {
         "ollama_read_timeout_s": ollama_read_timeout_s(),
         "ollama_model": ollama_model(),
@@ -96,7 +105,13 @@ def worker_hints_dict() -> dict[str, Any]:
         "ollama_stream_enabled": ollama_use_stream(),
         "ollama_num_predict": ollama_num_predict(),
         "comfy_image_wait_s": comfy_image_wait_timeout_s(),
+        "comfy_max_concurrent": comfy_max_concurrent(),
         "embedded_queue_worker": embedded_queue_worker_enabled(),
+        "job_textures_before_mesh": job_textures_before_mesh(),
+        "texture_global_max_side": texture_global_max_side(),
+        "queue_backend": qb,
+        "postgres_configured": bool(database_url()),
+        "redis_configured": bool(redis_url()),
     }
 
 

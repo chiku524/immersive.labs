@@ -134,6 +134,10 @@ def mark_completed(
     _clear_sqs_claim(queue_id)
 
 
+def update_queue_job_progress(queue_id: str, progress: dict[str, Any]) -> None:
+    qp.update_queue_job_progress(queue_id, progress)
+
+
 def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) -> str:
     status = qp.mark_failed(queue_id, error=error, attempts=attempts, max_attempts=max_attempts)
     _clear_sqs_claim(queue_id)
@@ -206,7 +210,8 @@ def run_worker_loop(
             time.sleep(poll_interval_s)
             continue
         qid = job["id"]
-        payload = job["payload"]
+        payload = dict(job["payload"])
+        payload["_queue_id"] = qid
         attempts = job["attempts"]
         max_attempts = job["max_attempts"]
         try:

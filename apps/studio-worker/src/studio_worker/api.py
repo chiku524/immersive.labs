@@ -90,7 +90,13 @@ _STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
         "ollama_stream_enabled": True,
         "ollama_num_predict": 4096,
         "comfy_image_wait_s": 420.0,
+        "comfy_max_concurrent": 1,
         "embedded_queue_worker": True,
+        "job_textures_before_mesh": False,
+        "texture_global_max_side": 4096,
+        "queue_backend": "sqlite",
+        "postgres_configured": False,
+        "redis_configured": False,
     },
     "queue_slo": {
         "pending_oldest_age_seconds": None,
@@ -137,6 +143,11 @@ async def _app_lifespan(_app: FastAPI):
     embedded_stop = threading.Event()
     embedded_thread: threading.Thread | None = None
     if embedded_queue_worker_enabled():
+        logging.getLogger("studio.job").info(
+            "embedded_queue_worker=1: SQLite queue consumer runs in this process; "
+            "set STUDIO_EMBEDDED_QUEUE_WORKER=0 and run `immersive-studio queue-worker` separately "
+            "to keep the API responsive under heavy jobs (see docs/studio/scaling-multiprocess-queue.md)."
+        )
 
         def _consume_queue() -> None:
             run_worker_loop(

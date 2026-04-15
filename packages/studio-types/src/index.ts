@@ -121,8 +121,18 @@ export interface StudioWorkerHints {
   ollama_num_predict?: number;
   /** Per-image ComfyUI wait (seconds), from ``STUDIO_COMFY_IMAGE_WAIT_S``. */
   comfy_image_wait_s?: number;
+  /** Parallel ComfyUI texture requests per job (``STUDIO_COMFY_MAX_CONCURRENT``). */
+  comfy_max_concurrent?: number;
   /** When true, the SQLite queue consumer runs inside the API process. */
   embedded_queue_worker: boolean;
+  /** When true, texture pass runs before Blender mesh export (``STUDIO_JOB_TEXTURES_BEFORE_MESH``). */
+  job_textures_before_mesh?: boolean;
+  /** Global cap on texture width/height (``STUDIO_TEXTURE_MAX_SIDE``). */
+  texture_global_max_side?: number;
+  /** Effective queue driver: sqlite, postgres, redis, sqs. */
+  queue_backend?: string;
+  postgres_configured?: boolean;
+  redis_configured?: boolean;
 }
 
 /** `GET /api/studio/dashboard` → `queue_slo` (matches ``GET /api/studio/metrics`` → ``slo``). */

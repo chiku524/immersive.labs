@@ -251,6 +251,24 @@ button.studio-table-link:disabled {
   white-space: pre-wrap;
 }
 
+.studio-error--prominent {
+  border-width: 2px;
+  border-color: rgba(255, 150, 140, 0.55);
+  background: rgba(200, 60, 60, 0.18);
+  box-shadow: 0 0 0 1px rgba(255, 120, 100, 0.15);
+}
+
+.studio-job-run-progress {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #a8c8ff;
+}
+
+.studio-jobs-tbody-issue > tr:first-child > td {
+  box-shadow: inset 3px 0 0 rgba(255, 160, 120, 0.55);
+}
+
 .studio-meta {
   font-size: 0.8125rem;
   color: #8b95a8;
@@ -497,10 +515,11 @@ button.studio-table-link:disabled {
 }
 
 .studio-job-error-row td {
-  background: rgba(200, 80, 80, 0.08);
-  border-bottom: 1px solid rgba(255, 120, 120, 0.15);
+  background: rgba(200, 80, 80, 0.12);
+  border-bottom: 1px solid rgba(255, 120, 120, 0.28);
   padding-top: 0.5rem;
   padding-bottom: 0.75rem;
+  box-shadow: inset 4px 0 0 rgba(255, 140, 120, 0.45);
 }
 
 .studio-job-error-label {

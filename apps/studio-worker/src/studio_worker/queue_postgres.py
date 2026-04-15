@@ -65,6 +65,12 @@ def init_schema() -> None:
                       WHERE idempotency_key IS NOT NULL AND trim(idempotency_key) <> '';
                     """
                 )
+                try:
+                    cur.execute(
+                        "ALTER TABLE queue_jobs ADD COLUMN IF NOT EXISTS progress_json TEXT"
+                    )
+                except Exception:
+                    pass
             conn.commit()
 
 
@@ -253,6 +259,23 @@ def claim_job_by_id(queue_id: str, *, worker_id: str) -> dict[str, Any] | None:
     }
 
 
+def update_queue_job_progress(queue_id: str, progress: dict[str, Any]) -> None:
+    now = _utc_now()
+    blob = json.dumps(progress, separators=(",", ":"), default=str)[:8000]
+    with _lock:
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE queue_jobs
+                    SET progress_json = %s, updated_at = %s
+                    WHERE id = %s AND status = 'running'
+                    """,
+                    (blob, now, queue_id),
+                )
+            conn.commit()
+
+
 def mark_completed(
     queue_id: str,
     *,
@@ -270,6 +293,7 @@ def mark_completed(
                         result_json = %s,
                         studio_job_id = %s,
                         last_error = NULL,
+                        progress_json = NULL,
                         updated_at = %s
                     WHERE id = %s
                     """,
@@ -295,6 +319,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
                         SET status = %s,
                             last_error = %s,
                             worker_id = NULL,
+                            progress_json = NULL,
                             updated_at = %s,
                             idempotency_key = NULL
                         WHERE id = %s
@@ -308,6 +333,7 @@ def mark_failed(queue_id: str, *, error: str, attempts: int, max_attempts: int) 
                         SET status = %s,
                             last_error = %s,
                             worker_id = NULL,
+                            progress_json = NULL,
                             updated_at = %s
                         WHERE id = %s
                         """,
@@ -399,6 +425,14 @@ def _row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
             d["result"] = None
     else:
         d["result"] = None
+    pj = d.get("progress_json")
+    if pj:
+        try:
+            d["progress"] = json.loads(str(pj))
+        except json.JSONDecodeError:
+            d["progress"] = None
+    else:
+        d["progress"] = None
     return d
 
 
@@ -435,7 +469,8 @@ def run_worker_loop(
             time.sleep(poll_interval_s)
             continue
         qid = job["id"]
-        payload = job["payload"]
+        payload = dict(job["payload"])
+        payload["_queue_id"] = qid
         attempts = job["attempts"]
         max_attempts = job["max_attempts"]
         try:

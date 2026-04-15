@@ -190,7 +190,10 @@ def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
     assert wh.get("ollama_stream_enabled") is True
     assert isinstance(wh.get("ollama_num_predict"), int)
     assert isinstance(wh.get("comfy_image_wait_s"), (int, float))
+    assert isinstance(wh.get("comfy_max_concurrent"), int)
     assert "embedded_queue_worker" in wh
+    assert "queue_backend" in wh
+    assert "job_textures_before_mesh" in wh
     qs = d.get("queue_slo")
     assert isinstance(qs, dict)
     assert set(qs.keys()) >= {
