@@ -53,4 +53,4 @@ jobs:
           fi
           pip install twine
           python -m twine check dist/*
-          python -m twine upload --non-interactive dist/*
+          python -m twine upload --non-interactive --verbose dist/*
