@@ -3,6 +3,7 @@ from __future__ import annotations
 from studio_worker.ollama_client import (
     OLLAMA_READ_TIMEOUT_MAX_S,
     _ollama_followup_read_s,
+    ollama_json_format_enabled,
     ollama_num_predict,
     ollama_read_timeout_s,
     ollama_use_stream,
@@ -27,7 +28,7 @@ def test_ollama_read_timeout_env_capped_at_max(monkeypatch) -> None:
 def test_followup_read_cap() -> None:
     assert _ollama_followup_read_s(900) == 1350.0
     assert _ollama_followup_read_s(3000) == 4500.0
-    assert _ollama_followup_read_s(5000) == OLLAMA_READ_TIMEOUT_MAX_S
+    assert _ollama_followup_read_s(12000) == OLLAMA_READ_TIMEOUT_MAX_S
 
 
 def test_ollama_use_stream_default_on(monkeypatch) -> None:
@@ -43,7 +44,17 @@ def test_ollama_use_stream_opt_out(monkeypatch) -> None:
 
 def test_ollama_num_predict_default(monkeypatch) -> None:
     monkeypatch.delenv("STUDIO_OLLAMA_NUM_PREDICT", raising=False)
-    assert ollama_num_predict() == 4096
+    assert ollama_num_predict() == 2048
+
+
+def test_ollama_json_format_default_on(monkeypatch) -> None:
+    monkeypatch.delenv("STUDIO_OLLAMA_JSON_FORMAT", raising=False)
+    assert ollama_json_format_enabled() is True
+
+
+def test_ollama_json_format_opt_out(monkeypatch) -> None:
+    monkeypatch.setenv("STUDIO_OLLAMA_JSON_FORMAT", "0")
+    assert ollama_json_format_enabled() is False
 
 
 def test_ollama_num_predict_clamped(monkeypatch) -> None:

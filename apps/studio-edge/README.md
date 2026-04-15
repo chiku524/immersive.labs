@@ -83,7 +83,7 @@ The Worker turns upstream **HTML error pages** (common for **502 / 503 / 524 / 5
 **524** usually means **Cloudflare’s proxy** (orange cloud on the **`api-origin`** DNS record) gave up waiting for a response from the tunnel/origin chain — often while the Python worker is **busy for a long time** (e.g. slow **Ollama** on a small VM). Mitigations:
 
 1. **DNS only (grey cloud)** for **`api-origin`** — tunnel hostnames often work better **without** the extra proxied hop. Recreate the CNAME with **`CLOUDFLARE_TUNNEL_CNAME_PROXIED=false`** when running **`add-tunnel-cname.sh`**, or turn off proxying in the Cloudflare DNS dashboard for **`api-origin`**.
-2. **Python:** the worker uses **Ollama streaming by default** (better read-timeout behavior than blocking mode). Raise **`STUDIO_OLLAMA_READ_TIMEOUT_S`** only if reads are legitimately long; default base when unset is **3000s**, with a second read attempt at ~**1.5×** (capped **7200s**/attempt). Prefer **faster models / more RAM** if generations are slow. If logs show **~900s**, check GCE metadata / Docker env for a pinned **900**.
+2. **Python:** the worker uses **Ollama streaming by default** (better read-timeout behavior than blocking mode). Raise **`STUDIO_OLLAMA_READ_TIMEOUT_S`** only if reads are legitimately long; default base when unset is **3000s**, with a second read attempt at ~**1.5×** (capped **14400s**/attempt). Prefer **faster models / more RAM** if generations are slow. If logs show **~900s**, check GCE metadata / Docker env for a pinned **900**.
 3. Keep **`/studio`** on the **queued** full-job path (short HTTP requests); avoid any **multi-minute synchronous** API call through **`api`** / **`api-origin`** behind Cloudflare.
 
 ## R2 and D1 on this Worker

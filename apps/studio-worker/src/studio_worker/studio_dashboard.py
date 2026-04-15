@@ -22,6 +22,8 @@ from studio_worker.scale_config import (
 )
 from studio_worker.ollama_client import (
     ollama_base_url,
+    ollama_json_format_enabled,
+    ollama_keep_alive,
     ollama_model,
     ollama_num_predict,
     ollama_read_timeout_s,
@@ -104,6 +106,8 @@ def worker_hints_dict() -> dict[str, Any]:
         "ollama_base_url": ollama_base_url(),
         "ollama_stream_enabled": ollama_use_stream(),
         "ollama_num_predict": ollama_num_predict(),
+        "ollama_json_format": ollama_json_format_enabled(),
+        "ollama_keep_alive": ollama_keep_alive(),
         "comfy_image_wait_s": comfy_image_wait_timeout_s(),
         "comfy_max_concurrent": comfy_max_concurrent(),
         "embedded_queue_worker": embedded_queue_worker_enabled(),
