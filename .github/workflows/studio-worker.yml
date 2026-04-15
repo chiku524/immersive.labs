@@ -12,9 +12,6 @@ on:
       - "packages/studio-types/schema/**"
       - ".github/workflows/studio-worker.yml"
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,8 +19,8 @@ jobs:
       run:
         working-directory: apps/studio-worker
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install package (dev extras)

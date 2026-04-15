@@ -20,7 +20,7 @@ python -m studio_worker.cli doctor
 
 **Optional extras:** `pip install immersive-studio[postgres]`, `[redis]`, `[s3]`, or `[scale]` for production-style backends (see Environment table below).
 
-> **`pip install -U` still shows 0.1.0?** PyPI may not list newer wheels yet (run `pip index versions immersive-studio`). Until maintainers publish a newer version (GitHub Actions **PyPI publish** workflow), install from this monorepo so `worker_version` matches `apps/studio-worker/pyproject.toml`:
+> **`pip install -U` lags `pyproject.toml`?** Check `pip index versions immersive-studio`. Until the published wheel catches up (GitHub Actions **PyPI publish** workflow), install from this monorepo so `worker_version` matches `apps/studio-worker/pyproject.toml`:
 >
 > ```bash
 > pip install -e ./apps/studio-worker
@@ -98,6 +98,14 @@ pip install -e .
 ```
 
 **Invoking the CLI:** After `pip install -e .`, the `immersive-studio` command lives next to your Python interpreter (for example `.venv\Scripts\immersive-studio.exe`, or `%APPDATA%\Python\Python3xx\Scripts\immersive-studio.exe` when pip used a **user** install). If your shell says `command not found`, either add that `Scripts` folder to your **PATH**, or call the module directly (works from any directory once the package is installed):
+
+On **Windows**, from the monorepo root you can append the correct user `Scripts` dir (resolved via `sysconfig`’s `nt_user` scheme for the chosen interpreter) to your **User** PATH in one step:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-immersive-studio-on-path.ps1
+```
+
+Use `-PythonExe 'C:\Python314\python.exe'` if `python` on PATH is not the interpreter you used for `pip install`.
 
 ```bash
 python -m studio_worker.cli doctor
