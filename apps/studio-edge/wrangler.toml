@@ -16,12 +16,14 @@ routes = [
   { pattern = "api.immersivelabs.space/*", zone_name = "immersivelabs.space" },
 ]
 
-# Public URL where the Python worker is reachable (no trailing slash).
-# Local: wrangler dev uses this to reach docker / localhost:8787
-# Production: use a hostname that does NOT go through this Worker (e.g. api-origin… → tunnel).
-# ORIGIN_URL: set in production with `wrangler secret put ORIGIN_URL` (e.g. https://api-origin.immersivelabs.space).
-# For local dev, use `.dev.vars` (see README).
+# Public URL where the Python worker is reachable (no trailing slash, no path).
+# Must NOT be the Worker hostname (e.g. not https://api.immersivelabs.space) or fetch() loops — use the
+# tunnel origin host (api-origin…) that reaches FastAPI on the VM.
+#
+# Set here in [vars] OR via `wrangler secret put ORIGIN_URL` — Cloudflare forbids both at once (error 10053).
+# If you switch from secret → vars, delete the secret first: `npx wrangler secret delete ORIGIN_URL`
 [vars]
+ORIGIN_URL = "https://api-origin.immersivelabs.space"
 # Milliseconds to treat cached health JSON as fresh (KV write uses 60s TTL).
 HEALTH_CACHE_TTL_MS = "5000"
 # Must cover every browser origin that calls the Worker (Authorization triggers preflight).

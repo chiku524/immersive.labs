@@ -19,6 +19,8 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`setup-cloudflare-vercel-dns.ps1`](./setup-cloudflare-vercel-dns.ps1) | Apex/`www` targets when the zone is on Cloudflare. |
 | [`import-zone-to-cloudflare.ps1`](./import-zone-to-cloudflare.ps1) | Onboard a zone to Cloudflare (then change nameservers at registrar). |
 | [`verify-studio-public-health.sh`](./verify-studio-public-health.sh) | **Laptop / CI:** DNS + `curl` **`api-origin`** and **`api`** health (read-only). |
+| [`verify-studio-local.sh`](./verify-studio-local.sh) | **VM / dev host:** `curl` Ollama + `127.0.0.1:8787` health; **systemd** or **pgrep** cloudflared hint (no systemd required on Windows Git Bash). |
+| [`verify-studio-local.ps1`](./verify-studio-local.ps1) | **Windows:** `Invoke-WebRequest` Ollama + local health; **`Get-Service cloudflared`** if installed. |
 | [`preflight-studio-public-api.sh`](./preflight-studio-public-api.sh) | **Before UI testing:** remote KV health key delete + 10× `worker_version` sample + tunnel `connections[]` via API (needs `.env`; see repo `.env.example`). |
 | [`_cf_api_auth.sh`](./_cf_api_auth.sh) | Sourced helper: `curl` with **Bearer** token or **Global API Key** + email. |
 | [`cf-tunnel-admin.sh`](./cf-tunnel-admin.sh) | **CLI tunnel ops:** `verify`, `tunnel-get`, `connector-cleanup <client_id>` (local `cloudflared` + `login` cert), `tunnel-wrangler-info`. |

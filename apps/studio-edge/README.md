@@ -60,7 +60,7 @@ Recommended pattern:
 
    Create **DNS only** (grey cloud) CNAME **`api-origin`** → **`<tunnel-id>.cfargotunnel.com`**.
 
-2. Set **`ORIGIN_URL`** with **`wrangler secret put ORIGIN_URL`** to **`https://api-origin.immersivelabs.space`**. For local dev, use **`.dev.vars`** (not committed); do **not** put `ORIGIN_URL` in **`[vars]`** in `wrangler.toml` for production — a plain `[vars]` binding blocks the same-named secret (API error **10053**); deploy without it, then set the secret.
+2. Set **`ORIGIN_URL`** in **`wrangler.toml`** under **`[vars]`** (checked in for this repo) **or** with **`wrangler secret put ORIGIN_URL`** — **never both** (Cloudflare API error **10053**). If you previously used a secret and want to move to **`[vars]`**, run **`npx wrangler secret delete ORIGIN_URL`** from `apps/studio-edge`, then deploy. For one-off local overrides without editing the file, use **`.dev.vars`** (not committed) or **`npx wrangler dev --var ORIGIN_URL:…`**.
 
 3. **Worker on `api`:** add a **route** for **`api.immersivelabs.space/*`**. DNS for **`api`** should be **proxied** (orange cloud) and must **not** point at the tunnel CNAME (that would bypass the Worker). A common approach is a **proxied** placeholder **A** record (e.g. **`192.0.2.1`**, TEST-NET) so the hostname resolves while traffic is handled by the Worker route.
 
@@ -76,7 +76,7 @@ That hostname is already the **Worker’s public URL**. If the Worker proxied to
 
 The Worker turns upstream **HTML error pages** (common for **502 / 503 / 524 / 530**) into JSON so the `/studio` UI can show text instead of `Unexpected token '<'`. That message means **`fetch(ORIGIN_URL)`** got an error page, not FastAPI JSON — usually **tunnel → VM:8787** is down, slow, or **`ORIGIN_URL`** points at the wrong host.
 
-**Checks:** from your laptop, `curl -sS -o /dev/null -w '%{http_code}\n' "$ORIGIN_URL/api/studio/health"` (same URL as **`wrangler secret`**). On the VM: `systemctl is-active cloudflared`, `curl -sS http://127.0.0.1:8787/api/studio/health`. **Idempotent `GET /api/studio/*`** requests are **retried briefly** at the edge to ride out transient tunnel blips.
+**Checks:** from your laptop, `curl -sS -o /dev/null -w '%{http_code}\n' "$ORIGIN_URL/api/studio/health"` (same URL as in **`wrangler.toml`** or your secret). On the VM or dev PC, from the **monorepo root**: **`bash scripts/studio-cloudflare-tunnel/verify-studio-local.sh`** (Git Bash / Linux / macOS) or **`powershell -File scripts/studio-cloudflare-tunnel/verify-studio-local.ps1`** — they hit Ollama + local FastAPI and print **systemd** or **Windows service** hints for cloudflared when available. **Idempotent `GET /api/studio/*`** requests are **retried briefly** at the edge to ride out transient tunnel blips.
 
 ### HTTP **524** (origin timeout) on **`api-origin`**
 

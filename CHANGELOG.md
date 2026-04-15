@@ -12,11 +12,13 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 - In-flight queue job progress: `progress_json` / `progress` on queue rows, `texture_progress.json` in the pack folder, and `/studio` UI progress during queued full jobs.
 - `immersive-studio doctor` and dashboard `worker_hints` report queue backend, Postgres/Redis presence, concurrency, and texture caps.
 - Docs: `docs/studio/scaling-multiprocess-queue.md`, `docs/studio/fab-export-checklist.md`.
+- `scripts/studio-cloudflare-tunnel/verify-studio-local.sh` and **`verify-studio-local.ps1`** for Ollama + local FastAPI checks without **systemd** (Windows-friendly).
 
 ### Changed
 
 - `GET /api/studio/dashboard` `worker_hints` includes `comfy_max_concurrent`, `job_textures_before_mesh`, `texture_global_max_side`, `queue_backend`, `postgres_configured`, `redis_configured`.
 - Embedded SQLite queue consumer logs a one-line hint to run a separate `queue-worker` when under load.
+- **`apps/studio-edge`:** `ORIGIN_URL` is set in **`wrangler.toml`** `[vars]` for deploys that prefer config over secrets. Remove any existing **`wrangler secret`** named `ORIGIN_URL` before deploy (Cloudflare error **10053** if both exist).
 
 ## [0.1.0] — 2026-04-10
 
