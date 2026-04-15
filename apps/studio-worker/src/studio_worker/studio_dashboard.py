@@ -21,6 +21,7 @@ from studio_worker.scale_config import (
     database_url,
 )
 from studio_worker.ollama_client import (
+    OLLAMA_READ_TIMEOUT_MAX_S,
     ollama_base_url,
     ollama_json_format_enabled,
     ollama_keep_alive,
@@ -102,6 +103,7 @@ def worker_hints_dict() -> dict[str, Any]:
     qb = queue_backend()
     return {
         "ollama_read_timeout_s": ollama_read_timeout_s(),
+        "ollama_read_timeout_max_s": float(OLLAMA_READ_TIMEOUT_MAX_S),
         "ollama_model": ollama_model(),
         "ollama_base_url": ollama_base_url(),
         "ollama_stream_enabled": ollama_use_stream(),

@@ -113,6 +113,8 @@ export interface StudioJobsListPayload {
 /** `GET /api/studio/dashboard` → `worker_hints` (operator tuning, not secrets). */
 export interface StudioWorkerHints {
   ollama_read_timeout_s: number;
+  /** Upper bound for read timeout env and second attempt (worker ≥ 0.1.7). */
+  ollama_read_timeout_max_s?: number;
   ollama_model: string;
   ollama_base_url: string;
   /** Ollama ``/api/chat`` uses NDJSON streaming unless disabled via env (worker ≥ current). */

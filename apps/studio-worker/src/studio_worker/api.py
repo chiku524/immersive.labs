@@ -85,6 +85,7 @@ _STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
     "jobs": {"jobs": [], "jobs_root": "/path/to/output/jobs"},
     "worker_hints": {
         "ollama_read_timeout_s": 3000.0,
+        "ollama_read_timeout_max_s": 14400.0,
         "ollama_model": "llama3.2",
         "ollama_base_url": "http://127.0.0.1:11434",
         "ollama_stream_enabled": True,

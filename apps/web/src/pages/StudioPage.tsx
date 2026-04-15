@@ -1343,7 +1343,8 @@ export function StudioPage() {
               <h2 className="studio-worker-hints-title">Worker LLM and queue</h2>
               <p className="studio-worker-hints-body">
                 Ollama read timeout: <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code> (
-                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max 7200). Output token cap:{" "}
+                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max{" "}
+                <code>{Math.round(workerHints.ollama_read_timeout_max_s ?? 14400)}</code>). Output token cap:{" "}
                 <code>{workerHints.ollama_num_predict ?? "—"}</code> (<code>STUDIO_OLLAMA_NUM_PREDICT</code>). Model{" "}
                 <code>{workerHints.ollama_model}</code> (<code>STUDIO_OLLAMA_MODEL</code>) at{" "}
                 <code>{workerHints.ollama_base_url}</code> (<code>STUDIO_OLLAMA_URL</code>). ComfyUI per-image wait:{" "}
