@@ -87,6 +87,9 @@ _STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
         "ollama_read_timeout_s": 3000.0,
         "ollama_model": "llama3.2",
         "ollama_base_url": "http://127.0.0.1:11434",
+        "ollama_stream_enabled": True,
+        "ollama_num_predict": 4096,
+        "comfy_image_wait_s": 420.0,
         "embedded_queue_worker": True,
     },
     "queue_slo": {

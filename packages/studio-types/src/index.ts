@@ -115,6 +115,12 @@ export interface StudioWorkerHints {
   ollama_read_timeout_s: number;
   ollama_model: string;
   ollama_base_url: string;
+  /** Ollama ``/api/chat`` uses NDJSON streaming unless disabled via env (worker ≥ current). */
+  ollama_stream_enabled?: boolean;
+  /** Ollama ``options.num_predict`` cap for spec generation. */
+  ollama_num_predict?: number;
+  /** Per-image ComfyUI wait (seconds), from ``STUDIO_COMFY_IMAGE_WAIT_S``. */
+  comfy_image_wait_s?: number;
   /** When true, the SQLite queue consumer runs inside the API process. */
   embedded_queue_worker: boolean;
 }

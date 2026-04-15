@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from studio_worker.comfy_client import ComfyUIError, run_txt2image_workflow
+from studio_worker.comfy_client import ComfyUIError, comfy_image_wait_timeout_s, run_txt2image_workflow
 from studio_worker.pbr_keys import GENERATED_ROLES
 from studio_worker.workflow_template import build_albedo_workflow
 
@@ -151,7 +151,11 @@ def generate_pbr_textures_for_spec(
             )
 
             try:
-                png = run_txt2image_workflow(wf, base_url=base_url)
+                png = run_txt2image_workflow(
+                    wf,
+                    base_url=base_url,
+                    wait_timeout_s=comfy_image_wait_timeout_s(),
+                )
             except (ComfyUIError, TimeoutError) as e:
                 raise RuntimeError(f"ComfyUI failed for {vid}/{sid}/{role}: {e}") from e
 

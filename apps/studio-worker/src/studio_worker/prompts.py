@@ -48,6 +48,8 @@ Required top-level keys:
 
 Style direction for this preset: {style_notes}
 
+Keep the JSON compact: short strings, no markdown fences, no commentary outside the object.
+
 Rules:
 - Use forward slashes in unity.import_subfolder.
 - Keep JSON strictly valid: double quotes, no trailing commas.

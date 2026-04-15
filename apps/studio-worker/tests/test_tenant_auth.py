@@ -187,6 +187,9 @@ def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
     assert "ollama_read_timeout_s" in wh
     assert "ollama_model" in wh
     assert "ollama_base_url" in wh
+    assert wh.get("ollama_stream_enabled") is True
+    assert isinstance(wh.get("ollama_num_predict"), int)
+    assert isinstance(wh.get("comfy_image_wait_s"), (int, float))
     assert "embedded_queue_worker" in wh
     qs = d.get("queue_slo")
     assert isinstance(qs, dict)

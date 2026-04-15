@@ -10,7 +10,14 @@ from typing import Any
 
 from studio_worker import tenants_db
 from studio_worker.jobs_store import list_jobs
-from studio_worker.ollama_client import ollama_base_url, ollama_model, ollama_read_timeout_s
+from studio_worker.comfy_client import comfy_image_wait_timeout_s
+from studio_worker.ollama_client import (
+    ollama_base_url,
+    ollama_model,
+    ollama_num_predict,
+    ollama_read_timeout_s,
+    ollama_use_stream,
+)
 from studio_worker.paths import jobs_root
 from studio_worker.scale_config import embedded_queue_worker_enabled, queue_backend
 from studio_worker.sqlite_queue import count_queue_by_status, queue_slo_hints
@@ -86,6 +93,9 @@ def worker_hints_dict() -> dict[str, Any]:
         "ollama_read_timeout_s": ollama_read_timeout_s(),
         "ollama_model": ollama_model(),
         "ollama_base_url": ollama_base_url(),
+        "ollama_stream_enabled": ollama_use_stream(),
+        "ollama_num_predict": ollama_num_predict(),
+        "comfy_image_wait_s": comfy_image_wait_timeout_s(),
         "embedded_queue_worker": embedded_queue_worker_enabled(),
     }
 

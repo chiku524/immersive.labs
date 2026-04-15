@@ -229,13 +229,16 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
-| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `3000` | Base seconds for each Ollama `/api/chat` read (**30–7200**); after a read timeout the client retries **once** with ~**1.5×** this base (capped **7200**/attempt). The HTTP read ends as soon as Ollama responds — long caps mainly hurt if the model hangs (worker thread blocked). See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
-| `STUDIO_OLLAMA_STREAM` | off | Set `1` / `true` to use Ollama **`stream: true`** (NDJSON); validate for your model. |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `3000` | Base seconds for each Ollama `/api/chat` read (**30–7200**); after a read timeout the client retries **once** with ~**1.5×** this base (capped **7200**/attempt). Streaming (default) resets the read timer between NDJSON chunks, so modest caps tolerate slow token generation better than `STUDIO_OLLAMA_STREAM=0`. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_STREAM` | on | **`stream: true`** (NDJSON) by default. Set `0` / `false` / `no` / `off` for a single blocking HTTP response if your model misbehaves with streaming. |
+| `STUDIO_OLLAMA_NUM_PREDICT` | `4096` | Ollama `options.num_predict` — caps output length for the JSON spec (**512–16384**); lowers risk of endless generation on weak VMs. Raise if validation fails with truncated JSON. |
+| `STUDIO_OLLAMA_NUM_CTX` | — | Optional Ollama `options.num_ctx` (e.g. `2048`) to reduce RAM on small hosts when supported by the model. |
 | `STUDIO_RATE_LIMIT_ENQUEUE_PER_MINUTE` | `60` | Sliding-window cap on **`POST /api/studio/queue/jobs`** per API key / IP bucket; **`0`** disables. |
 | `STUDIO_QUEUE_SSE_POLL_S` | `1` | Server poll interval (seconds) for **`GET /queue/jobs/{id}/events`** (SSE). |
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |
+| `STUDIO_COMFY_IMAGE_WAIT_S` | `420` | Wall-clock seconds (**60–3600**) to wait for each ComfyUI txt2img completion (history polling). Raise on very slow GPUs or heavy checkpoints. |
 | `STUDIO_COMFY_PROFILE` | `sd15` | `sd15` or `sdxl` (selects workflow + latent size) |
 | `STUDIO_COMFY_CHECKPOINT` | profile-specific | Checkpoint **file name** as shown in ComfyUI |
 | `STUDIO_TEXTURE_MAX_IMAGES` | `32` | Cap variant×slot ComfyUI renders per job (albedo/normal/orm) |

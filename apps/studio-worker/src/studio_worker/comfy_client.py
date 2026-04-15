@@ -52,6 +52,20 @@ def comfy_base_url() -> str:
     return os.environ.get("STUDIO_COMFY_URL", DEFAULT_COMFY_BASE_URL).rstrip("/")
 
 
+def comfy_image_wait_timeout_s() -> float:
+    """Wall-clock cap for each ComfyUI txt2img run (polling /history). Default 420s; override STUDIO_COMFY_IMAGE_WAIT_S (60–3600)."""
+    import os
+
+    raw = os.environ.get("STUDIO_COMFY_IMAGE_WAIT_S", "").strip()
+    default = 420.0
+    if not raw:
+        return default
+    try:
+        return max(60.0, min(float(raw), 3600.0))
+    except ValueError:
+        return default
+
+
 def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
     """
     Probe ComfyUI HTTP API (same check as GET /api/studio/comfy-status).

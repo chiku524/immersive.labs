@@ -14,6 +14,10 @@ MODEL_DEFAULT = "llama3.2"
 # charge for unused seconds). Higher caps only hurt if the model hangs — the queue worker blocks until read timeout.
 OLLAMA_READ_TIMEOUT_DEFAULT_S = 3000.0
 OLLAMA_READ_TIMEOUT_MAX_S = 7200.0
+# JSON game specs rarely need more; caps runaway generation on slow / swap-heavy VMs.
+OLLAMA_NUM_PREDICT_DEFAULT = 4096
+OLLAMA_NUM_PREDICT_MIN = 512
+OLLAMA_NUM_PREDICT_MAX = 16384
 
 
 def ollama_base_url() -> str:
@@ -40,8 +44,47 @@ def _ollama_followup_read_s(base: float) -> float:
     return min(base * 1.5, OLLAMA_READ_TIMEOUT_MAX_S)
 
 
-def _ollama_wants_stream() -> bool:
-    return os.environ.get("STUDIO_OLLAMA_STREAM", "").strip().lower() in ("1", "true", "yes")
+def ollama_use_stream() -> bool:
+    """
+    Streaming /api/chat sends NDJSON chunks; httpx read timeouts apply between chunks, so slow
+    but steady token generation is far less likely to hit a wall-clock read timeout than one
+    blocking response (``stream: false``). Opt out with STUDIO_OLLAMA_STREAM=0|false|no|off.
+    """
+    raw = os.environ.get("STUDIO_OLLAMA_STREAM", "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return True
+
+
+def ollama_num_predict() -> int:
+    """Max tokens to generate per spec call (Ollama ``options.num_predict``)."""
+    raw = os.environ.get("STUDIO_OLLAMA_NUM_PREDICT", "").strip()
+    if not raw:
+        return OLLAMA_NUM_PREDICT_DEFAULT
+    try:
+        n = int(float(raw))
+    except ValueError:
+        return OLLAMA_NUM_PREDICT_DEFAULT
+    return max(OLLAMA_NUM_PREDICT_MIN, min(n, OLLAMA_NUM_PREDICT_MAX))
+
+
+def _ollama_num_ctx_optional() -> int | None:
+    raw = os.environ.get("STUDIO_OLLAMA_NUM_CTX", "").strip()
+    if not raw:
+        return None
+    try:
+        n = int(float(raw))
+    except ValueError:
+        return None
+    return max(512, min(n, 32768))
+
+
+def _ollama_chat_options() -> dict[str, Any]:
+    opts: dict[str, Any] = {"temperature": 0.35, "num_predict": ollama_num_predict()}
+    nc = _ollama_num_ctx_optional()
+    if nc is not None:
+        opts["num_ctx"] = nc
+    return opts
 
 
 def _chat_completion_stream_once(
@@ -57,7 +100,7 @@ def _chat_completion_stream_once(
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "options": {"temperature": 0.35},
+        "options": _ollama_chat_options(),
     }
     timeout = httpx.Timeout(read_s, connect=min(15.0, read_s))
     parts: list[str] = []
@@ -109,13 +152,13 @@ def _chat_completion_stream(system: str, user: str, *, model: str | None, read_s
         f"Ollama stream read timed out at {ollama_base_url()} after 2 attempts "
         f"(~{read0:.0f}s then ~{read1:.0f}s per attempt; {last!r}). "
         f"Raise STUDIO_OLLAMA_READ_TIMEOUT_S (base is {read0:.0f}s from env or default), "
-        "unset STUDIO_OLLAMA_STREAM if unstable, or use mock mode."
+        "set STUDIO_OLLAMA_STREAM=0 if non-stream is more stable for your model, or use mock mode."
     ) from last
 
 
 def chat_completion(system: str, user: str, *, model: str | None = None, timeout_s: float | None = None) -> str:
     read_s = float(timeout_s) if timeout_s is not None else ollama_read_timeout_s()
-    if _ollama_wants_stream():
+    if ollama_use_stream():
         return _chat_completion_stream(system, user, model=model, read_s=read_s)
     m = model or ollama_model()
     url = f"{ollama_base_url()}/api/chat"
@@ -126,7 +169,7 @@ def chat_completion(system: str, user: str, *, model: str | None = None, timeout
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "options": {"temperature": 0.35},
+        "options": _ollama_chat_options(),
     }
     read0 = read_s
     read1 = _ollama_followup_read_s(read_s)
