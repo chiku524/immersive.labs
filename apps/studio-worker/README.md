@@ -20,6 +20,14 @@ python -m studio_worker.cli doctor
 
 **Optional extras:** `pip install immersive-studio[postgres]`, `[redis]`, `[s3]`, or `[scale]` for production-style backends (see Environment table below).
 
+> **`pip install -U` still shows 0.1.0?** PyPI may not list newer wheels yet (run `pip index versions immersive-studio`). Until maintainers publish a newer version (GitHub Actions **PyPI publish** workflow), install from this monorepo so `worker_version` matches `apps/studio-worker/pyproject.toml`:
+>
+> ```bash
+> pip install -e ./apps/studio-worker
+> ```
+>
+> Then **restart** the API process (`immersive-studio serve`, Docker, or systemd) so the running server loads the new code.
+
 > **Note:** The distribution was previously named `immersive-studio-worker`. Use **`immersive-studio`** going forward.
 
 ## Python SDK
