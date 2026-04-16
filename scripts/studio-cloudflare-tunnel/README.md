@@ -56,6 +56,7 @@ Prerequisites (CLI, project **`immersive-labs-studio`**):
 ## Environment: worker + ComfyUI
 
 - **`STUDIO_CORS_ORIGINS`** — Set on the **running container** (and in metadata for the startup script). Every browser origin for `/studio` must match **exactly** (scheme + host).
+- **Ollama (optional metadata / `docker -e`)** — From **`immersive-studio` 0.1.9+**, defaults are a **600s** base read timeout (when unset), **8s** connect timeout, and **preflight + model verify** enabled. **`vm-bootstrap-gce-startup.sh`** / **`vm-rebuild-studio-worker.sh`** pass **`STUDIO_OLLAMA_READ_TIMEOUT_S`** through instance metadata when set (omit metadata to use worker defaults). You can also set **`STUDIO_OLLAMA_DISABLED`**, **`STUDIO_OLLAMA_CONNECT_TIMEOUT_S`**, **`STUDIO_OLLAMA_PREFLIGHT`**, **`STUDIO_OLLAMA_VERIFY_MODEL`**, **`STUDIO_OLLAMA_URL`**, **`STUDIO_OLLAMA_MODEL`** on the container — see **`docs/studio/deploy-gcp-free-vm.md`** and **`apps/studio-worker/README.md`**.
 - **`STUDIO_COMFY_URL`** — Base URL for ComfyUI’s HTTP API **as seen from the worker process**.
   - **Worker in Docker, ComfyUI on the VM host:** use **`https://comfy.immersivelabs.space`** (tunnel to host `127.0.0.1:8188`), **not** `http://127.0.0.1:8188` (that targets the container loopback → connection refused). Alternative: `http://host.docker.internal:8188` with `docker run --add-host=host.docker.internal:host-gateway`.
   - **ComfyUI on another host:** set to that host’s HTTPS URL.

@@ -303,7 +303,35 @@ export function DocsPage() {
                       <dt>
                         <code>STUDIO_OLLAMA_URL</code> / <code>STUDIO_OLLAMA_MODEL</code>
                       </dt>
-                      <dd>LLM for real spec generation when not using mock mode.</dd>
+                      <dd>LLM for real spec generation when not using mock mode in the UI.</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <code>STUDIO_OLLAMA_DISABLED</code>
+                      </dt>
+                      <dd>
+                        When <code>1</code> / <code>true</code> / <code>on</code>, the worker always uses deterministic
+                        mock specs (no Ollama) for jobs and <code>generate-spec</code>.
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code> / <code>STUDIO_OLLAMA_CONNECT_TIMEOUT_S</code>
+                      </dt>
+                      <dd>
+                        Read timeout per <code>/api/chat</code> attempt (default <strong>600s</strong> when unset from
+                        v0.1.9; clamp 15–3600) and TCP connect timeout (default <strong>8s</strong>). See worker README
+                        and <code>docs/studio/essentials.md</code>.
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <code>STUDIO_OLLAMA_PREFLIGHT</code> / <code>STUDIO_OLLAMA_VERIFY_MODEL</code>
+                      </dt>
+                      <dd>
+                        Default <strong>on</strong>: <code>GET /api/tags</code> before each LLM call and verify the model
+                        is installed. Set to <code>0</code> to opt out.
+                      </dd>
                     </div>
                     <div>
                       <dt>

@@ -17,7 +17,7 @@ Use this when onboarding a new environment or reviewing production.
 ## Abuse and capacity
 
 - [ ] **`STUDIO_RATE_LIMIT_ENQUEUE_PER_MINUTE`** (default **60** per key/IP bucket); set **`0`** only in isolated dev.
-- [ ] **`STUDIO_OLLAMA_READ_TIMEOUT_S`**, **`STUDIO_OLLAMA_MODEL`**, and **`STUDIO_OLLAMA_NUM_PREDICT`** match VM capacity; streaming is **on by default** — set **`STUDIO_OLLAMA_STREAM=0`** only if your model misbehaves with NDJSON streaming.
+- [ ] **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (default **600s** when unset from **0.1.9**), **`STUDIO_OLLAMA_CONNECT_TIMEOUT_S`** (default **8s**), **`STUDIO_OLLAMA_MODEL`**, and **`STUDIO_OLLAMA_NUM_PREDICT`** match VM capacity; **`STUDIO_OLLAMA_PREFLIGHT`** / **`STUDIO_OLLAMA_VERIFY_MODEL`** default **on** (fail fast when Ollama is down or the model is not pulled). Use **`STUDIO_OLLAMA_DISABLED=1`** only when the host intentionally runs mock specs only. Streaming is **on by default** — set **`STUDIO_OLLAMA_STREAM=0`** only if your model misbehaves with NDJSON streaming.
 - [ ] Alerts on **`/api/studio/metrics`**: high **`slo.pending_oldest_age_seconds`**, **`slo.running_oldest_age_seconds`**, or queue **`dead`** counts.
 
 ## Billing

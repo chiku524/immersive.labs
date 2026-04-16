@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from studio_worker.job_runner import run_studio_job
+from studio_worker.ollama_client import effective_use_mock
 from studio_worker.tenant_context import RequestTenant
 from studio_worker.tiers import get_tier
 
@@ -29,7 +30,7 @@ def execute_queued_payload(payload: dict[str, Any]) -> dict[str, Any]:
         user_prompt=str(p["user_prompt"]),
         category=str(p.get("category", "prop")),
         style_preset=str(p.get("style_preset", "toon_bold")),
-        use_mock=bool(p.get("mock", False)),
+        use_mock=effective_use_mock(bool(p.get("mock", False))),
         generate_textures=bool(p.get("generate_textures", False)),
         unity_urp_hint=str(
             p.get("unity_urp_hint", "6000.0.x LTS (pin when smoke-tested)")

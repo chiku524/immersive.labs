@@ -67,8 +67,12 @@ If the worker URL is wrong or the worker is down, the `/studio` page shows a hea
 When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (tunnel host) → FastAPI** on a **small VM**, intermittent **502**/**524** HTML from the tunnel is common if the box is saturated. Mitigations:
 
 1. **Ollama (LLM spec)**  
-   - Prefer a **smaller/faster** model (`STUDIO_OLLAMA_MODEL`, e.g. `tinyllama`) or **`mock`** on the `/studio` UI for layout testing.  
-   - **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (seconds, **30–14400**, default **3000** when unset): base read timeout per Ollama attempt; the worker **retries once** after a read timeout with a longer second read (~**1.5×** base, capped at **14400**). With **streaming on by default** (`STUDIO_OLLAMA_STREAM` unset), read timeouts apply between NDJSON chunks, which is usually more forgiving than a single blocking response (`STUDIO_OLLAMA_STREAM=0`). **`STUDIO_OLLAMA_NUM_PREDICT`** (default **2048**) caps how long the model may ramble (raise if JSON truncates). **`STUDIO_OLLAMA_JSON_FORMAT`** (default on) sends **`format: json`** to Ollama. Optional **`STUDIO_OLLAMA_KEEP_ALIVE`** (e.g. `30m`) reduces reload latency between jobs. If you still see **~900s** timeouts, **GCE metadata** or Docker env is likely still **900** — raise or remove it.  
+   - Prefer a **smaller/faster** model (`STUDIO_OLLAMA_MODEL`, e.g. `tinyllama`), **`mock`** on the `/studio` UI for layout testing, or server-side **`STUDIO_OLLAMA_DISABLED=1`** so the worker always uses deterministic mock specs (queue + API + CLI) when no local LLM is available.  
+   - **`STUDIO_OLLAMA_READ_TIMEOUT_S`** (seconds, **15–3600**, default **600** when unset from **0.1.9**): base read timeout per Ollama `/api/chat` attempt; the worker **retries once** after a read timeout with a longer second read (~**1.5×** base, each attempt hard-capped at **3600s** in code). With **streaming on by default** (`STUDIO_OLLAMA_STREAM` unset), read timeouts apply between NDJSON chunks, which is usually more forgiving than a single blocking response (`STUDIO_OLLAMA_STREAM=0`).  
+   - **`STUDIO_OLLAMA_CONNECT_TIMEOUT_S`** (default **8s**, clamp **2–60**): TCP connect timeout for every Ollama HTTP call — fails fast when nothing listens on **`STUDIO_OLLAMA_URL`**.  
+   - **`STUDIO_OLLAMA_PREFLIGHT`** (default **on**): before each LLM call, **`GET /api/tags`** with a short deadline so a dead Ollama errors in seconds instead of burning a full read cycle. Set **`STUDIO_OLLAMA_PREFLIGHT=0`** to skip.  
+   - **`STUDIO_OLLAMA_VERIFY_MODEL`** (default **on**): after `/api/tags`, ensure **`STUDIO_OLLAMA_MODEL`** appears in **`ollama list`** (e.g. `tinyllama` matches `tinyllama:latest`). Set **`STUDIO_OLLAMA_VERIFY_MODEL=0`** for exotic tag names.  
+   - **`STUDIO_OLLAMA_NUM_PREDICT`** (default **2048**) caps output length (raise if JSON truncates). **`STUDIO_OLLAMA_JSON_FORMAT`** (default on) sends **`format: json`**. Optional **`STUDIO_OLLAMA_KEEP_ALIVE`** (e.g. `30m`) reduces cold-start latency. **`GET /api/studio/dashboard` → `worker_hints`** exposes effective timeouts and flags (`ollama_connect_timeout_s`, `ollama_preflight`, `ollama_verify_model`, `ollama_disabled`). If you still see **~900s** read behavior, **GCE metadata** or Docker env may still pin **`STUDIO_OLLAMA_READ_TIMEOUT_S=900`** — raise or remove it.  
    - Add **RAM/swap** if Ollama swaps under Comfy + Blender.
 
 2. **Tunnel / DNS**  
@@ -103,6 +107,8 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
 |----------|---------|
 | `STUDIO_REPO_ROOT` | Monorepo root (auto-detected if unset) |
 | `STUDIO_OLLAMA_URL` / `STUDIO_OLLAMA_MODEL` | LLM for spec generation |
+| `STUDIO_OLLAMA_DISABLED` | `1` / `true` / `on` → worker uses mock specs (no Ollama) for jobs and generate-spec |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` / connect / preflight / verify | See § Production API stability — defaults **600s** read, **8s** connect, preflight + model verify **on** (**0.1.9+**) |
 | `STUDIO_COMFY_URL` / `STUDIO_COMFY_CHECKPOINT` / `STUDIO_COMFY_PROFILE` | ComfyUI (`sd15` / `sdxl`). **When unset, defaults to `https://comfy.immersivelabs.space`.** If the worker runs **in Docker** and ComfyUI on the **host**, do **not** use `http://127.0.0.1:8188` (that is the container, not the host) — use the **public HTTPS URL** or `http://host.docker.internal:8188` with Docker’s host gateway. For ComfyUI on the **same machine as the Python process** (no Docker), `http://127.0.0.1:8188` is fine. |
 | `STUDIO_TEXTURE_MAX_IMAGES` | Cap ComfyUI images per job |
 | `STUDIO_JOBS_MAX_COUNT` / `STUDIO_JOBS_MAX_TOTAL_BYTES` | Job store quotas |

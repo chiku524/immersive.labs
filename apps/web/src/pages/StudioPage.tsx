@@ -1213,9 +1213,11 @@ export function StudioPage() {
                     <code>STUDIO_OLLAMA_NUM_PREDICT</code>)
                   </>
                 ) : null}
-                ). Streaming is on by default unless <code>STUDIO_OLLAMA_STREAM=0</code>. For quick UI checks, use
-                mock mode; on the VM raise <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, add RAM/swap, or use a smaller{" "}
-                <code>STUDIO_OLLAMA_MODEL</code> if specs time out.
+                ). Streaming is on by default unless <code>STUDIO_OLLAMA_STREAM=0</code>. The worker preflights Ollama
+                (<code>GET /api/tags</code>) before each LLM call by default (fail fast). For quick UI checks, use mock
+                mode; on the server set <code>STUDIO_OLLAMA_DISABLED=1</code> for mock-only hosts; otherwise tune{" "}
+                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, <code>STUDIO_OLLAMA_CONNECT_TIMEOUT_S</code>, add RAM/swap, or
+                use a smaller <code>STUDIO_OLLAMA_MODEL</code> if specs time out.
               </p>
             ) : null}
 
@@ -1344,7 +1346,24 @@ export function StudioPage() {
               <p className="studio-worker-hints-body">
                 Ollama read timeout: <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code> (
                 <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, max{" "}
-                <code>{Math.round(workerHints.ollama_read_timeout_max_s ?? 14400)}</code>). Output token cap:{" "}
+                <code>{Math.round(workerHints.ollama_read_timeout_max_s ?? 3600)}</code>
+                {workerHints.ollama_connect_timeout_s != null ? (
+                  <>
+                    ; connect <code>{Math.round(workerHints.ollama_connect_timeout_s)}s</code> (
+                    <code>STUDIO_OLLAMA_CONNECT_TIMEOUT_S</code>)
+                  </>
+                ) : null}
+                {workerHints.ollama_preflight === false ? (
+                  <>
+                    ; preflight <strong>off</strong>
+                  </>
+                ) : null}
+                {workerHints.ollama_disabled ? (
+                  <>
+                    ; <strong>Ollama disabled</strong> (<code>STUDIO_OLLAMA_DISABLED</code> — mock specs only)
+                  </>
+                ) : null}
+                ). Output token cap:{" "}
                 <code>{workerHints.ollama_num_predict ?? "—"}</code> (<code>STUDIO_OLLAMA_NUM_PREDICT</code>). Model{" "}
                 <code>{workerHints.ollama_model}</code> (<code>STUDIO_OLLAMA_MODEL</code>) at{" "}
                 <code>{workerHints.ollama_base_url}</code> (<code>STUDIO_OLLAMA_URL</code>). ComfyUI per-image wait:{" "}
@@ -1374,8 +1393,9 @@ export function StudioPage() {
                 Ollama uses NDJSON streaming by default (better read-timeout behavior than one blocking response); set{" "}
                 <code>STUDIO_OLLAMA_STREAM=0</code> if your model misbehaves with streaming. The worker retries once
                 after a read timeout (2s pause). Optional <code>STUDIO_OLLAMA_NUM_CTX</code> lowers context RAM on
-                small hosts. If jobs still fail, prefer mock mode for wiring, a faster model, more VM memory, or a
-                higher read timeout (each attempt can block the queue worker for that long).
+                small hosts. If jobs still fail, prefer mock mode or <code>STUDIO_OLLAMA_DISABLED=1</code> for wiring, a
+                faster model, more VM memory, or a higher read timeout (each attempt can block the queue worker for
+                that long).
               </p>
             </section>
           ) : null}

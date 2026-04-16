@@ -23,12 +23,16 @@ from studio_worker.scale_config import (
 from studio_worker.ollama_client import (
     OLLAMA_READ_TIMEOUT_MAX_S,
     ollama_base_url,
+    ollama_connect_timeout_s,
+    ollama_disabled,
     ollama_json_format_enabled,
     ollama_keep_alive,
     ollama_model,
     ollama_num_predict,
+    ollama_preflight_enabled,
     ollama_read_timeout_s,
     ollama_use_stream,
+    ollama_verify_model_enabled,
 )
 from studio_worker.paths import jobs_root
 from studio_worker.sqlite_queue import count_queue_by_status, queue_slo_hints
@@ -104,6 +108,10 @@ def worker_hints_dict() -> dict[str, Any]:
     return {
         "ollama_read_timeout_s": ollama_read_timeout_s(),
         "ollama_read_timeout_max_s": float(OLLAMA_READ_TIMEOUT_MAX_S),
+        "ollama_connect_timeout_s": ollama_connect_timeout_s(),
+        "ollama_preflight": ollama_preflight_enabled(),
+        "ollama_verify_model": ollama_verify_model_enabled(),
+        "ollama_disabled": ollama_disabled(),
         "ollama_model": ollama_model(),
         "ollama_base_url": ollama_base_url(),
         "ollama_stream_enabled": ollama_use_stream(),

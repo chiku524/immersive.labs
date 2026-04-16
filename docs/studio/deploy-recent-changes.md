@@ -63,7 +63,7 @@ There is **no** single “deploy” command for your live API host: you rebuild/
 - **GCP + Docker (manual):** follow [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) — rebuild image from repo, restart container, confirm `GET /api/studio/health` on the VM and through the tunnel.
 - **PyPI:** releasing a new **`immersive-studio`** version uses the repo’s publish workflow / [releasing.md](./releasing.md); production still needs **`pip install -U`** or a new image on the host.
 
-After deploy, confirm **`worker_version`** in `GET https://api…/api/studio/health` matches what you expect.
+After deploy, confirm **`worker_version`** in `GET https://api…/api/studio/health` matches what you expect. For Ollama tuning at a glance (timeouts, preflight, **`STUDIO_OLLAMA_DISABLED`**), use **`GET /api/studio/dashboard` → `worker_hints`** (same fields as in `/studio`).
 
 ## Suggested order
 

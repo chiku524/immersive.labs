@@ -186,6 +186,10 @@ def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
     assert isinstance(wh, dict)
     assert "ollama_read_timeout_s" in wh
     assert "ollama_read_timeout_max_s" in wh
+    assert "ollama_connect_timeout_s" in wh
+    assert "ollama_preflight" in wh
+    assert "ollama_verify_model" in wh
+    assert "ollama_disabled" in wh
     assert "ollama_model" in wh
     assert "ollama_base_url" in wh
     assert wh.get("ollama_stream_enabled") is True

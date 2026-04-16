@@ -93,7 +93,7 @@ The marketing site, **`/studio`**, and **`/docs`** share the same app; routing i
 
 - **Health:** probes the worker; shows configuration problems early.
 - **API key:** when the worker has **`STUDIO_API_AUTH_REQUIRED=1`**, the UI stores **`Authorization` / `X-API-Key`** material in **`localStorage`** and sends it on API calls and zip downloads.
-- **Mock mode:** runs the pipeline without Ollama (validated fake specs).
+- **Mock mode:** runs the pipeline without Ollama (validated fake specs). Server-side **`STUDIO_OLLAMA_DISABLED=1`** forces the same mock spec path for every job and **`generate-spec`** regardless of the UI checkbox.
 - **Textures:** requires a reachable ComfyUI instance compatible with worker env (`STUDIO_COMFY_URL`, checkpoint, profile `sd15` / `sdxl`).
 - **Mesh export:** optional checkbox → worker runs headless Blender when configured.
 

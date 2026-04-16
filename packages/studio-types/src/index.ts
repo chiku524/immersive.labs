@@ -115,6 +115,14 @@ export interface StudioWorkerHints {
   ollama_read_timeout_s: number;
   /** Upper bound for read timeout env and second attempt (worker ≥ 0.1.7). */
   ollama_read_timeout_max_s?: number;
+  /** TCP connect timeout for Ollama (seconds). */
+  ollama_connect_timeout_s?: number;
+  /** When true, worker probes GET /api/tags before each LLM call (fail fast). */
+  ollama_preflight?: boolean;
+  /** When true, preflight ensures ``STUDIO_OLLAMA_MODEL`` appears in ``ollama list``. */
+  ollama_verify_model?: boolean;
+  /** When true, workers use mock specs without calling Ollama (``STUDIO_OLLAMA_DISABLED``). */
+  ollama_disabled?: boolean;
   ollama_model: string;
   ollama_base_url: string;
   /** Ollama ``/api/chat`` uses NDJSON streaming unless disabled via env (worker ≥ current). */

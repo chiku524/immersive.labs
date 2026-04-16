@@ -4,6 +4,10 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.1.9] — 2026-04-16
+
 ### Added
 
 - ComfyUI polling prefers `GET /history/{prompt_id}` when supported; `STUDIO_COMFY_HISTORY_MODE=full` forces legacy full `/history` polling.
@@ -13,12 +17,18 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 - `immersive-studio doctor` and dashboard `worker_hints` report queue backend, Postgres/Redis presence, concurrency, and texture caps.
 - Docs: `docs/studio/scaling-multiprocess-queue.md`, `docs/studio/fab-export-checklist.md`.
 - `scripts/studio-cloudflare-tunnel/verify-studio-local.sh` and **`verify-studio-local.ps1`** for Ollama + local FastAPI checks without **systemd** (Windows-friendly).
+- **Ollama resilience:** `STUDIO_OLLAMA_CONNECT_TIMEOUT_S`, optional **`GET /api/tags`** preflight (`STUDIO_OLLAMA_PREFLIGHT`), model presence check (`STUDIO_OLLAMA_VERIFY_MODEL`), and **`STUDIO_OLLAMA_DISABLED`** to force mock specs on the server. Dashboard `worker_hints` includes `ollama_connect_timeout_s`, `ollama_preflight`, `ollama_verify_model`, `ollama_disabled`. Generate-spec **`meta`** includes `ollama_disabled`.
 
 ### Changed
 
-- `GET /api/studio/dashboard` `worker_hints` includes `comfy_max_concurrent`, `job_textures_before_mesh`, `texture_global_max_side`, `queue_backend`, `postgres_configured`, `redis_configured`.
+- **Ollama defaults:** base read timeout when unset **600s** (was 3000), per-attempt cap **3600s** (was 14400), env read clamp **15–3600** (was 30–14400).
+- `GET /api/studio/dashboard` `worker_hints` includes `comfy_max_concurrent`, `job_textures_before_mesh`, `texture_global_max_side`, `queue_backend`, `postgres_configured`, `redis_configured`, plus the new Ollama operator fields above.
 - Embedded SQLite queue consumer logs a one-line hint to run a separate `queue-worker` when under load.
 - **`apps/studio-edge`:** `ORIGIN_URL` is set in **`wrangler.toml`** `[vars]` for deploys that prefer config over secrets. Remove any existing **`wrangler secret`** named `ORIGIN_URL` before deploy (Cloudflare error **10053** if both exist).
+
+### Documentation
+
+- Refreshed **Ollama** tuning across `docs/studio/essentials.md`, `apps/studio-worker/README.md`, `apps/studio-edge/README.md`, `docs/studio/deploy-gcp-free-vm.md`, `docs/studio/security-operational-checklist.md`, `docs/studio/platform-manual.md`, `scripts/local-pc-studio/README.md`, root **`README.md`**, **`AGENTS.md`**, **`CHANGELOG.md`**, **`apps/web`** (`StudioPage`, `DocsPage`), and **`packages/studio-types`** `StudioWorkerHints` for new fields.
 
 ## [0.1.0] — 2026-04-10
 
@@ -28,4 +38,5 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 - Unity-oriented job packs (`manifest.json`, `spec.json`, `pack.zip`), optional ComfyUI PBR textures and Blender placeholder GLB export.
 - FastAPI worker for the `/studio` web UI; GitHub Actions workflow to build and upload to PyPI with **`twine`** and repository secret **`PYPI_API_TOKEN`**.
 
+[0.1.9]: https://pypi.org/project/immersive-studio/0.1.9/
 [0.1.0]: https://pypi.org/project/immersive-studio/0.1.0/

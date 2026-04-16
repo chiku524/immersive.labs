@@ -8,6 +8,7 @@ from pathlib import Path
 from studio_worker import __version__
 from studio_worker.attribution import write_pack_attribution
 from studio_worker.job_runner import run_studio_job
+from studio_worker.ollama_client import effective_use_mock
 from studio_worker.pack_writer import write_pack
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker.validate import validate_asset_spec_file
@@ -95,7 +96,7 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
             user_prompt=args.prompt,
             category=args.category,
             style_preset=args.style_preset,
-            use_mock=args.mock,
+            use_mock=effective_use_mock(args.mock),
             generate_textures=args.textures,
             unity_urp_hint=args.unity_urp,
             comfy_base_url=comfy_url,

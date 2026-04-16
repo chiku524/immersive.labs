@@ -38,6 +38,7 @@ from studio_worker.scale_config import (
     tenants_backend,
 )
 from studio_worker import __version__ as studio_worker_package_version
+from studio_worker.ollama_client import effective_use_mock
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker.sqlite_queue import (
     enqueue_job,
@@ -85,8 +86,12 @@ _STUDIO_DASHBOARD_OPENAPI_EXAMPLE: dict[str, Any] = {
     },
     "jobs": {"jobs": [], "jobs_root": "/path/to/output/jobs"},
     "worker_hints": {
-        "ollama_read_timeout_s": 3000.0,
-        "ollama_read_timeout_max_s": 14400.0,
+        "ollama_read_timeout_s": 600.0,
+        "ollama_read_timeout_max_s": 3600.0,
+        "ollama_connect_timeout_s": 8.0,
+        "ollama_preflight": True,
+        "ollama_verify_model": True,
+        "ollama_disabled": False,
         "ollama_model": "llama3.2",
         "ollama_base_url": "http://127.0.0.1:11434",
         "ollama_stream_enabled": True,
@@ -626,7 +631,7 @@ def post_run_job(
             user_prompt=body.prompt,
             category=body.category,
             style_preset=body.style_preset,
-            use_mock=body.mock,
+            use_mock=effective_use_mock(body.mock),
             generate_textures=body.generate_textures,
             unity_urp_hint=body.unity_urp_hint,
             comfy_base_url=None,

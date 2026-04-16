@@ -245,7 +245,11 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 |----------|---------|---------|
 | `STUDIO_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL |
 | `STUDIO_OLLAMA_MODEL` | `llama3.2` | Chat model name |
-| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `3000` | Base seconds for each Ollama `/api/chat` read (**30–14400**); after a read timeout the client retries **once** with ~**1.5×** this base (capped **14400**/attempt). Streaming (default) resets the read timer between NDJSON chunks, so modest caps tolerate slow token generation better than `STUDIO_OLLAMA_STREAM=0`. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_DISABLED` | off | `1` / `true` / `on` → mock specs only (no Ollama) for **`POST /api/studio/jobs/run`**, **`generate-spec`**, queue jobs, and **`immersive-studio run-job`**. |
+| `STUDIO_OLLAMA_READ_TIMEOUT_S` | `600` | Base seconds for each Ollama `/api/chat` read (**15–3600**); after a read timeout the client retries **once** with ~**1.5×** this base (each attempt capped at **3600**). Streaming (default) resets the read timer between NDJSON chunks. See [docs/studio/essentials.md](../../docs/studio/essentials.md) (Production API stability). |
+| `STUDIO_OLLAMA_CONNECT_TIMEOUT_S` | `8` | TCP connect timeout in seconds (**2–60**) for all Ollama HTTP calls. |
+| `STUDIO_OLLAMA_PREFLIGHT` | on | When on (default), **`GET /api/tags`** before each LLM call so unreachable Ollama fails fast. Set `0` / `false` / `no` / `off` to skip. |
+| `STUDIO_OLLAMA_VERIFY_MODEL` | on | When on (default), preflight checks that **`STUDIO_OLLAMA_MODEL`** exists in **`ollama list`**. Set `0` / `false` / `no` / `off` to skip. |
 | `STUDIO_OLLAMA_STREAM` | on | **`stream: true`** (NDJSON) by default. Set `0` / `false` / `no` / `off` for a single blocking HTTP response if your model misbehaves with streaming. |
 | `STUDIO_OLLAMA_JSON_FORMAT` | on | When on, sends Ollama **`format: json`** on `/api/chat` (often shorter / cleaner generations). Set `0` / `false` / `off` if your model rejects it. |
 | `STUDIO_OLLAMA_KEEP_ALIVE` | — | Optional (e.g. `30m`, `-1`) passed to Ollama **`keep_alive`** so the model stays loaded between Studio jobs (less cold-start wall time). |
