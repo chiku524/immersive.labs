@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from studio_worker.sqlite_queue import (
@@ -9,6 +11,7 @@ from studio_worker.sqlite_queue import (
     list_queue_jobs,
     mark_completed,
     mark_failed,
+    reclaim_stale_running_jobs,
 )
 
 
@@ -76,6 +79,33 @@ def test_idempotency_same_queue_id(isolated_queue_db) -> None:
     assert a.queue_id == b.queue_id
     assert a.deduplicated is False
     assert b.deduplicated is True
+
+
+def test_reclaim_stale_running(isolated_queue_db, monkeypatch) -> None:
+    monkeypatch.setenv("STUDIO_QUEUE_STALE_RUNNING_RECLAIM_S", "60")
+    qid = enqueue_job({"user_prompt": "x", "mock": True}, max_attempts=2).queue_id
+    j = claim_next_job(worker_id="w1")
+    assert j is not None
+    from studio_worker import queue_sqlite as qimpl
+
+    db_path = qimpl.queue_db_path()
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            "UPDATE queue_jobs SET updated_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00Z", qid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    n = reclaim_stale_running_jobs()
+    assert n == 1
+    row = get_queue_job(qid)
+    assert row is not None
+    assert row["status"] == "pending"
+    assert row["worker_id"] is None
+    assert row["last_error"] is not None
+    assert "stale" in (row["last_error"] or "").lower()
 
 
 def test_dead_job_releases_idempotency_key(isolated_queue_db) -> None:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immersive-studio"
-version = "0.1.7"
+version = "0.1.8"
 description = "Immersive Studio CLI and SDK: spec generation, ComfyUI textures, Unity packs, and HTTP worker API."
 readme = "README.md"
 requires-python = ">=3.11"

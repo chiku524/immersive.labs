@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 import uuid
@@ -161,6 +162,8 @@ def queue_slo_hints(
     """
     Lightweight SLO fields for metrics / alerting (SQLite queue only).
     ``pending_oldest_age_seconds``: oldest *claimable* pending row (attempts < max_attempts).
+    ``running_oldest_age_seconds``: age of the **least recently updated** ``running`` row
+    (``updated_at`` advances on claim and on texture ``progress_json`` writes — not during Ollama).
     """
     init_schema()
     tw, tparams = _tenant_where_sql(tenant_id, include_legacy_unscoped)
@@ -213,6 +216,67 @@ def queue_slo_hints(
         }
     finally:
         conn.close()
+
+
+def _stale_running_reclaim_threshold_s() -> float | None:
+    """
+    If a row stays ``running`` longer than this many seconds since ``updated_at`` (claim or last
+    progress write), reclaim it to ``pending`` on API startup. ``0``/``off`` disables.
+    Default 43200 (12h) covers long Ollama + texture runs while clearing zombies after deploy/crash.
+    """
+    raw = os.environ.get("STUDIO_QUEUE_STALE_RUNNING_RECLAIM_S", "43200").strip().lower()
+    if raw in ("0", "", "off", "false", "no"):
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        v = 43200.0
+    return max(600.0, v)
+
+
+def reclaim_stale_running_jobs() -> int:
+    """
+    Move ``running`` rows whose ``updated_at`` is older than the reclaim threshold back to
+    ``pending`` so the embedded (or external) queue worker can retry. Returns number of rows updated.
+    """
+    threshold = _stale_running_reclaim_threshold_s()
+    if threshold is None:
+        return 0
+    init_schema()
+    now = _utc_now()
+    msg = (
+        "Reclaimed stale running job (no completion after extended time; often caused by API "
+        "restart during a long queue run). See STUDIO_QUEUE_STALE_RUNNING_RECLAIM_S."
+    )[:4000]
+    reclaimed = 0
+    with _write_lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT id, updated_at FROM queue_jobs WHERE status = 'running'"
+            ).fetchall()
+            for row in rows:
+                age = _age_seconds_from_created_at(str(row["updated_at"]))
+                if age is None or age <= threshold:
+                    continue
+                qid = str(row["id"])
+                cur = conn.execute(
+                    """
+                    UPDATE queue_jobs
+                    SET status = 'pending',
+                        worker_id = NULL,
+                        last_error = ?,
+                        progress_json = NULL,
+                        updated_at = ?
+                    WHERE id = ? AND status = 'running'
+                    """,
+                    (msg, now, qid),
+                )
+                reclaimed += cur.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+    return reclaimed
 
 
 def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) -> str | None:

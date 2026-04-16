@@ -45,6 +45,7 @@ from studio_worker.sqlite_queue import (
     get_queue_job,
     init_schema as init_queue_schema,
     list_queue_jobs,
+    reclaim_stale_running_jobs,
     run_worker_loop,
 )
 from studio_worker.billing_config import stripe_webhook_secret
@@ -143,6 +144,12 @@ async def _app_lifespan(_app: FastAPI):
 
     tenants_db.init_tenants_schema()
     init_queue_schema()
+    n_stale = reclaim_stale_running_jobs()
+    if n_stale:
+        logging.getLogger("studio.job").warning(
+            "reclaimed %s stale queue job(s) from running -> pending (see STUDIO_QUEUE_STALE_RUNNING_RECLAIM_S)",
+            n_stale,
+        )
     embedded_stop = threading.Event()
     embedded_thread: threading.Thread | None = None
     if embedded_queue_worker_enabled():

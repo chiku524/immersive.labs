@@ -39,7 +39,11 @@ update_queue_job_progress = _qb.update_queue_job_progress
 
 if _backend == "sqlite":
     queue_slo_hints = _qb.queue_slo_hints
+    reclaim_stale_running_jobs = _qb.reclaim_stale_running_jobs
 else:
+
+    def reclaim_stale_running_jobs() -> int:
+        return 0
 
     def queue_slo_hints(
         *,
@@ -70,5 +74,6 @@ __all__ = [
     "queue_db_path",
     "run_worker_loop",
     "queue_slo_hints",
+    "reclaim_stale_running_jobs",
     "update_queue_job_progress",
 ]
