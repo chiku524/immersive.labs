@@ -257,6 +257,7 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 | `STUDIO_OLLAMA_NUM_CTX` | — | Optional Ollama `options.num_ctx` (e.g. `2048`) to reduce RAM on small hosts when supported by the model. |
 | `STUDIO_RATE_LIMIT_ENQUEUE_PER_MINUTE` | `60` | Sliding-window cap on **`POST /api/studio/queue/jobs`** per API key / IP bucket; **`0`** disables. |
 | `STUDIO_QUEUE_SSE_POLL_S` | `1` | Server poll interval (seconds) for **`GET /queue/jobs/{id}/events`** (SSE). |
+| `STUDIO_QUEUE_SSE_MAX_DURATION_S` | `2760` (~46m) | Wall-clock cap (seconds, **60–172800**) on one SSE connection; then the stream ends with `queue SSE max duration exceeded` (browser falls back to polling). |
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |

@@ -552,6 +552,18 @@ def _queue_job_sse_poll_interval_s() -> float:
     return max(0.25, min(v, 10.0))
 
 
+def _queue_job_sse_max_duration_s() -> float:
+    """Wall-clock cap for one SSE connection (avoids unbounded origin streams). Configurable via env."""
+    raw = os.environ.get("STUDIO_QUEUE_SSE_MAX_DURATION_S", "").strip()
+    if not raw:
+        return float(46 * 60)
+    try:
+        v = float(raw)
+    except ValueError:
+        return float(46 * 60)
+    return max(60.0, min(v, float(48 * 3600)))
+
+
 async def _queue_job_event_bytes(
     queue_id: str,
     tenant: RequestTenant,
@@ -563,7 +575,7 @@ async def _queue_job_event_bytes(
     """
     poll_s = _queue_job_sse_poll_interval_s()
     ping_every_s = 20.0
-    max_duration_s = 46 * 60
+    max_duration_s = _queue_job_sse_max_duration_s()
     deadline = time.monotonic() + max_duration_s
     last_serialized: str | None = None
     last_ping = time.monotonic()

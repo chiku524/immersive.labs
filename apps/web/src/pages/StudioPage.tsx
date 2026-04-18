@@ -168,7 +168,8 @@ function parseComfyStatusResponse(r: Response, text: string): StudioComfyStatusP
 }
 
 const STUDIO_QUEUE_POLL_MS = 2000;
-const STUDIO_QUEUE_MAX_WAIT_MS = 45 * 60 * 1000;
+/** Must cover long Comfy + LLM runs after SSE closes (see STUDIO_QUEUE_SSE_MAX_DURATION_S on the worker). */
+const STUDIO_QUEUE_MAX_WAIT_MS = 120 * 60 * 1000;
 
 class SseTransportError extends Error {
   constructor(message: string) {
@@ -337,6 +338,10 @@ async function waitForQueueJobCompletion(
       throw e;
     }
     if (e instanceof SseTransportError) {
+      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress);
+    }
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("queue SSE max duration exceeded")) {
       return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress);
     }
     throw e;
