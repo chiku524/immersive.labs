@@ -53,16 +53,51 @@ function formatQueueAgeSeconds(seconds: number | null | undefined): string | nul
   return `${(m / 60).toFixed(1)}h`;
 }
 
+/** Ages above this (seconds) usually indicate the queue is not draining, not normal backlog. */
+const STALE_QUEUE_AGE_SECONDS = 3600;
+
+function queueSloLooksStale(q: StudioQueueSloSnapshot): boolean {
+  const p = q.pending_oldest_age_seconds;
+  const r = q.running_oldest_age_seconds;
+  return (
+    (typeof p === "number" && p >= STALE_QUEUE_AGE_SECONDS) ||
+    (typeof r === "number" && r >= STALE_QUEUE_AGE_SECONDS)
+  );
+}
+
 function StudioQueueSloLine({ q }: { q: StudioQueueSloSnapshot }) {
   const po = formatQueueAgeSeconds(q.pending_oldest_age_seconds);
   const ro = formatQueueAgeSeconds(q.running_oldest_age_seconds);
+  const stale = queueSloLooksStale(q);
   return (
-    <p className="studio-queue-slo">
-      Queue snapshot: <strong>{q.pending_claimable_count}</strong> claimable pending
-      {po ? <> (oldest ~{po})</> : null}, <strong>{q.running_count}</strong> running
-      {ro ? <> (longest ~{ro})</> : null}.
-    </p>
+    <>
+      <p className="studio-queue-slo">
+        Queue snapshot: <strong>{q.pending_claimable_count}</strong> claimable pending
+        {po ? <> (oldest ~{po})</> : null}, <strong>{q.running_count}</strong> running
+        {ro ? <> (longest ~{ro})</> : null}.
+      </p>
+      {stale ? (
+        <p className="studio-queue-slo-warn" role="status">
+          Very old ages usually mean work is not finishing: confirm the API process and queue consumer are running (
+          <code>STUDIO_EMBEDDED_QUEUE_WORKER</code>), check tunnel and VM health, and ensure Ollama/Comfy steps are not
+          blocked if those features are enabled.
+        </p>
+      ) : null}
+    </>
   );
+}
+
+function comfyFailureLooksLikeTimeout(detail: string | null | undefined): boolean {
+  const d = (detail ?? "").toLowerCase();
+  return d.includes("timed out") || /\btimeout\b/.test(d);
+}
+
+/** Comfy reachability line — avoid calling a slow tunnel failure &quot;not running&quot;. */
+function comfyReachabilityLabel(reachable: boolean, detail: string | null): string {
+  if (reachable) {
+    return "reachable";
+  }
+  return comfyFailureLooksLikeTimeout(detail) ? "probe timed out" : "not running";
 }
 
 function formatApiDetail(detail: unknown): string {
@@ -1112,7 +1147,7 @@ export function StudioPage() {
                   Comfy.)
                 </>
               )}
-              : {comfy.reachable ? "reachable" : "not running"}
+              : {comfyReachabilityLabel(comfy.reachable, comfy.detail)}
               {comfy.detail ? ` — ${comfy.detail}` : null}
               {!comfy.reachable ? (
                 <span className="studio-comfy-hint">
@@ -1125,6 +1160,12 @@ export function StudioPage() {
                         ComfyUI
                       </a>{" "}
                       install, then click Refresh. Guide: <code>scripts/local-pc-studio/README.md</code> §3.
+                    </>
+                  ) : comfyFailureLooksLikeTimeout(comfy.detail) ? (
+                    <>
+                      <strong>HTTP probe timed out.</strong> Comfy may be down, overloaded, or the path to it (tunnel,
+                      network) too slow. On the worker VM raise <code>STUDIO_COMFY_PROBE_TIMEOUT_S</code>, verify Comfy is
+                      listening and <code>cloudflared</code> is healthy, then click Refresh.
                     </>
                   ) : (
                     <>

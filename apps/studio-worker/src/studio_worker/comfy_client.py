@@ -66,20 +66,47 @@ def comfy_image_wait_timeout_s() -> float:
         return default
 
 
+def comfy_probe_timeout_s() -> float:
+    """HTTP timeout for GET /system_stats (reachability + /api/studio/comfy-status). Default 25s; STUDIO_COMFY_PROBE_TIMEOUT_S (5–120)."""
+    import os
+
+    raw = os.environ.get("STUDIO_COMFY_PROBE_TIMEOUT_S", "").strip()
+    default = 25.0
+    if not raw:
+        return default
+    try:
+        return max(5.0, min(float(raw), 120.0))
+    except ValueError:
+        return default
+
+
+def _comfy_probe_error_detail(exc: httpx.RequestError, timeout_s: float) -> str:
+    base = str(exc)
+    low = base.lower()
+    if "timed out" in low or "timeout" in low:
+        return (
+            f"{base} "
+            f"(ComfyUI probe allows {timeout_s:.0f}s for GET /system_stats over STUDIO_COMFY_URL; "
+            "if Comfy is up but the tunnel is slow, raise STUDIO_COMFY_PROBE_TIMEOUT_S on the worker.)"
+        )
+    return base
+
+
 def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
     """
     Probe ComfyUI HTTP API (same check as GET /api/studio/comfy-status).
     """
     base = (base_url or comfy_base_url()).rstrip("/")
+    probe_timeout = comfy_probe_timeout_s()
     try:
         r = httpx.get(
             f"{base}/system_stats",
-            timeout=10.0,
+            timeout=probe_timeout,
             headers=_comfy_http_headers(),
             follow_redirects=True,
         )
     except httpx.RequestError as e:
-        return {"reachable": False, "url": base, "detail": str(e)}
+        return {"reachable": False, "url": base, "detail": _comfy_probe_error_detail(e, probe_timeout)}
 
     text = r.text
     ct = r.headers.get("content-type") or ""

@@ -261,6 +261,7 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 | `STUDIO_REPO_ROOT` | — | When set, writable job/queue data uses `apps/studio-worker/output` under this monorepo root (Docker / local dev). |
 | `STUDIO_WORKER_DATA_DIR` | — | Override writable root for jobs, `queue.sqlite`, and `tenants.sqlite` (default: `~/.immersive-studio/worker` when `STUDIO_REPO_ROOT` is unset). |
 | `STUDIO_COMFY_URL` | `https://comfy.immersivelabs.space` (when unset) | ComfyUI HTTP API base URL; use `http://127.0.0.1:8188` when ComfyUI is on the same machine |
+| `STUDIO_COMFY_PROBE_TIMEOUT_S` | `25` | HTTP timeout (seconds, **5–120**) for **`GET …/system_stats`** (health probe + **`/api/studio/comfy-status`**). Raise if Cloudflare tunnel latency causes false “timed out” failures. |
 | `STUDIO_COMFY_IMAGE_WAIT_S` | `420` | Wall-clock seconds (**60–3600**) to wait for each ComfyUI txt2img completion (history polling). Raise on very slow GPUs or heavy checkpoints. |
 | `STUDIO_COMFY_PROFILE` | `sd15` | `sd15` or `sdxl` (selects workflow + latent size) |
 | `STUDIO_COMFY_CHECKPOINT` | profile-specific | Checkpoint **file name** as shown in ComfyUI |

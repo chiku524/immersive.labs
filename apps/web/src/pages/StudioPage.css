@@ -372,6 +372,17 @@ button.studio-table-link:disabled {
   font-weight: 600;
 }
 
+.studio-queue-slo-warn {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(240, 180, 41, 0.28);
+  background: rgba(240, 180, 41, 0.06);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #d4c4a8;
+}
+
 .studio-jobs-title {
   margin: 0;
   font-family: Syne, Outfit, system-ui, sans-serif;
