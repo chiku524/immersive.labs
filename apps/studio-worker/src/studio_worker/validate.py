@@ -33,6 +33,22 @@ _MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
 _UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
 _POLY_BUDGET_ALIASES = ("poly_budget_tri", "poly_budget_triangle")
 
+_ALLOWED_TOP_LEVEL = frozenset({
+    "spec_version",
+    "asset_id",
+    "display_name",
+    "category",
+    "style_preset",
+    "poly_budget_tris",
+    "target_height_m",
+    "palette",
+    "tags",
+    "material_slots",
+    "variants",
+    "generation",
+    "unity",
+})
+
 
 def load_asset_validator() -> Draft202012Validator:
     schema_path = asset_spec_schema_path()
@@ -194,6 +210,33 @@ def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
         slot["resolution_hint"] = _parse_resolution_hint(slot["resolution_hint"])
 
 
+def _ensure_required_material_roles(spec: dict[str, Any]) -> None:
+    """Append default slots when the LLM omits roles required for the chosen style_preset."""
+    style = spec.get("style_preset")
+    if style not in REQUIRED_MATERIAL_ROLES:
+        return
+    slots = spec.get("material_slots")
+    if not isinstance(slots, list):
+        return
+    roles_present = {s.get("role") for s in slots if isinstance(s, dict)}
+    missing = REQUIRED_MATERIAL_ROLES[style] - roles_present
+    if not missing:
+        return
+    base_res = 1024
+    for s in slots:
+        if isinstance(s, dict) and isinstance(s.get("resolution_hint"), int):
+            base_res = s["resolution_hint"]
+            break
+    for role in sorted(missing):
+        slots.append(
+            {
+                "id": f"{role}_slot_{len(slots)}",
+                "role": role,
+                "resolution_hint": base_res,
+            }
+        )
+
+
 def _rename_poly_budget_aliases(spec: dict[str, Any]) -> None:
     """LLMs often emit ``poly_budget_tri`` instead of ``poly_budget_tris``."""
     for alt in _POLY_BUDGET_ALIASES:
@@ -263,6 +306,198 @@ def _recover_material_slots_from_misplaced_palette(spec: dict[str, Any]) -> None
         spec.pop("palette", None)
 
 
+def _reference_asset_entry_to_strings(item: Any) -> list[str]:
+    if isinstance(item, str) and item.strip():
+        return [item.strip()]
+    if isinstance(item, dict):
+        for key in ("path", "uri", "id", "asset", "name"):
+            val = item.get(key)
+            if isinstance(val, str) and val.strip():
+                return [val.strip()]
+        for val in item.values():
+            if isinstance(val, str) and val.strip():
+                return [val.strip()]
+            break
+    return []
+
+
+def _collect_reference_assets_from_list(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    acc: list[str] = []
+    for item in raw:
+        acc.extend(_reference_asset_entry_to_strings(item))
+    return acc
+
+
+def _normalize_variant_list(variants: list[Any]) -> list[dict[str, Any]] | None:
+    """
+    If every item has variant_id + label, drop extra keys (LLMs often add source_prompt, etc.).
+    Otherwise return None so callers can run fragment recovery.
+    """
+    out: list[dict[str, Any]] = []
+    for i, v in enumerate(variants):
+        if not isinstance(v, dict):
+            return None
+        vid_raw = v.get("variant_id")
+        lbl_raw = v.get("label")
+        if not isinstance(vid_raw, str) or not vid_raw.strip():
+            return None
+        if not isinstance(lbl_raw, str) or not lbl_raw.strip():
+            return None
+        item: dict[str, Any] = {
+            "variant_id": vid_raw.strip(),
+            "label": lbl_raw.strip(),
+        }
+        if "seed" in v:
+            s = v["seed"]
+            if isinstance(s, bool):
+                pass
+            elif isinstance(s, (int, float)):
+                item["seed"] = int(s)
+            elif isinstance(s, str):
+                try:
+                    item["seed"] = int(float(s.strip()))
+                except ValueError:
+                    pass
+        out.append(item)
+    return out if out else None
+
+
+def _dedupe_preserve_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in items:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
+def _recover_generation_from_malformed_variants(spec: dict[str, Any]) -> None:
+    """
+    Models sometimes emit ``generation``-shaped objects inside ``variants`` (and add
+    ``variation_presets``). Merge prompts/refs into ``generation`` and replace
+    ``variants`` with a sane default list when normalization is impossible.
+    """
+    variants = spec.get("variants")
+    if not isinstance(variants, list) or not variants:
+        return
+    normalized = _normalize_variant_list(variants)
+    if normalized is not None:
+        spec["variants"] = normalized
+        return
+
+    source_prompts: list[str] = []
+    neg_prompts: list[str] = []
+    ref_assets: list[str] = []
+
+    for v in variants:
+        if not isinstance(v, dict):
+            continue
+        sp = v.get("source_prompt")
+        if isinstance(sp, str) and sp.strip():
+            source_prompts.append(sp.strip())
+        np = v.get("negative_prompt")
+        if isinstance(np, str) and np.strip():
+            neg_prompts.append(np.strip())
+        for key in ("reference_assets", "reference_assets_array"):
+            ref_assets.extend(_collect_reference_assets_from_list(v.get(key)))
+
+    gen = spec.get("generation")
+    if not isinstance(gen, dict):
+        gen = {}
+
+    if not (isinstance(gen.get("source_prompt"), str) and gen["source_prompt"].strip()):
+        merged = " ".join(source_prompts).strip()
+        if not merged:
+            dn = spec.get("display_name")
+            merged = dn.strip() if isinstance(dn, str) and dn.strip() else "Generated asset"
+        gen["source_prompt"] = merged
+
+    if "negative_prompt" not in gen or gen.get("negative_prompt") is None:
+        gen["negative_prompt"] = neg_prompts[0] if neg_prompts else ""
+
+    if gen.get("reference_assets") is None and ref_assets:
+        gen["reference_assets"] = _dedupe_preserve_order(ref_assets)
+
+    spec["generation"] = gen
+    spec["variants"] = [
+        {"variant_id": "default", "label": "Default", "seed": 42},
+        {"variant_id": "alt", "label": "Alternate", "seed": 43},
+    ]
+
+
+def _sanitize_generation_object(spec: dict[str, Any]) -> None:
+    """Keep only schema-allowed generation keys; coerce reference_assets to string paths."""
+    gen = spec.get("generation")
+    if not isinstance(gen, dict):
+        return
+    out: dict[str, Any] = {}
+    sp = gen.get("source_prompt")
+    if isinstance(sp, str) and sp.strip():
+        out["source_prompt"] = sp.strip()
+    np = gen.get("negative_prompt")
+    if np is None:
+        out["negative_prompt"] = ""
+    elif isinstance(np, str):
+        out["negative_prompt"] = np
+    else:
+        out["negative_prompt"] = ""
+    ra = gen.get("reference_assets")
+    if isinstance(ra, list):
+        strings = _collect_reference_assets_from_list(ra)
+        if strings:
+            out["reference_assets"] = _dedupe_preserve_order(strings)
+    spec["generation"] = out
+
+
+def _strip_disallowed_top_level_keys(spec: dict[str, Any]) -> None:
+    for k in list(spec.keys()):
+        if k not in _ALLOWED_TOP_LEVEL:
+            spec.pop(k, None)
+
+
+def _ensure_generation_present(spec: dict[str, Any]) -> None:
+    gen = spec.get("generation")
+    if isinstance(gen, dict):
+        sp = gen.get("source_prompt")
+        if isinstance(sp, str) and sp.strip():
+            if "negative_prompt" not in gen or gen.get("negative_prompt") is None:
+                gen["negative_prompt"] = ""
+            spec["generation"] = gen
+            return
+    dn = spec.get("display_name")
+    prompt = dn.strip() if isinstance(dn, str) and dn.strip() else "Generated asset"
+    spec["generation"] = {"source_prompt": prompt, "negative_prompt": ""}
+
+
+def _ensure_unity_present(spec: dict[str, Any]) -> None:
+    u = spec.get("unity")
+    if isinstance(u, dict):
+        sub = u.get("import_subfolder")
+        coll = u.get("collider")
+        if (
+            isinstance(sub, str)
+            and sub.strip()
+            and ".." not in sub
+            and not sub.startswith(("/", "\\"))
+            and coll in _UNITY_COLLIDERS
+        ):
+            return
+    subfolder = "Props/Generated"
+    if isinstance(u, dict):
+        sub = u.get("import_subfolder")
+        if (
+            isinstance(sub, str)
+            and sub.strip()
+            and ".." not in sub
+            and not sub.startswith(("/", "\\"))
+        ):
+            subfolder = sub.strip()
+    spec["unity"] = {"import_subfolder": subfolder, "collider": "box"}
+
+
 def _default_tags_if_missing(spec: dict[str, Any]) -> None:
     raw = spec.get("tags")
     if isinstance(raw, list):
@@ -287,10 +522,16 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     if not isinstance(spec, dict):
         return
     _rename_poly_budget_aliases(spec)
+    _recover_generation_from_malformed_variants(spec)
+    _sanitize_generation_object(spec)
+    _strip_disallowed_top_level_keys(spec)
+    _ensure_generation_present(spec)
+    _ensure_unity_present(spec)
     _coerce_target_height_m(spec)
     _coerce_generation_negative_prompt(spec)
     _recover_material_slots_from_misplaced_palette(spec)
     _coerce_material_slot_resolution_hints(spec)
+    _ensure_required_material_roles(spec)
     _default_tags_if_missing(spec)
     _default_unity_collider(spec)
 

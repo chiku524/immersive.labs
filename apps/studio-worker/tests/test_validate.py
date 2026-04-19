@@ -103,6 +103,57 @@ def test_poly_budget_tri_alias_normalized() -> None:
     assert "poly_budget_tri" not in spec
 
 
+def test_llm_variation_presets_and_generation_shaped_variants() -> None:
+    """Regression: Ollama emitted variation_presets and put generation fields under variants."""
+    spec: dict[str, Any] = {
+        "spec_version": "0.1",
+        "asset_id": "prop_crate_wood_01",
+        "display_name": "Deep Sea Critter",
+        "category": "environment_piece",
+        "style_preset": "anime_stylized",
+        "target_height_m": 1.0,
+        "variants": [
+            {
+                "source_prompt": "Echo the user's creative brief faithfully",
+                "reference_assets": [{"id": "box"}, {"id": "capsule"}],
+                "reference_assets_array": [{"id": "box"}],
+                "reference_assets_array_notes": "",
+            },
+            {
+                "source_prompt": "Keep the JSON compact",
+                "reference_assets": [{"id": "mesh_convex"}, {"id": "none"}],
+            },
+        ],
+        "variation_presets": [{"name": "animé stylized"}],
+        "poly_budget_tris": 2500,
+        "material_slots": [
+            {"id": "albedo_slot_0", "role": "albedo", "resolution_hint": 1024},
+            {"id": "normal_slot_1", "role": "normal", "resolution_hint": 1024},
+        ],
+        "tags": ["generated"],
+    }
+    validate_asset_spec(spec)
+    assert "variation_presets" not in spec
+    assert spec.get("unity", {}).get("import_subfolder")
+    assert spec.get("unity", {}).get("collider") == "box"
+    assert isinstance(spec.get("generation"), dict)
+    assert spec["generation"]["source_prompt"]
+    assert {v["variant_id"] for v in spec["variants"]} == {"default", "alt"}
+    roles = {s["role"] for s in spec["material_slots"]}
+    assert roles == {"albedo", "normal", "orm"}
+
+
+def test_llm_extra_keys_on_variants_stripped() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["variants"][0]["source_prompt"] = "should not appear here"
+    validate_asset_spec(spec)
+    assert "source_prompt" not in spec["variants"][0]
+
+
 def test_llm_misplaces_slots_in_palette_recover_tags_collider() -> None:
     """Regression: Ollama sometimes emits poly_budget_tri, dicts under palette, omits tags/collider."""
     spec: dict[str, Any] = {

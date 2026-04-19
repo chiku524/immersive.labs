@@ -42,8 +42,8 @@ Required top-level keys:
 - tags: non-empty array of short strings
 - material_slots: array; each item has id, role, resolution_hint as JSON integer (512|1024|2048|4096), not a string, optional notes
   Required roles for this style: {roles}
-- variants: at least one item with variant_id and label; optional integer seed per variant
-- generation: object with source_prompt (echo the user's creative brief faithfully), optional negative_prompt (must be a JSON string if present, never null — omit the key or use an empty string if unused), optional reference_assets array
+- variants: at least one item with variant_id and label; optional integer seed per variant. Never put source_prompt, reference_assets, or notes inside variants — those belong only under generation.
+- generation: object with source_prompt (echo the user's creative brief faithfully), optional negative_prompt (must be a JSON string if present, never null — omit the key or use an empty string if unused), optional reference_assets array of strings (paths/ids), not objects
 - unity: import_subfolder relative path using forward slashes, no ".." (e.g. Props/Crates), collider one of box|capsule|mesh_convex|none
 
 Style direction for this preset: {style_notes}
@@ -51,6 +51,7 @@ Style direction for this preset: {style_notes}
 Keep the JSON compact: short strings, no markdown fences, no commentary outside the object.
 
 Rules:
+- Do not add any top-level keys beyond this list (no variation_presets, no reference_assets_array, no commentary fields).
 - Use forward slashes in unity.import_subfolder.
 - Keep JSON strictly valid: double quotes, no trailing commas.
 - material_slots resolution_hint must be one of 512, 1024, 2048, 4096 (JSON numbers).
