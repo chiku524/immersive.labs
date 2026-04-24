@@ -968,6 +968,7 @@ export function StudioPage() {
             <Link to="/studio" className="nav-active">
               Game studio
             </Link>
+            <Link to="/fab-products">Fab products</Link>
             <Link to="/docs">Docs</Link>
           </nav>
         </header>

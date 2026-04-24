@@ -1,0 +1,59 @@
+.fab-dl-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.fab-dl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fab-dl-uproject {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #7a8a9c;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.fab-dl-k {
+  color: #6ee0c0;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-right: 0.35rem;
+}
+
+.fab-dl-engine {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: #8898a8;
+}
+
+.fab-dl-btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.fab-rebuild-hint {
+  margin: 0;
+  max-width: 48rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #7c8c9e;
+}
+
+.fab-code {
+  font-size: 0.82em;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: color-mix(in srgb, #121a24 90%, transparent);
+  border: 1px solid color-mix(in srgb, #4a9fe8 20%, transparent);
+  color: #c8d4e4;
+}
+
+.hero strong {
+  color: #d0dce8;
+  font-weight: 600;
+}

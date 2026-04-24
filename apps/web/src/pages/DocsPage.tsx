@@ -27,6 +27,7 @@ export function DocsPage() {
           <nav className="nav" aria-label="Primary">
             <Link to="/">Home</Link>
             <Link to="/studio">Game studio</Link>
+            <Link to="/fab-products">Fab products</Link>
             <Link to="/docs" className="nav-active">
               Docs
             </Link>

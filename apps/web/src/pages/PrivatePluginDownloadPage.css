@@ -1,0 +1,98 @@
+/* Private /p/plugins — reuses .page, .header from App.css; local tweaks only */
+.pp-content {
+  padding: clamp(1.5rem, 5vw, 2.5rem) 0 clamp(3rem, 8vw, 4rem);
+  max-width: 42rem;
+}
+
+.pp-muted {
+  color: #a8b4c8;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.pp-title {
+  margin: 0 0 1rem;
+  font-family: Syne, Outfit, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #7eb8ff, #b894f5, #6ee0c0);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.pp-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 0;
+}
+
+.pp-list li {
+  margin-bottom: 0.6rem;
+}
+
+.pp-gate {
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, #0c121c 86%, transparent);
+  border: 1px solid color-mix(in srgb, #4a9fe8 18%, transparent);
+  box-shadow: 0 0 40px color-mix(in srgb, #4a9fe8 8%, transparent);
+}
+
+.pp-gate-eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #6ee0c0 80%, #a8b4c8);
+}
+
+.pp-gate input[type="password"] {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #4a9fe8 30%, #283040);
+  background: #0a1018;
+  color: #e8ecf4;
+  font-size: 0.95rem;
+}
+
+.pp-gate .pp-gate-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #7a889c;
+}
+
+.pp-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: color-mix(in srgb, #0c121c 80%, #4a9fe8);
+  color: #c8d8ec;
+}
+
+.pp-error {
+  color: #f0a0a8;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.pp-banner {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #8a98b0;
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, #0c121c 70%, transparent);
+  border: 1px solid color-mix(in srgb, #b894f5 12%, transparent);
+}

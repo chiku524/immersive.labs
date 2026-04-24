@@ -15,3 +15,6 @@ apps/studio-worker/.venv/
 
 .vercel
 .env*.local
+
+# Large local Fab drop zips (copy via scripts/sync-fab-plugin-zips-to-web.ps1)
+apps/web/public/plugin-packages/**/*.zip
