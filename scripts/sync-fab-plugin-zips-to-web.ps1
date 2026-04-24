@@ -1,6 +1,7 @@
 # Copies full RunUAT Fab marketplace zips (UE 5.7 Win64) into the web app public folder
-# so /p/plugins/* can link to them. Zips are gitignored; run this after
-# fab-products\scripts\build-fab-marketplace-drops-ue57.ps1
+# so /fab-products and /p/plugins can link to them. Filenames must match
+# apps/web/src/data/fabPluginPackages.ts (e.g. HarborSuite-UE5.7-Win64.zip).
+# Zips are gitignored; run this after fab-products\scripts\build-fab-marketplace-drops-ue57.ps1
 #
 # Usage (from immersive.labs or scripts/):
 #   .\scripts\sync-fab-plugin-zips-to-web.ps1

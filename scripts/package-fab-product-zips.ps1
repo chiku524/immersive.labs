@@ -1,10 +1,18 @@
-# Packages Immersive Labs Fab (Unreal) products into self-contained zips for the public web app.
-# Each sample project is self-contained: .uproject, Config/, Source/, Content/, Plugins/<Product>/, LICENSE.
+# Packages optional Fab *source sample projects* (full .uproject trees) for local archives or side
+# distribution—NOT the RunUAT marketplace plugin zips served on the main site.
+#
+# For the official plugin drops (same files as Epic Fab uploads for Win64 / UE 5.7), run
+#   fab-products\scripts\build-fab-marketplace-drops-ue57.ps1
+# then copy into the web app with:
+#   .\scripts\sync-fab-plugin-zips-to-web.ps1
+# (outputs to apps\web\public\plugin-packages\UE5.7-Win64\)
+#
+# Each sample zip is self-contained: .uproject, Config/, Source/, Content/, Plugins/<Product>/, LICENSE.
 # Build artifacts (Binaries, Intermediate, Saved, DDC) are excluded so downloads stay small.
 #
 # Usage (from repo root or scripts/):
 #   .\scripts\package-fab-product-zips.ps1
-#   .\scripts\package-fab-product-zips.ps1 -FabProductsRoot "C:\path\to\fab-products"
+#   .\scripts\package-fab-product-zips.ps1 -FabProductsRoot "C:\path\to\fab-products" -OutputDir "...\public\fab-samples"
 #
 param(
 	[string]$FabProductsRoot = "",
@@ -26,7 +34,7 @@ if (-not $FabProductsRoot) {
 }
 
 if (-not $OutputDir) {
-	$OutputDir = Join-Path $repoRoot "apps\web\public\fab-products"
+	$OutputDir = Join-Path $repoRoot "apps\web\public\fab-samples"
 }
 
 $FabProductsRoot = (Resolve-Path $FabProductsRoot).Path
@@ -92,4 +100,4 @@ New-FabSampleZip -SourceRelativePath "worldbuilder-templates\WorldBuilderTemplat
 New-FabSampleZip -SourceRelativePath "workflow-toolkit\WorkflowToolkitDemo" -TopFolderName "WorkflowToolkitDemo" `
 	-OutFileName "workflow-toolkit-demo.zip" -OptionalLicenseFromProductRoot $null
 
-Write-Host "Done. Output: $OutputDir"
+Write-Host "Done. Optional sample zips: $OutputDir (not the main marketplace plugin drops)."

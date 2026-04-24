@@ -29,7 +29,7 @@ function NotFound() {
       </h1>
       <p className="pp-muted">No plugin page for that URL.</p>
       <p style={{ marginTop: "1.5rem" }}>
-        <Link to="/p/plugins">All private plugin zips</Link>
+        <Link to="/p/plugins">All plugin zips</Link> · <Link to="/fab-products">Fab products</Link>
       </p>
     </main>
   );
@@ -73,8 +73,9 @@ export function PrivatePluginListPage() {
         <PrivatePluginDownloadGate>
           <h1 className="pp-title">Fab plugin zips (UE 5.7 · Win64)</h1>
           <p className="pp-muted" style={{ maxWidth: "52ch" }}>
-            Full RunUAT marketplace drops — not the public demo sample zips on{" "}
-            <Link to="/fab-products">/fab-products</Link>. Each product has its own page.
+            Same RunUAT plugin zips as <Link to="/fab-products">/fab-products</Link>, with one page
+            per product. This area can stay unlisted and optionally passphrase-gated; filenames are
+            identical to the public download list.
           </p>
           <ul className="pp-list">
             {fabPluginPackages.map((p) => (
@@ -131,10 +132,14 @@ export function PrivatePluginDetailPage() {
           </h1>
           <p style={{ lineHeight: 1.65, color: "#c8d4e0" }}>{pkg.description}</p>
           <p className="pp-muted">
-            <strong>UE 5.7</strong> · <strong>Win64</strong> · Full plugin package
+            <strong>UE 5.7</strong> · <strong>Win64</strong> · <code className="pp-code">{pkg.zipFile}</code>
+          </p>
+          <p className="pp-muted" style={{ fontSize: "0.9rem" }}>
+            <strong>Root folder in zip</strong>{" "}
+            <code className="pp-code">{pkg.packagedRootFolder}/</code>
           </p>
           <p style={{ margin: "1.25rem 0" }}>
-            <a href={href} className="btn btn-primary" download>
+            <a href={href} className="btn btn-primary" download={pkg.zipFile}>
               Download {pkg.zipFile}
             </a>
           </p>

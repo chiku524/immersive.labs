@@ -18,3 +18,5 @@ apps/studio-worker/.venv/
 
 # Large local Fab drop zips (copy via scripts/sync-fab-plugin-zips-to-web.ps1)
 apps/web/public/plugin-packages/**/*.zip
+# Optional local source sample project zips (package-fab-product-zips.ps1)
+apps/web/public/fab-samples/**/*.zip
