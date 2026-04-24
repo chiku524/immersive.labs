@@ -3,5 +3,15 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "outputDirectory": "apps/web/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/docs", "destination": "/index.html" },
+    { "source": "/docs/", "destination": "/index.html" },
+    { "source": "/fab-products", "destination": "/index.html" },
+    { "source": "/fab-products/", "destination": "/index.html" },
+    { "source": "/studio", "destination": "/index.html" },
+    { "source": "/studio/", "destination": "/index.html" },
+    { "source": "/p/plugins", "destination": "/index.html" },
+    { "source": "/p/plugins/", "destination": "/index.html" },
+    { "source": "/p/plugins/:slug", "destination": "/index.html" }
+  ]
 }
