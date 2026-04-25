@@ -42,13 +42,16 @@ export function FabProductsPage() {
               <strong> no</strong> sample project inside these zips, only the packaged plugin.
             </p>
             <p className="fab-rebuild-hint" role="note">
-              Site assets: from <code className="fab-code">immersive.labs</code>, run{" "}
-              <code className="fab-code">scripts/sync-fab-plugin-zips-to-web.ps1</code> to copy
-              <code className="fab-code"> *.zip</code> into <code className="fab-code">apps/web/public/{PLUGIN_ZIP_DIR}/</code>{" "}
-              and redeploy. Optional separate archives of full <em>source</em> sample projects (for local use):
-              <code className="fab-code"> scripts/package-fab-product-zips.ps1</code> (defaults to
-              <code className="fab-code"> public/fab-samples/</code>) after syncing embedded plugins with
-              <code className="fab-code"> fab-products/scripts/sync-fab-demo-plugins.ps1</code> when needed.
+              <strong>Hosted site (Vercel, etc.):</strong> the zips are not in git. Either set
+              <code className="fab-code"> VITE_FAB_MARKETPLACE_ZIP_BASE</code> at <strong>build</strong> time
+              to an HTTPS URL prefix that already hosts the five <code className="fab-code">*.zip</code> files
+              (for example a GitHub Release <code className="fab-code">.../download/&lt;tag&gt;/</code>), or run{" "}
+              <code className="fab-code">scripts/sync-fab-plugin-zips-to-web.ps1</code> and commit/copy the
+              archives into <code className="fab-code">public/{PLUGIN_ZIP_DIR}/</code> before
+              <code className="fab-code"> npm run build</code>. See <code className="fab-code">apps/web/.env.example</code>{" "}
+              and <code className="fab-code">public/plugin-packages/README.md</code>. Optional
+              <em>source</em> sample zips: <code className="fab-code">package-fab-product-zips.ps1</code> →
+              <code className="fab-code"> public/fab-samples/</code>.
             </p>
           </section>
 

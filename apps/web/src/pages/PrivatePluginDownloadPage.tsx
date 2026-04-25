@@ -147,10 +147,10 @@ export function PrivatePluginDetailPage() {
             {pkg.installNote}
           </p>
           <p className="pp-muted" style={{ fontSize: "0.8rem", marginTop: "1.5rem" }}>
-            If the link 404s, run <code className="pp-code">sync-fab-plugin-zips-to-web.ps1</code> in this
-            repo&rsquo;s <code className="pp-code">scripts</code> to copy zips from the{" "}
-            <code className="pp-code">fab-products</code> build into <code className="pp-code">public</code>
-            , then rebuild.
+            If the link 404s on the live site, set <code className="pp-code">VITE_FAB_MARKETPLACE_ZIP_BASE</code>{" "}
+            for production builds, or run <code className="pp-code">sync-fab-plugin-zips-to-web.ps1</code> and
+            include the files under <code className="pp-code">public/plugin-packages/UE5.7-Win64/</code> before
+            build. See <code className="pp-code">.env.example</code>.
           </p>
         </PrivatePluginDownloadGate>
       </main>

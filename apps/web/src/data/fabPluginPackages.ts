@@ -4,6 +4,11 @@
  *
  * Filenames here must match the zips in fab-products/fab-marketplace-drops/UE5.7-Win64/
  * after sync: scripts/sync-fab-plugin-zips-to-web.ps1 → public/plugin-packages/UE5.7-Win64/
+ *
+ * **Production (Vercel, etc.):** Large zips are often not in the repo. Set
+ * `VITE_FAB_MARKETPLACE_ZIP_BASE` at build time to an HTTPS **folder** URL whose
+ * last path segment will be followed by `/{zipFile}` (e.g. a GitHub Release
+ * `.../download/my-tag/`). If unset, links are same-origin `/plugin-packages/UE5.7-Win64/...`.
  */
 export const PLUGIN_ZIP_DIR = "plugin-packages/UE5.7-Win64";
 
@@ -108,5 +113,14 @@ export const fabPluginPackageBySlug: ReadonlyMap<string, FabPluginPackage> = new
   fabPluginPackages.map((p) => [p.slug, p] as const),
 );
 
-export const fabPluginUrlPath = (pkg: Pick<FabPluginPackage, "zipFile">) =>
-  `/${PLUGIN_ZIP_DIR.replace(/\/$/, "")}/${pkg.zipFile}`;
+/**
+ * Download href for a marketplace zip. Prefers `VITE_FAB_MARKETPLACE_ZIP_BASE` (full URL
+ * prefix, no trailing filename) + `zipFile` when set; otherwise same-origin public path.
+ */
+export const fabPluginUrlPath = (pkg: Pick<FabPluginPackage, "zipFile">) => {
+  const base = (import.meta.env.VITE_FAB_MARKETPLACE_ZIP_BASE as string | undefined)?.trim();
+  if (base) {
+    return `${base.replace(/\/$/, "")}/${pkg.zipFile}`;
+  }
+  return `/${PLUGIN_ZIP_DIR.replace(/\/$/, "")}/${pkg.zipFile}`;
+};
