@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from studio_worker.comfy_client import comfy_reachability, run_txt2image_workflow
+from studio_worker.comfy_client import comfy_reachability, resolve_comfy_checkpoint, run_txt2image_workflow
 
 
 @respx.mock
@@ -150,3 +150,21 @@ def test_comfy_reachability_200_html_challenge(monkeypatch: pytest.MonkeyPatch) 
     out = comfy_reachability()
     assert out["reachable"] is False
     assert "HTML" in (out.get("detail") or "")
+
+
+@respx.mock
+def test_resolve_comfy_checkpoint_maps_safetensors_to_ckpt(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = "http://comfy.ckpt"
+    monkeypatch.setenv("STUDIO_COMFY_URL", base)
+    respx.get(f"{base}/object_info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "CheckpointLoaderSimple": {
+                    "input": {"required": {"ckpt_name": [["v1-5-pruned-emaonly.ckpt"]]}}
+                }
+            },
+        )
+    )
+    got = resolve_comfy_checkpoint("v1-5-pruned-emaonly.safetensors", base_url=base)
+    assert got == "v1-5-pruned-emaonly.ckpt"

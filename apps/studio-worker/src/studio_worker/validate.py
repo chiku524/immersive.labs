@@ -374,12 +374,35 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
     return out
 
 
+def _coerce_variants_dict_to_list(spec: dict[str, Any]) -> None:
+    """LLMs sometimes emit ``variants`` as an object map instead of an array."""
+    variants = spec.get("variants")
+    if not isinstance(variants, dict):
+        return
+    out: list[Any] = []
+    for key, val in variants.items():
+        if not isinstance(val, dict):
+            continue
+        item = dict(val)
+        vid = item.get("variant_id")
+        if isinstance(vid, str) and vid.strip():
+            item["variant_id"] = vid.strip()
+        elif vid is not None and str(vid).strip():
+            item["variant_id"] = str(vid).strip()
+        else:
+            item["variant_id"] = str(key)
+        out.append(item)
+    if out:
+        spec["variants"] = out
+
+
 def _recover_generation_from_malformed_variants(spec: dict[str, Any]) -> None:
     """
     Models sometimes emit ``generation``-shaped objects inside ``variants`` (and add
     ``variation_presets``). Merge prompts/refs into ``generation`` and replace
     ``variants`` with a sane default list when normalization is impossible.
     """
+    _coerce_variants_dict_to_list(spec)
     variants = spec.get("variants")
     if not isinstance(variants, list) or not variants:
         return
@@ -522,6 +545,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     if not isinstance(spec, dict):
         return
     _rename_poly_budget_aliases(spec)
+    _coerce_variants_dict_to_list(spec)
     _recover_generation_from_malformed_variants(spec)
     _sanitize_generation_object(spec)
     _strip_disallowed_top_level_keys(spec)

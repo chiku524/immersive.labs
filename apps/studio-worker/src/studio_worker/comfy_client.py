@@ -143,6 +143,77 @@ def comfy_reachability(*, base_url: str | None = None) -> dict[str, Any]:
     return {"reachable": True, "url": base, "detail": None}
 
 
+_checkpoint_list_cache: dict[str, tuple[float, list[str]]] = {}
+_CHECKPOINT_CACHE_TTL_S = 300.0
+
+
+def _checkpoint_stem(name: str) -> str:
+    if "." in name:
+        return name.rsplit(".", 1)[0].lower()
+    return name.lower()
+
+
+def list_comfy_checkpoints(*, base_url: str | None = None) -> list[str]:
+    """
+    Checkpoint filenames ComfyUI exposes on CheckpointLoaderSimple (GET /object_info).
+    Cached briefly per base URL to avoid hammering Comfy on every texture slot.
+    """
+    base = (base_url or comfy_base_url()).rstrip("/")
+    now = time.time()
+    cached = _checkpoint_list_cache.get(base)
+    if cached is not None and now - cached[0] < _CHECKPOINT_CACHE_TTL_S:
+        return list(cached[1])
+
+    probe_timeout = comfy_probe_timeout_s()
+    r = httpx.get(
+        f"{base}/object_info",
+        timeout=probe_timeout,
+        headers=_comfy_http_headers(),
+        follow_redirects=True,
+    )
+    if r.status_code >= 400:
+        raise ComfyUIError(f"ComfyUI /object_info {r.status_code}: {r.text[:400]}")
+    data = r.json()
+    raw = (
+        data.get("CheckpointLoaderSimple", {})
+        .get("input", {})
+        .get("required", {})
+        .get("ckpt_name", [[]])
+    )
+    names: list[str] = []
+    if isinstance(raw, list) and raw and isinstance(raw[0], list):
+        names = [str(x) for x in raw[0] if x]
+    _checkpoint_list_cache[base] = (now, names)
+    return names
+
+
+def resolve_comfy_checkpoint(preferred: str, *, base_url: str | None = None) -> str:
+    """
+    Map env/default checkpoint to a name ComfyUI accepts.
+
+    Hosted Comfy often ships ``v1-5-pruned-emaonly.ckpt`` while workflows default to
+    ``.safetensors`` — match by basename when the exact filename is missing.
+    """
+    pref = (preferred or "").strip()
+    if not pref:
+        return pref
+    try:
+        available = list_comfy_checkpoints(base_url=base_url)
+    except (ComfyUIError, httpx.RequestError, json.JSONDecodeError, KeyError, TypeError):
+        return pref
+    if not available:
+        return pref
+    if pref in available:
+        return pref
+    stem = _checkpoint_stem(pref)
+    for name in available:
+        if _checkpoint_stem(name) == stem:
+            return name
+    if len(available) == 1:
+        return available[0]
+    return pref
+
+
 def queue_prompt(prompt_graph: dict[str, Any], *, base_url: str | None = None) -> str:
     base = base_url or comfy_base_url()
     client_id = str(uuid.uuid4())

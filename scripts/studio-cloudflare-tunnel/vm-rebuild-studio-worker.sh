@@ -8,6 +8,9 @@ read_metadata_attr() {
 CORS="$(read_metadata_attr STUDIO_CORS_ORIGINS | tr -d '\r\n')"
 COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
+COMFY_CKPT_META="$(read_metadata_attr STUDIO_COMFY_CHECKPOINT | tr -d '\r\n')"
+# Hosted Comfy ships SD1.5 as .ckpt; workflows used to default to .safetensors.
+COMFY_CKPT="${COMFY_CKPT_META:-v1-5-pruned-emaonly.ckpt}"
 # Ollama on the VM host. Default Docker mode is --network host so STUDIO_OLLAMA_URL=http://127.0.0.1:11434
 # (bridge + 172.17.0.1 often hits UFW / wrong gateway / hairpin timeouts). Metadata STUDIO_DOCKER_NETWORK=bridge
 # restores -p 127.0.0.1:8787:8787 + bridge gateway for Ollama.
@@ -24,7 +27,11 @@ KA_ENV=()
 [[ -n "$KA_META" ]] && KA_ENV=(-e "STUDIO_OLLAMA_KEEP_ALIVE=${KA_META}")
 JF_META="$(read_metadata_attr STUDIO_OLLAMA_JSON_FORMAT | tr -d '\r\n')"
 JF_ENV=()
-[[ -n "$JF_META" ]] && JF_ENV=(-e "STUDIO_OLLAMA_JSON_FORMAT=${JF_META}")
+if [[ -n "$JF_META" ]]; then
+  JF_ENV=(-e "STUDIO_OLLAMA_JSON_FORMAT=${JF_META}")
+else
+  JF_ENV=(-e "STUDIO_OLLAMA_JSON_FORMAT=1")
+fi
 cd /opt/immersive.labs
 sudo git fetch origin
 sudo git pull --ff-only origin main || sudo git reset --hard origin/main
@@ -41,6 +48,7 @@ if [[ "$NET_MODE" == "bridge" ]]; then
     -p 127.0.0.1:8787:8787 \
     -e STUDIO_CORS_ORIGINS="${CORS}" \
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
+    -e STUDIO_COMFY_CHECKPOINT="${COMFY_CKPT}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
     "${READ_ENV[@]}" \
@@ -54,6 +62,7 @@ else
     --network host \
     -e STUDIO_CORS_ORIGINS="${CORS}" \
     -e STUDIO_COMFY_URL="${COMFY_URL}" \
+    -e STUDIO_COMFY_CHECKPOINT="${COMFY_CKPT}" \
     -e STUDIO_OLLAMA_URL="${OLLAMA_URL}" \
     -e STUDIO_OLLAMA_MODEL="${OLLAMA_MODEL}" \
     "${READ_ENV[@]}" \

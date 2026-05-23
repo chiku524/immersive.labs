@@ -7,7 +7,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from studio_worker.comfy_client import ComfyUIError, comfy_image_wait_timeout_s, run_txt2image_workflow
+from studio_worker.comfy_client import (
+    ComfyUIError,
+    comfy_image_wait_timeout_s,
+    resolve_comfy_checkpoint,
+    run_txt2image_workflow,
+)
 from studio_worker.pbr_keys import GENERATED_ROLES
 from studio_worker.scale_config import (
     comfy_max_concurrent,
@@ -92,11 +97,14 @@ def comfy_profile() -> str:
     return os.environ.get("STUDIO_COMFY_PROFILE", "sd15").lower()
 
 
-def comfy_checkpoint() -> str:
-    return os.environ.get(
-        "STUDIO_COMFY_CHECKPOINT",
-        "v1-5-pruned-emaonly.safetensors" if comfy_profile() == "sd15" else "sd_xl_base_1.0.safetensors",
+def comfy_checkpoint(*, base_url: str | None = None) -> str:
+    default = (
+        "v1-5-pruned-emaonly.ckpt"
+        if comfy_profile() == "sd15"
+        else "sd_xl_base_1.0.safetensors"
     )
+    preferred = os.environ.get("STUDIO_COMFY_CHECKPOINT", default).strip() or default
+    return resolve_comfy_checkpoint(preferred, base_url=base_url)
 
 
 def max_texture_images() -> int:
@@ -216,7 +224,7 @@ def generate_pbr_textures_for_spec(
 
     tw, th = texture_output_dimensions(spec)
     prof = comfy_profile()
-    ckpt = comfy_checkpoint()
+    ckpt = comfy_checkpoint(base_url=base_url)
     budget = max_texture_images()
     wait_s = comfy_image_wait_timeout_s()
 

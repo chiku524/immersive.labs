@@ -185,3 +185,31 @@ def test_llm_misplaces_slots_in_palette_recover_tags_collider() -> None:
     assert spec["tags"] == ["generated"]
     roles = {s["role"] for s in spec["material_slots"]}
     assert roles == {"albedo", "orm"}
+
+
+def test_variants_object_map_coerced_to_list() -> None:
+    spec: dict[str, Any] = {
+        "spec_version": "0.1",
+        "asset_id": "prop_test",
+        "display_name": "Test",
+        "category": "prop",
+        "style_preset": "toon_bold",
+        "poly_budget_tris": 4000,
+        "tags": ["generated"],
+        "material_slots": [
+            {"id": "main", "role": "albedo", "resolution_hint": 1024},
+            {"id": "normal", "role": "normal", "resolution_hint": 1024},
+            {"id": "orm", "role": "orm", "resolution_hint": 1024},
+        ],
+        "variants": {
+            "01": {"variant_id": 0, "label": "Low"},
+            "02": {"variant_id": 1, "label": "High", "seed": 99},
+        },
+        "generation": {"source_prompt": "test prop", "negative_prompt": ""},
+        "unity": {"import_subfolder": "Props/Test", "collider": "box"},
+    }
+    validate_asset_spec(spec)
+    assert isinstance(spec["variants"], list)
+    assert len(spec["variants"]) == 2
+    assert spec["variants"][0]["variant_id"] == "0"
+    assert spec["variants"][1]["variant_id"] == "1"

@@ -38,7 +38,16 @@ def generate_asset_spec(
     system = system_prompt_for_style(style_preset)
     user = user_prompt_block(user_prompt, category)
     raw = chat_completion(system, user)
-    spec = extract_json_object(raw)
+    try:
+        spec = extract_json_object(raw)
+    except ValueError:
+        repair_user = (
+            f"{user}\n\n"
+            "Your previous reply was not valid JSON. Return ONLY one compact JSON object "
+            "matching the schema (no markdown fences, no comments, no trailing commas)."
+        )
+        raw = chat_completion(system, repair_user)
+        spec = extract_json_object(raw)
     # Belt-and-suspenders before mutating style/category (normalize also runs inside validate).
     apply_llm_json_coercions(spec)
     spec["style_preset"] = style_preset
