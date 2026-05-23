@@ -15,6 +15,12 @@ export const PLUGIN_ZIP_DIR = "plugin-packages/UE5.7-Win64";
 /** Matches the zip suffix in build-fab-marketplace-drops-ue57.ps1 ($Ue = "5.7"). */
 export const MARKETPLACE_ZIP_PREFIX = "UE5.7-Win64";
 
+/** GitHub release tag for the current Fab marketplace plugin zips (fab-products). */
+export const FAB_MARKETPLACE_RELEASE_TAG = "ue5.7-Win64-2026-05-23";
+
+/** Default HTTPS folder prefix when `VITE_FAB_MARKETPLACE_ZIP_BASE` is unset in production. */
+export const DEFAULT_FAB_MARKETPLACE_ZIP_BASE = `https://github.com/chiku524/fab-products/releases/download/${FAB_MARKETPLACE_RELEASE_TAG}`;
+
 export type FabPluginPackage = {
   slug: string;
   /** Product name for page titles and cards */
@@ -118,7 +124,9 @@ export const fabPluginPackageBySlug: ReadonlyMap<string, FabPluginPackage> = new
  * prefix, no trailing filename) + `zipFile` when set; otherwise same-origin public path.
  */
 export const fabPluginUrlPath = (pkg: Pick<FabPluginPackage, "zipFile">) => {
-  const base = (import.meta.env.VITE_FAB_MARKETPLACE_ZIP_BASE as string | undefined)?.trim();
+  const envBase = (import.meta.env.VITE_FAB_MARKETPLACE_ZIP_BASE as string | undefined)?.trim();
+  const base =
+    envBase || (import.meta.env.PROD ? DEFAULT_FAB_MARKETPLACE_ZIP_BASE : "");
   if (base) {
     return `${base.replace(/\/$/, "")}/${pkg.zipFile}`;
   }
