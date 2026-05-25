@@ -35,12 +35,7 @@ from studio_worker.ollama_client import (
     ollama_verify_model_enabled,
 )
 from studio_worker.paths import jobs_root
-from studio_worker.sqlite_queue import (
-    count_queue_by_status,
-    expire_overdue_queue_jobs,
-    list_queue_jobs,
-    queue_slo_hints,
-)
+from studio_worker.sqlite_queue import count_queue_by_status, list_queue_jobs, queue_slo_hints
 from studio_worker.stripe_billing import billing_catalog_public_flags
 from studio_worker.tenant_context import RequestTenant
 from studio_worker.tiers import (
@@ -191,7 +186,6 @@ def queue_slo_for_tenant(tenant: RequestTenant) -> dict[str, Any]:
 
 
 def studio_dashboard_dict(tenant: RequestTenant) -> dict[str, Any]:
-    expire_overdue_queue_jobs()
     return {
         "usage": usage_dict(tenant),
         "billing": billing_status_dict(tenant),

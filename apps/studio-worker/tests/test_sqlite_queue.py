@@ -109,7 +109,7 @@ def test_reclaim_stale_running(isolated_queue_db, monkeypatch) -> None:
     assert "stale" in (row["last_error"] or "").lower()
 
 
-def test_expire_overdue_queue_jobs(isolated_queue_db, monkeypatch) -> None:
+def test_expire_overdue_pending_uses_created_at(isolated_queue_db, monkeypatch) -> None:
     monkeypatch.setenv("STUDIO_QUEUE_MAX_JOB_AGE_S", "60")
     qid = enqueue_job({"user_prompt": "stale prompt", "mock": True}, max_attempts=1).queue_id
     from studio_worker import queue_sqlite as qimpl
@@ -119,7 +119,7 @@ def test_expire_overdue_queue_jobs(isolated_queue_db, monkeypatch) -> None:
     try:
         conn.execute(
             "UPDATE queue_jobs SET created_at = ?, updated_at = ? WHERE id = ?",
-            ("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z", qid),
+            ("2020-01-01T00:00:00Z", "2026-05-25T12:00:00Z", qid),
         )
         conn.commit()
     finally:
@@ -129,7 +129,38 @@ def test_expire_overdue_queue_jobs(isolated_queue_db, monkeypatch) -> None:
     row = get_queue_job(qid)
     assert row is not None
     assert row["status"] == "dead"
-    assert "max age" in (row["last_error"] or "").lower()
+    assert "pending" in (row["last_error"] or "").lower()
+
+
+def test_expire_running_uses_updated_at_not_created_at(isolated_queue_db, monkeypatch) -> None:
+    monkeypatch.setenv("STUDIO_QUEUE_MAX_JOB_AGE_S", "60")
+    qid = enqueue_job({"user_prompt": "long run", "mock": True}, max_attempts=1).queue_id
+    j = claim_next_job(worker_id="w1")
+    assert j is not None
+    from studio_worker import queue_sqlite as qimpl
+
+    now = qimpl._utc_now()
+    db_path = qimpl.queue_db_path()
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            "UPDATE queue_jobs SET created_at = ?, updated_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00Z", now, qid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert expire_overdue_queue_jobs() == 0
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            "UPDATE queue_jobs SET updated_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00Z", qid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert expire_overdue_queue_jobs() == 1
 
 
 def test_dead_job_releases_idempotency_key(isolated_queue_db) -> None:

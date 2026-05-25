@@ -265,35 +265,50 @@ def _register_expired_job_index_entry(payload_raw: str, *, error: str) -> None:
 
 def expire_overdue_queue_jobs() -> int:
     """
-    Mark ``pending`` / ``running`` rows older than ``STUDIO_QUEUE_MAX_JOB_AGE_S`` as ``dead``.
-    Returns number of rows updated. Safe to call from API handlers and the queue worker idle loop.
+    Mark stuck queue rows ``dead`` when they exceed ``STUDIO_QUEUE_MAX_JOB_AGE_S``.
+
+    - ``pending``: age since ``created_at`` (never claimed — queue not draining).
+    - ``running``: age since ``updated_at`` (last claim/progress write — avoids killing
+      long in-flight work that started recently but was enqueued earlier).
+
+    Returns number of rows updated. Intended for API startup and the queue worker idle loop
+    only (not per dashboard poll).
     """
     threshold = _max_queue_job_age_s()
     if threshold is None:
         return 0
     init_schema()
     now = _utc_now()
-    msg = (
-        f"Queue job exceeded max age ({int(threshold)}s since enqueue; "
-        "see STUDIO_QUEUE_MAX_JOB_AGE_S). Cancelled as dead."
-    )[:4000]
     expired = 0
     with _write_lock:
         conn = _connect()
         try:
             rows = conn.execute(
                 """
-                SELECT id, payload, attempts, max_attempts, studio_job_id, created_at
+                SELECT id, payload, status, studio_job_id, created_at, updated_at
                 FROM queue_jobs
                 WHERE status IN ('pending', 'running')
                 """
             ).fetchall()
             for row in rows:
-                age = _age_seconds_from_created_at(str(row["created_at"]))
+                status = str(row["status"])
+                if status == "pending":
+                    age = _age_seconds_from_created_at(str(row["created_at"]))
+                    reason = (
+                        f"Queue job exceeded max pending age ({int(threshold)}s since enqueue; "
+                        "queue worker may not be running — check STUDIO_EMBEDDED_QUEUE_WORKER "
+                        "or `immersive-studio queue-worker`. See STUDIO_QUEUE_MAX_JOB_AGE_S)."
+                    )
+                else:
+                    age = _age_seconds_from_created_at(str(row["updated_at"]))
+                    reason = (
+                        f"Queue job exceeded max running idle ({int(threshold)}s since last "
+                        "worker activity). See STUDIO_QUEUE_MAX_JOB_AGE_S."
+                    )
                 if age is None or age <= threshold:
                     continue
+                msg = reason[:4000]
                 qid = str(row["id"])
-                max_attempts = int(row["max_attempts"])
                 cur = conn.execute(
                     """
                     UPDATE queue_jobs
@@ -379,7 +394,7 @@ def reclaim_stale_running_jobs() -> int:
 
 
 def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) -> str | None:
-    """Return existing queue job id for this tenant + key, or None."""
+    """Return in-flight queue job id for this tenant + key, or None."""
     if not idempotency_key.strip():
         return None
     init_schema()
@@ -389,7 +404,9 @@ def find_queue_id_by_idempotency(tenant_id: str | None, idempotency_key: str) ->
         row = conn.execute(
             """
             SELECT id FROM queue_jobs
-            WHERE coalesce(tenant_id, '') = ? AND idempotency_key = ?
+            WHERE coalesce(tenant_id, '') = ?
+              AND idempotency_key = ?
+              AND status IN ('pending', 'running')
             LIMIT 1
             """,
             (tid_coalesce, idempotency_key.strip()),
@@ -436,7 +453,9 @@ def enqueue_job(
                 row = conn.execute(
                     """
                     SELECT id FROM queue_jobs
-                    WHERE coalesce(tenant_id, '') = ? AND idempotency_key = ?
+                    WHERE coalesce(tenant_id, '') = ?
+                      AND idempotency_key = ?
+                      AND status IN ('pending', 'running')
                     LIMIT 1
                     """,
                     (tid_coalesce, (idem or "").strip()),
@@ -535,7 +554,8 @@ def mark_completed(
                     studio_job_id = ?,
                     last_error = NULL,
                     progress_json = NULL,
-                    updated_at = ?
+                    updated_at = ?,
+                    idempotency_key = NULL
                 WHERE id = ?
                 """,
                 (json.dumps(result), studio_job_id, now, queue_id),

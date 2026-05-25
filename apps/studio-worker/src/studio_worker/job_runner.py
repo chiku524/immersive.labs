@@ -82,6 +82,17 @@ def run_studio_job(
             shutil.rmtree(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        if queue_id:
+            try:
+                from studio_worker.sqlite_queue import update_queue_job_progress
+
+                update_queue_job_progress(
+                    queue_id,
+                    {"phase": "spec", "label": "Generating asset spec…"},
+                )
+            except Exception:
+                _log.debug("queue_progress_spec_skip queue_id=%s", queue_id, exc_info=True)
+
         errors: list[str] = []
         texture_logs: list[str] = []
         mesh_logs: list[str] = []

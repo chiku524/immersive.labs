@@ -1509,6 +1509,17 @@ export function StudioPage() {
               </button>
             </div>
             {queueSlo && STUDIO_API_READY ? <StudioQueueSloLine q={queueSlo} /> : null}
+            {queueSlo &&
+            STUDIO_API_READY &&
+            (queueSlo.pending_claimable_count > 0 || queueSlo.running_count > 0) &&
+            recentJobs.length === 0 ? (
+              <p className="studio-queue-slo-warn" role="status">
+                Queue has <strong>{queueSlo.pending_claimable_count}</strong> claimable pending and{" "}
+                <strong>{queueSlo.running_count}</strong> running but nothing is listed below — click{" "}
+                <strong>Refresh now</strong>. Stale <strong>queued</strong> rows usually mean the queue consumer is not
+                running (<code>STUDIO_EMBEDDED_QUEUE_WORKER</code> or <code>immersive-studio queue-worker</code>).
+              </p>
+            ) : null}
             {recentJobs.length === 0 ? (
               <div className="studio-jobs-empty">
                 <p className="studio-jobs-empty-title">No jobs in your index yet</p>
