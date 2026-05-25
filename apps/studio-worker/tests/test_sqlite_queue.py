@@ -12,6 +12,7 @@ from studio_worker.sqlite_queue import (
     mark_completed,
     mark_failed,
     reclaim_stale_running_jobs,
+    expire_overdue_queue_jobs,
 )
 
 
@@ -106,6 +107,29 @@ def test_reclaim_stale_running(isolated_queue_db, monkeypatch) -> None:
     assert row["worker_id"] is None
     assert row["last_error"] is not None
     assert "stale" in (row["last_error"] or "").lower()
+
+
+def test_expire_overdue_queue_jobs(isolated_queue_db, monkeypatch) -> None:
+    monkeypatch.setenv("STUDIO_QUEUE_MAX_JOB_AGE_S", "60")
+    qid = enqueue_job({"user_prompt": "stale prompt", "mock": True}, max_attempts=1).queue_id
+    from studio_worker import queue_sqlite as qimpl
+
+    db_path = qimpl.queue_db_path()
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            "UPDATE queue_jobs SET created_at = ?, updated_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z", qid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    n = expire_overdue_queue_jobs()
+    assert n == 1
+    row = get_queue_job(qid)
+    assert row is not None
+    assert row["status"] == "dead"
+    assert "max age" in (row["last_error"] or "").lower()
 
 
 def test_dead_job_releases_idempotency_key(isolated_queue_db) -> None:

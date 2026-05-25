@@ -218,6 +218,105 @@ def queue_slo_hints(
         conn.close()
 
 
+def _max_queue_job_age_s() -> float | None:
+    """
+    Wall-clock cap from ``created_at`` for ``pending`` or ``running`` rows. When exceeded, the job is
+    marked ``dead`` (and a failed index entry is written) so the UI and queue stop waiting.
+    Default 14400 (4h). ``0``/``off`` disables. Min 600s when enabled.
+    """
+    raw = os.environ.get("STUDIO_QUEUE_MAX_JOB_AGE_S", "14400").strip().lower()
+    if raw in ("0", "", "off", "false", "no"):
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        v = 14400.0
+    return max(600.0, min(v, 172800.0))
+
+
+def _register_expired_job_index_entry(payload_raw: str, *, error: str) -> None:
+    """Best-effort jobs index row so /studio Recent jobs lists timed-out queue work."""
+    from studio_worker.jobs_store import (
+        allocate_job_id,
+        new_job_folder_name,
+        register_job_entry,
+    )
+
+    try:
+        payload = json.loads(payload_raw)
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    prompt = str(payload.get("user_prompt") or "").strip()
+    summary = (prompt[:120] + "…") if len(prompt) > 120 else (prompt or "(queue job)")
+    job_id = allocate_job_id()
+    folder = new_job_folder_name(job_id)
+    register_job_entry(
+        job_id=job_id,
+        folder=folder,
+        summary=summary,
+        status="failed",
+        has_textures=bool(payload.get("generate_textures")),
+        error=error[:2000],
+        tenant_id=str(payload["tenant_id"]) if payload.get("tenant_id") else None,
+    )
+
+
+def expire_overdue_queue_jobs() -> int:
+    """
+    Mark ``pending`` / ``running`` rows older than ``STUDIO_QUEUE_MAX_JOB_AGE_S`` as ``dead``.
+    Returns number of rows updated. Safe to call from API handlers and the queue worker idle loop.
+    """
+    threshold = _max_queue_job_age_s()
+    if threshold is None:
+        return 0
+    init_schema()
+    now = _utc_now()
+    msg = (
+        f"Queue job exceeded max age ({int(threshold)}s since enqueue; "
+        "see STUDIO_QUEUE_MAX_JOB_AGE_S). Cancelled as dead."
+    )[:4000]
+    expired = 0
+    with _write_lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                """
+                SELECT id, payload, attempts, max_attempts, studio_job_id, created_at
+                FROM queue_jobs
+                WHERE status IN ('pending', 'running')
+                """
+            ).fetchall()
+            for row in rows:
+                age = _age_seconds_from_created_at(str(row["created_at"]))
+                if age is None or age <= threshold:
+                    continue
+                qid = str(row["id"])
+                max_attempts = int(row["max_attempts"])
+                cur = conn.execute(
+                    """
+                    UPDATE queue_jobs
+                    SET status = 'dead',
+                        last_error = ?,
+                        worker_id = NULL,
+                        progress_json = NULL,
+                        updated_at = ?,
+                        idempotency_key = NULL
+                    WHERE id = ? AND status IN ('pending', 'running')
+                    """,
+                    (msg, now, qid),
+                )
+                if cur.rowcount:
+                    expired += cur.rowcount
+                    if not row["studio_job_id"]:
+                        _register_expired_job_index_entry(str(row["payload"]), error=msg)
+            conn.commit()
+        finally:
+            conn.close()
+    return expired
+
+
 def _stale_running_reclaim_threshold_s() -> float | None:
     """
     If a row stays ``running`` longer than this many seconds since ``updated_at`` (claim or last
@@ -599,12 +698,18 @@ def run_worker_loop(
     from studio_worker.queue_executor import execute_queued_payload
 
     exec_fn = executor or execute_queued_payload
+    last_expire_mono = 0.0
+    expire_interval_s = max(30.0, min(poll_interval_s * 30.0, 120.0))
 
     while True:
         if stop_event is not None and stop_event.is_set():
             return
         job = claim_next_job(worker_id=worker_id)
         if job is None:
+            now_mono = time.monotonic()
+            if now_mono - last_expire_mono >= expire_interval_s:
+                expire_overdue_queue_jobs()
+                last_expire_mono = now_mono
             if run_once:
                 return
             if stop_event is not None and stop_event.is_set():

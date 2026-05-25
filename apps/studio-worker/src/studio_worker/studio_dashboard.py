@@ -35,7 +35,12 @@ from studio_worker.ollama_client import (
     ollama_verify_model_enabled,
 )
 from studio_worker.paths import jobs_root
-from studio_worker.sqlite_queue import count_queue_by_status, queue_slo_hints
+from studio_worker.sqlite_queue import (
+    count_queue_by_status,
+    expire_overdue_queue_jobs,
+    list_queue_jobs,
+    queue_slo_hints,
+)
 from studio_worker.stripe_billing import billing_catalog_public_flags
 from studio_worker.tenant_context import RequestTenant
 from studio_worker.tiers import (
@@ -102,6 +107,17 @@ def jobs_list_dict(tenant: RequestTenant) -> dict[str, Any]:
     }
 
 
+def queue_jobs_list_dict(tenant: RequestTenant, *, limit: int = 30) -> dict[str, Any]:
+    """Recent queue rows (pending/running/dead/completed) for /studio in-flight visibility."""
+    return {
+        "jobs": list_queue_jobs(
+            limit=limit,
+            tenant_id=tenant.tenant_id,
+            include_legacy_unscoped=not tenant.limits_enforced,
+        ),
+    }
+
+
 def worker_hints_dict() -> dict[str, Any]:
     """Non-secret operator hints for /studio (LLM timeouts, queue topology)."""
     qb = queue_backend()
@@ -126,7 +142,16 @@ def worker_hints_dict() -> dict[str, Any]:
         "queue_backend": qb,
         "postgres_configured": bool(database_url()),
         "redis_configured": bool(redis_url()),
+        "queue_max_job_age_s": _max_queue_job_age_hint(),
     }
+
+
+def _max_queue_job_age_hint() -> float | None:
+    if queue_backend() != "sqlite":
+        return None
+    from studio_worker.queue_sqlite import _max_queue_job_age_s
+
+    return _max_queue_job_age_s()
 
 
 def queue_counts_and_slo_raw(tenant: RequestTenant) -> tuple[dict[str, int], dict[str, Any]]:
@@ -166,10 +191,12 @@ def queue_slo_for_tenant(tenant: RequestTenant) -> dict[str, Any]:
 
 
 def studio_dashboard_dict(tenant: RequestTenant) -> dict[str, Any]:
+    expire_overdue_queue_jobs()
     return {
         "usage": usage_dict(tenant),
         "billing": billing_status_dict(tenant),
         "jobs": jobs_list_dict(tenant),
+        "queue_jobs": queue_jobs_list_dict(tenant),
         "worker_hints": worker_hints_dict(),
         "queue_slo": queue_slo_for_tenant(tenant),
     }

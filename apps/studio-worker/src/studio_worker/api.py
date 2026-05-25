@@ -47,6 +47,7 @@ from studio_worker.sqlite_queue import (
     init_schema as init_queue_schema,
     list_queue_jobs,
     reclaim_stale_running_jobs,
+    expire_overdue_queue_jobs,
     run_worker_loop,
 )
 from studio_worker.billing_config import stripe_webhook_secret
@@ -149,6 +150,12 @@ async def _app_lifespan(_app: FastAPI):
 
     tenants_db.init_tenants_schema()
     init_queue_schema()
+    n_expired = expire_overdue_queue_jobs()
+    if n_expired:
+        logging.getLogger("studio.job").warning(
+            "expired %s overdue queue job(s) as dead (see STUDIO_QUEUE_MAX_JOB_AGE_S)",
+            n_expired,
+        )
     n_stale = reclaim_stale_running_jobs()
     if n_stale:
         logging.getLogger("studio.job").warning(

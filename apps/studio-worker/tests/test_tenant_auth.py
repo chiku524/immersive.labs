@@ -199,7 +199,11 @@ def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
     assert isinstance(wh.get("comfy_image_wait_s"), (int, float))
     assert isinstance(wh.get("comfy_max_concurrent"), int)
     assert "embedded_queue_worker" in wh
+    assert "queue_max_job_age_s" in wh
     assert "queue_backend" in wh
+    qj = d.get("queue_jobs")
+    assert isinstance(qj, dict)
+    assert isinstance(qj.get("jobs"), list)
     assert "job_textures_before_mesh" in wh
     qs = d.get("queue_slo")
     assert isinstance(qs, dict)

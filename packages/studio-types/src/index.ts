@@ -110,6 +110,23 @@ export interface StudioJobsListPayload {
   jobs_root: string;
 }
 
+/** Row from `GET /api/studio/queue/jobs` and `dashboard.queue_jobs`. */
+export interface StudioQueueJobSummary {
+  id: string;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+  last_error?: string | null;
+  studio_job_id?: string | null;
+  attempts?: number;
+  max_attempts?: number;
+  payload?: { user_prompt?: string; generate_textures?: boolean };
+}
+
+export interface StudioQueueJobsListPayload {
+  jobs: StudioQueueJobSummary[];
+}
+
 /** `GET /api/studio/dashboard` → `worker_hints` (operator tuning, not secrets). */
 export interface StudioWorkerHints {
   ollama_read_timeout_s: number;
@@ -143,6 +160,8 @@ export interface StudioWorkerHints {
   queue_backend?: string;
   postgres_configured?: boolean;
   redis_configured?: boolean;
+  /** Max seconds a queue row may stay pending/running before auto-dead (SQLite; ``STUDIO_QUEUE_MAX_JOB_AGE_S``). */
+  queue_max_job_age_s?: number | null;
 }
 
 /** `GET /api/studio/dashboard` → `queue_slo` (matches ``GET /api/studio/metrics`` → ``slo``). */
@@ -158,6 +177,8 @@ export interface StudioDashboardPayload {
   usage: StudioUsageInfo;
   billing: StudioBillingStatus;
   jobs: StudioJobsListPayload;
+  /** Recent queue rows (in-flight and terminal) — use with `jobs` for /studio Recent jobs. */
+  queue_jobs?: StudioQueueJobsListPayload;
   worker_hints?: StudioWorkerHints;
   queue_slo?: StudioQueueSloSnapshot;
 }

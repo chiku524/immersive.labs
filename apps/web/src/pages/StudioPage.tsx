@@ -3,6 +3,7 @@ import type {
   StudioComfyStatusPayload,
   StudioDashboardPayload,
   StudioJobSummary,
+  StudioQueueJobSummary,
   StudioQueueSloSnapshot,
   StudioUsageInfo,
   StudioWorkerHints,
@@ -56,6 +57,44 @@ function formatQueueAgeSeconds(seconds: number | null | undefined): string | nul
 /** Ages above this (seconds) usually indicate the queue is not draining, not normal backlog. */
 const STALE_QUEUE_AGE_SECONDS = 3600;
 
+type RecentJobDisplay = StudioJobSummary & { queue_id?: string };
+
+function queuePromptSummary(payload: StudioQueueJobSummary["payload"]): string {
+  const p = typeof payload?.user_prompt === "string" ? payload.user_prompt.trim() : "";
+  if (!p) {
+    return "(queue job)";
+  }
+  return p.length > 120 ? `${p.slice(0, 120)}…` : p;
+}
+
+/** In-flight queue rows first, then persisted index jobs (deduped by studio_job_id). */
+function mergeRecentJobRows(
+  indexJobs: StudioJobSummary[],
+  queueJobs: StudioQueueJobSummary[] | undefined,
+): RecentJobDisplay[] {
+  const indexedIds = new Set(indexJobs.map((j) => j.job_id));
+  const queueRows: RecentJobDisplay[] = [];
+  for (const q of queueJobs ?? []) {
+    if (q.studio_job_id && indexedIds.has(q.studio_job_id)) {
+      continue;
+    }
+    if (q.status !== "pending" && q.status !== "running" && q.status !== "dead") {
+      continue;
+    }
+    queueRows.push({
+      job_id: q.studio_job_id || q.id,
+      folder: "",
+      created_at: q.created_at,
+      status: q.status === "pending" ? "queued" : q.status,
+      summary: queuePromptSummary(q.payload),
+      has_textures: Boolean(q.payload?.generate_textures),
+      error: q.last_error ?? null,
+      queue_id: q.id,
+    });
+  }
+  return [...queueRows, ...indexJobs];
+}
+
 function queueSloLooksStale(q: StudioQueueSloSnapshot): boolean {
   const p = q.pending_oldest_age_seconds;
   const r = q.running_oldest_age_seconds;
@@ -80,7 +119,8 @@ function StudioQueueSloLine({ q }: { q: StudioQueueSloSnapshot }) {
         <p className="studio-queue-slo-warn" role="status">
           Very old ages usually mean work is not finishing: confirm the API process and queue consumer are running (
           <code>STUDIO_EMBEDDED_QUEUE_WORKER</code>), check tunnel and VM health, and ensure Ollama/Comfy steps are not
-          blocked if those features are enabled.
+          blocked if those features are enabled. Stuck rows are auto-marked <strong>dead</strong> after{" "}
+          <code>STUDIO_QUEUE_MAX_JOB_AGE_S</code> (default 4h) — raise it for large texture batches.
         </p>
       ) : null}
     </>
@@ -486,6 +526,7 @@ export function StudioPage() {
   const [billing, setBilling] = useState<StudioBillingStatus | null>(null);
   const [comfy, setComfy] = useState<StudioComfyStatusPayload | null>(null);
   const [jobs, setJobs] = useState<StudioJobSummary[]>([]);
+  const [queueJobs, setQueueJobs] = useState<StudioQueueJobSummary[]>([]);
   const [jobsRoot, setJobsRoot] = useState<string | null>(null);
   const [workerHints, setWorkerHints] = useState<StudioWorkerHints | null>(null);
   const [queueSlo, setQueueSlo] = useState<StudioQueueSloSnapshot | null>(null);
@@ -584,6 +625,7 @@ export function StudioPage() {
   const refreshDashboard = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
       setJobs([]);
+      setQueueJobs([]);
       setUsage(null);
       setBilling(null);
       setWorkerHints(null);
@@ -614,6 +656,7 @@ export function StudioPage() {
         setUsage(d.usage);
         setBilling(d.billing);
         setJobs(d.jobs?.jobs ?? []);
+        setQueueJobs(d.queue_jobs?.jobs ?? []);
         if (d.jobs?.jobs_root) {
           setJobsRoot(d.jobs.jobs_root);
         }
@@ -625,12 +668,15 @@ export function StudioPage() {
           return;
         }
         setJobs([]);
+        setQueueJobs([]);
         setUsage(null);
         setBilling(null);
         setWorkerHints(null);
         setQueueSlo(null);
       });
   }, [authHeaders]);
+
+  const recentJobs = mergeRecentJobRows(jobs, queueJobs);
 
   const refreshComfy = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
@@ -968,7 +1014,6 @@ export function StudioPage() {
             <Link to="/studio" className="nav-active">
               Game studio
             </Link>
-            <Link to="/fab-products">Fab products</Link>
             <Link to="/docs">Docs</Link>
           </nav>
         </header>
@@ -1420,6 +1465,13 @@ export function StudioPage() {
                 ). Texture size cap: <code>{workerHints.texture_global_max_side ?? "—"}</code>px (
                 <code>STUDIO_TEXTURE_MAX_SIDE</code>
                 ). Queue backend: <code>{workerHints.queue_backend ?? "sqlite"}</code>
+                {workerHints.queue_max_job_age_s != null ? (
+                  <>
+                    . Auto-cancel pending/running queue rows after{" "}
+                    <code>{Math.round(workerHints.queue_max_job_age_s / 3600)}h</code> (
+                    <code>STUDIO_QUEUE_MAX_JOB_AGE_S</code>)
+                  </>
+                ) : null}
                 {workerHints.postgres_configured ? " (Postgres URL set)" : ""}
                 {workerHints.redis_configured ? " (Redis URL set)" : ""}. Job order: textures{" "}
                 {workerHints.job_textures_before_mesh ? "before" : "after"} mesh (
@@ -1457,12 +1509,13 @@ export function StudioPage() {
               </button>
             </div>
             {queueSlo && STUDIO_API_READY ? <StudioQueueSloLine q={queueSlo} /> : null}
-            {jobs.length === 0 ? (
+            {recentJobs.length === 0 ? (
               <div className="studio-jobs-empty">
                 <p className="studio-jobs-empty-title">No jobs in your index yet</p>
                 <p className="studio-jobs-empty-body">
                   Run <strong>Run full job</strong> below (try <strong>Mock mode</strong> first to verify the pipeline
-                  without Ollama). Failed runs still appear here with full error text — expand the error row when
+                  without Ollama). In-flight queue work appears here as <strong>queued</strong> or <strong>running</strong>{" "}
+                  before a pack is written. Failed runs still appear with full error text — expand the error row when
                   present.
                 </p>
               </div>
@@ -1484,9 +1537,9 @@ export function StudioPage() {
                       <th scope="col">Download</th>
                     </tr>
                   </thead>
-                  {jobs.map((j) => (
+                  {recentJobs.map((j) => (
                     <tbody
-                      key={j.job_id}
+                      key={j.queue_id ?? j.job_id}
                       className={
                         j.status === "failed" || j.status === "completed_with_errors"
                           ? "studio-jobs-tbody-issue"
@@ -1499,7 +1552,15 @@ export function StudioPage() {
                         </td>
                         <td>
                           <code>{j.summary}</code>
-                          <div className="studio-table-sub">{j.job_id}</div>
+                          <div className="studio-table-sub">
+                            {j.queue_id ? (
+                              <>
+                                queue <code>{j.queue_id}</code>
+                              </>
+                            ) : (
+                              <code>{j.job_id}</code>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <span
@@ -1518,14 +1579,18 @@ export function StudioPage() {
                         </td>
                         <td>{j.has_textures ? "yes" : "no"}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="studio-table-link"
-                            disabled={!STUDIO_API_READY}
-                            onClick={() => void downloadJobZip(j.job_id)}
-                          >
-                            ZIP
-                          </button>
+                          {j.queue_id ? (
+                            <span className="studio-table-sub">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="studio-table-link"
+                              disabled={!STUDIO_API_READY}
+                              onClick={() => void downloadJobZip(j.job_id)}
+                            >
+                              ZIP
+                            </button>
+                          )}
                         </td>
                       </tr>
                       {j.error ? (
