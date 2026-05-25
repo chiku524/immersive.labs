@@ -33,9 +33,9 @@ export type FabPluginPackage = {
   zipFile: string;
   description: string;
   installNote: string;
-  /** Category line on /fab-products cards */
+  /** Category line for listings */
   tag: string;
-  /** One-line blurb on /fab-products */
+  /** One-line blurb for listings */
   cardBlurb: string;
   /**
    * Top-level folder name inside the .zip (matches fab-products build: `{ProductId}-UE5.7-Win64`).
@@ -118,6 +118,9 @@ export const fabPluginPackages: readonly FabPluginPackage[] = [
 export const fabPluginPackageBySlug: ReadonlyMap<string, FabPluginPackage> = new Map(
   fabPluginPackages.map((p) => [p.slug, p] as const),
 );
+
+/** Unlisted per-product download page (share this URL per product). */
+export const privatePluginDownloadPath = (slug: string) => `/p/plugins/${slug}`;
 
 /**
  * Download href for a marketplace zip. Prefers `VITE_FAB_MARKETPLACE_ZIP_BASE` (full URL

@@ -18,7 +18,6 @@ export function MarketingHome() {
             <a href="#work">Work</a>
             <a href="#capabilities">Capabilities</a>
             <Link to="/studio">Game studio</Link>
-            <Link to="/fab-products">Fab products</Link>
             <Link to="/docs">Docs</Link>
             <a href="#contact">Contact</a>
           </nav>

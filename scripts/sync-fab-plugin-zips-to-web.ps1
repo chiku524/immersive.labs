@@ -1,5 +1,5 @@
 # Copies full RunUAT Fab marketplace zips (UE 5.7 Win64) into the web app public folder
-# so /fab-products and /p/plugins can link to them. Filenames must match
+# so /p/plugins/:slug pages can link to them. Filenames must match
 # apps/web/src/data/fabPluginPackages.ts (e.g. HarborSuite-UE5.7-Win64.zip).
 # Zips are gitignored; run this after fab-products\scripts\build-fab-marketplace-drops-ue57.ps1
 #
