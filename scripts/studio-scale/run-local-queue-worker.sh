@@ -30,7 +30,6 @@ export STUDIO_TENANTS_BACKEND="${STUDIO_TENANTS_BACKEND:-postgres}"
 cd "$ROOT/apps/studio-worker"
 python -m pip install -e ".[scale]" -q
 immersive-studio init-db
-immersive-studio doctor --api-only
 if ! immersive-studio doctor "$@"; then
   echo "WARNING: Comfy/Blender not fully ready — mock jobs may still work." >&2
 fi

@@ -1,9 +1,9 @@
 # Postgres queue + split API / queue-worker + optional local Postgres (Phases A–D).
 #
 # From monorepo root:
-#   cp apps/studio-worker/.env.scale.example apps/studio-worker/.env.scale
-#   # Edit .env.scale (DATABASE_URL, R2 keys, CORS, Comfy, Ollama)
-#   docker compose -f apps/studio-worker/docker-compose.scale.yml --env-file apps/studio-worker/.env.scale up --build
+#   python scripts/studio-scale/provision-scale-env.py   # or copy .env.scale.example
+#   npm run studio:scale:api
+#   # full stack with local Postgres: npm run studio:scale:up
 #
 # Profiles:
 #   (default)     postgres + studio-api (no embedded consumer)

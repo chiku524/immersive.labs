@@ -40,7 +40,7 @@ AWS_SECRET_ACCESS_KEY=...
 
 Install the S3 extra: `pip install -e ".[s3]"` (or `".[scale]"`).
 
-**Next steps:** create R2 bucket + token, set env on the Docker/GCE deployment, run one job, confirm the job index exposes a presigned or public URL as today.
+**Next steps:** see [scale-postgres-r2-local-worker.md](./scale-postgres-r2-local-worker.md) — `python scripts/studio-scale/provision-scale-env.py` writes `.env.scale`; `bash scripts/studio-scale/apply-gcp-scale-api.sh` refreshes the GCP API container.
 
 ---
 

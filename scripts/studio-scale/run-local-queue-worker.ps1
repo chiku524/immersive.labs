@@ -25,7 +25,6 @@ if (-not $env:STUDIO_TENANTS_BACKEND) { $env:STUDIO_TENANTS_BACKEND = "postgres"
 Push-Location (Join-Path $Root "apps\studio-worker")
 python -m pip install -e ".[scale]" -q
 immersive-studio init-db
-immersive-studio doctor --api-only
 $doc = immersive-studio doctor 2>&1
 if ($LASTEXITCODE -ne 0) {
   Write-Warning "Comfy/Blender not fully ready — mock jobs may still work.`n$doc"

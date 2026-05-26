@@ -1,6 +1,8 @@
 # Scaling the Studio queue (API vs worker processes)
 
-When Ollama, ComfyUI, and Blender share one small VM, long jobs can starve the HTTP API or trigger tunnel **502** responses. Use this checklist before adding hardware.
+For **Postgres + R2 + local GPU worker**, use [scale-postgres-r2-local-worker.md](./scale-postgres-r2-local-worker.md) first.
+
+When Ollama, ComfyUI, and Blender share one small VM, long jobs can starve the HTTP API or trigger tunnel **502** responses. Use this checklist before adding hardware (SQLite or generic split).
 
 ## 1. Split the queue consumer from the API
 

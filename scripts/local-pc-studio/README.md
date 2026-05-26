@@ -1,6 +1,10 @@
 # Host Studio on your local PC (ComfyUI + Blender + API)
 
-Use this layout when **your machine** runs the full stack: **ComfyUI** (textures), **Blender** (mesh), and **`immersive-studio serve`** (HTTP API + embedded queue). The marketing site can stay on Vercel while `/studio` talks to your PC (see [Expose to the internet](#optional-expose-your-pc-to-the-browser)).
+**Production scale path (Neon Postgres + R2 + remote API):** run only the queue worker on this PC — see [docs/studio/scale-postgres-r2-local-worker.md](../../docs/studio/scale-postgres-r2-local-worker.md) and `bash scripts/studio-scale/run-local-queue-worker.sh`. Use the Comfy start scripts below; skip `start-studio-api` if the API runs on GCP.
+
+---
+
+Use this layout when **your machine** runs the full **SQLite** stack: **ComfyUI** (textures), **Blender** (mesh), and **`immersive-studio serve`** (HTTP API + embedded queue). The marketing site can stay on Vercel while `/studio` talks to your PC (see [Expose to the internet](#optional-expose-your-pc-to-the-browser)).
 
 ## Prerequisites
 

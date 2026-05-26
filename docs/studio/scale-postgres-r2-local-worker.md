@@ -44,20 +44,15 @@ No Immersive-specific subscription.
 
 ## 2. Cloudflare R2 (Phase A)
 
-1. Cloudflare dashboard → **R2** → Create bucket.
-2. **Manage R2 API tokens** → Create token with Object Read & Write on that bucket.
-3. Note **Account ID** for the S3 endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
-
-Set in `.env.scale` (see below):
+**Automated (recommended):** create bucket `immersive-studio-packs` in the dashboard (or reuse an existing bucket), then generate `.env.scale` from Neon + Cloudflare:
 
 ```bash
-STUDIO_JOB_ARTIFACTS=r2
-STUDIO_S3_BUCKET=your-bucket
-STUDIO_S3_ENDPOINT_URL=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
-STUDIO_S3_REGION=auto
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
+export NEON_API_KEY=...
+export CLOUDFLARE_API_TOKEN=...   # account token with R2 access
+python scripts/studio-scale/provision-scale-env.py
 ```
+
+The script sets `STUDIO_JOB_ARTIFACTS=r2`, the R2 S3 endpoint, and derives S3 keys from the Cloudflare token ([docs](https://developers.cloudflare.com/r2/api/tokens/)). Alternatively set `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` from **R2 → Manage R2 API tokens** before running the script.
 
 After a job, `GET /api/studio/jobs/{id}/download` returns **302** to a presigned R2 URL.
 
@@ -88,11 +83,11 @@ immersive-studio init-db
 ## 4. Config file
 
 ```bash
-cp apps/studio-worker/.env.scale.example apps/studio-worker/.env.scale
-# Edit DATABASE_URL, R2 keys, STUDIO_CORS_ORIGINS, Comfy/Ollama URLs
+python scripts/studio-scale/provision-scale-env.py   # writes apps/studio-worker/.env.scale
+# or: cp apps/studio-worker/.env.scale.example apps/studio-worker/.env.scale and edit
 ```
 
-`.env.scale` is gitignored via `.env` patterns — do not commit secrets.
+`.env.scale` is gitignored — do not commit secrets.
 
 ---
 
@@ -101,8 +96,7 @@ cp apps/studio-worker/.env.scale.example apps/studio-worker/.env.scale
 **API only** (Neon + R2; queue worker on your PC):
 
 ```bash
-bash scripts/studio-scale/compose-api-up.sh
-# or: npm run studio:scale:api
+npm run studio:scale:api
 ```
 
 Verify:
@@ -161,32 +155,17 @@ Run a second machine with `STUDIO_QUEUE_WORKER_ID=desktop-2` — Postgres `SKIP 
 
 ### Option A — GCP VM (API + tunnel only)
 
-On the VM, stop running full jobs on e2-micro. Recreate the container with scale env (from `.env.scale`), or use the scale image:
+From your laptop (with `gcloud` and `apps/studio-worker/.env.scale`):
 
 ```bash
-docker build -f apps/studio-worker/Dockerfile --build-arg INSTALL_EXTRAS=scale -t immersive-studio-worker:scale .
-docker run -d --name studio-worker --restart unless-stopped \
-  --network host \
-  -e STUDIO_EMBEDDED_QUEUE_WORKER=0 \
-  -e STUDIO_QUEUE_BACKEND=postgres \
-  -e STUDIO_TENANTS_BACKEND=postgres \
-  -e DATABASE_URL='postgresql://...neon...' \
-  -e STUDIO_JOB_ARTIFACTS=r2 \
-  -e STUDIO_S3_BUCKET=... \
-  -e STUDIO_S3_ENDPOINT_URL=... \
-  -e AWS_ACCESS_KEY_ID=... \
-  -e AWS_SECRET_ACCESS_KEY=... \
-  -e STUDIO_CORS_ORIGINS='https://immersivelabs.space,...' \
-  -v studio-output:/repo/apps/studio-worker/output \
-  immersive-studio-worker:scale \
-  immersive-studio serve --host 127.0.0.1 --port 8787
+bash scripts/studio-scale/apply-gcp-scale-api.sh
 ```
 
-Tunnel / Worker unchanged: `ORIGIN_URL` → `api-origin` → `127.0.0.1:8787`.
+This rebuilds the scale image on the VM, runs the API with `STUDIO_EMBEDDED_QUEUE_WORKER=0`, and loads env from `.env.scale`. Tunnel / Worker unchanged: `ORIGIN_URL` → `api-origin` → `127.0.0.1:8787`.
 
 ### Option B — API on your LAN + tunnel
 
-Run `compose-api-up.sh` locally and point `cloudflared` at `127.0.0.1:8787` (dev-style).
+Run `npm run studio:scale:api` locally and point `cloudflared` at `127.0.0.1:8787` (dev-style).
 
 ---
 
