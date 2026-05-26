@@ -126,14 +126,27 @@ def _doctor_comfy_dns_hint(detail: str | None) -> None:
         )
 
 
+def _cmd_init_db(_args: argparse.Namespace) -> int:
+    """Create Postgres/SQLite queue + tenants tables (idempotent)."""
+    from studio_worker import tenants_db
+    from studio_worker.sqlite_queue import init_schema as init_queue_schema
+
+    tenants_db.init_tenants_schema()
+    init_queue_schema()
+    print("Initialized tenants + queue schema (idempotent).")
+    return 0
+
+
 def _cmd_doctor(args: argparse.Namespace) -> int:
     from studio_worker.comfy_client import DEFAULT_COMFY_BASE_URL, comfy_reachability
     from studio_worker.mesh_export import resolve_blender_executable
     from studio_worker.scale_config import (
         database_url,
         embedded_queue_worker_enabled,
+        job_artifacts_backend,
         queue_backend,
         redis_url,
+        s3_bucket,
     )
 
     qb = queue_backend()
@@ -141,15 +154,22 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     print(f"  STUDIO_QUEUE_BACKEND effective: {qb}")
     print(f"  DATABASE_URL set: {bool(database_url())}")
     print(f"  STUDIO_REDIS_URL / REDIS_URL set: {bool(redis_url())}")
+    print(f"  STUDIO_JOB_ARTIFACTS effective: {job_artifacts_backend()}")
+    if job_artifacts_backend() == "s3":
+        print(f"  STUDIO_S3_BUCKET set: {bool(s3_bucket())}")
     print(
         "  STUDIO_EMBEDDED_QUEUE_WORKER: "
         f"{'on' if embedded_queue_worker_enabled() else 'off'}"
         " — set to 0 and run `queue-worker` separately to keep the API responsive under heavy jobs."
     )
     print(
-        "  Docs: docs/studio/scaling-multiprocess-queue.md — Redis/Postgres queue extras: "
-        "pip install 'immersive-studio[redis]' or '[postgres]'."
+        "  Docs: docs/studio/scale-postgres-r2-local-worker.md — extras: "
+        "pip install 'immersive-studio[scale]'."
     )
+
+    if getattr(args, "api_only", False):
+        print("\nAPI-only check complete (skipped Comfy/Blender).")
+        return 0 if database_url() or qb == "sqlite" else 1
 
     comfy_probe = (args.comfy_url or "").strip() or None
     c = comfy_reachability(base_url=comfy_probe)
@@ -280,9 +300,15 @@ def main() -> None:
     s.add_argument("--reload", action="store_true")
     s.set_defaults(func=_cmd_serve)
 
+    idb = sub.add_parser(
+        "init-db",
+        help="Create queue + tenants tables (Postgres or SQLite per env)",
+    )
+    idb.set_defaults(func=_cmd_init_db)
+
     q = sub.add_parser(
         "queue-worker",
-        help="Poll SQLite job queue and run studio jobs (durable; multiple processes supported)",
+        help="Poll job queue and run studio jobs (sqlite/postgres/redis per env)",
     )
     q.add_argument(
         "--worker-id",
@@ -315,6 +341,11 @@ def main() -> None:
         "--strict",
         action="store_true",
         help="Also require Blender on PATH (for CI or full local toolchain checks)",
+    )
+    doc.add_argument(
+        "--api-only",
+        action="store_true",
+        help="Only print queue/storage env (for API hosts without Comfy/Blender)",
     )
     doc.set_defaults(func=_cmd_doctor)
 

@@ -1,0 +1,104 @@
+# Postgres queue + split API / queue-worker + optional local Postgres (Phases A–D).
+#
+# From monorepo root:
+#   cp apps/studio-worker/.env.scale.example apps/studio-worker/.env.scale
+#   # Edit .env.scale (DATABASE_URL, R2 keys, CORS, Comfy, Ollama)
+#   docker compose -f apps/studio-worker/docker-compose.scale.yml --env-file apps/studio-worker/.env.scale up --build
+#
+# Profiles:
+#   (default)     postgres + studio-api (no embedded consumer)
+#   worker        adds studio-queue-worker in Docker (same host as API)
+#   local-db      use bundled Postgres instead of Neon (DATABASE_URL set in .env.scale)
+#
+# Local GPU/CPU worker on your machine (recommended for full jobs):
+#   scripts/studio-scale/run-local-queue-worker.sh
+#   (same DATABASE_URL + R2 env as API; Ollama/Comfy on host)
+
+services:
+  postgres:
+    profiles: [local-db]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studio}
+      POSTGRES_DB: ${POSTGRES_DB:-studio}
+    volumes:
+      - studio_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studio} -d ${POSTGRES_DB:-studio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+
+  studio-api:
+    build:
+      context: ../..
+      dockerfile: apps/studio-worker/Dockerfile
+      args:
+        INSTALL_EXTRAS: scale
+    image: immersive-studio-worker:scale
+    restart: unless-stopped
+    ports:
+      - "${STUDIO_API_PUBLISH:-8787}:8787"
+    environment:
+      STUDIO_EMBEDDED_QUEUE_WORKER: "0"
+      STUDIO_QUEUE_BACKEND: postgres
+      STUDIO_TENANTS_BACKEND: ${STUDIO_TENANTS_BACKEND:-postgres}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.scale (Neon or local-db profile)}
+      STUDIO_JOB_ARTIFACTS: ${STUDIO_JOB_ARTIFACTS:-r2}
+      STUDIO_S3_BUCKET: ${STUDIO_S3_BUCKET:-}
+      STUDIO_S3_ENDPOINT_URL: ${STUDIO_S3_ENDPOINT_URL:-}
+      STUDIO_S3_REGION: ${STUDIO_S3_REGION:-auto}
+      STUDIO_S3_KEY_PREFIX: ${STUDIO_S3_KEY_PREFIX:-immersive-studio/packs}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
+      STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-https://comfy.immersivelabs.space}
+      STUDIO_OLLAMA_URL: ${STUDIO_OLLAMA_URL:-http://127.0.0.1:11434}
+      STUDIO_OLLAMA_MODEL: ${STUDIO_OLLAMA_MODEL:-tinyllama}
+      STUDIO_OLLAMA_DISABLED: ${STUDIO_OLLAMA_DISABLED:-0}
+      STUDIO_QUEUE_MAX_JOB_AGE_S: ${STUDIO_QUEUE_MAX_JOB_AGE_S:-14400}
+    volumes:
+      - studio_output:/repo/apps/studio-worker/output
+    command: ["immersive-studio", "serve", "--host", "0.0.0.0", "--port", "8787"]
+
+  studio-queue-worker:
+    profiles: [worker]
+    image: immersive-studio-worker:scale
+    restart: unless-stopped
+    environment:
+      STUDIO_QUEUE_BACKEND: postgres
+      STUDIO_TENANTS_BACKEND: ${STUDIO_TENANTS_BACKEND:-postgres}
+      DATABASE_URL: ${DATABASE_URL}
+      STUDIO_JOB_ARTIFACTS: ${STUDIO_JOB_ARTIFACTS:-r2}
+      STUDIO_S3_BUCKET: ${STUDIO_S3_BUCKET:-}
+      STUDIO_S3_ENDPOINT_URL: ${STUDIO_S3_ENDPOINT_URL:-}
+      STUDIO_S3_REGION: ${STUDIO_S3_REGION:-auto}
+      STUDIO_S3_KEY_PREFIX: ${STUDIO_S3_KEY_PREFIX:-immersive-studio/packs}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-https://comfy.immersivelabs.space}
+      STUDIO_OLLAMA_URL: ${STUDIO_OLLAMA_URL:-http://127.0.0.1:11434}
+      STUDIO_OLLAMA_MODEL: ${STUDIO_OLLAMA_MODEL:-}
+      STUDIO_OLLAMA_DISABLED: ${STUDIO_OLLAMA_DISABLED:-0}
+      STUDIO_QUEUE_MAX_JOB_AGE_S: ${STUDIO_QUEUE_MAX_JOB_AGE_S:-14400}
+    volumes:
+      - studio_output:/repo/apps/studio-worker/output
+    command:
+      [
+        "immersive-studio",
+        "queue-worker",
+        "--worker-id",
+        "${STUDIO_QUEUE_WORKER_ID:-compose-q-1}",
+        "--poll-interval",
+        "${STUDIO_QUEUE_POLL_INTERVAL:-1}",
+      ]
+    depends_on:
+      - studio-api
+
+volumes:
+  studio_output:
+  studio_pgdata:

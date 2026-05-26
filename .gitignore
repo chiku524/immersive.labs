@@ -1,6 +1,7 @@
 node_modules
 dist
 .env
+apps/studio-worker/.env.scale
 
 # Cursor IDE local state (hooks, continual-learning indices with machine-local paths)
 .cursor/

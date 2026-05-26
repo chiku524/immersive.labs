@@ -56,7 +56,9 @@ COPY packages/studio-types/schema /repo/packages/studio-types/schema
 COPY apps/studio-worker /repo/apps/studio-worker
 
 WORKDIR /repo/apps/studio-worker
-RUN pip install --no-cache-dir .
+# Default image: core deps only. Scale stack (Postgres queue + R2): build with --build-arg INSTALL_EXTRAS=scale
+ARG INSTALL_EXTRAS=
+RUN if [ -n "$INSTALL_EXTRAS" ]; then pip install --no-cache-dir ".[${INSTALL_EXTRAS}]"; else pip install --no-cache-dir .; fi
 
 RUN useradd --create-home --uid 1000 studio \
     && mkdir -p /repo/apps/studio-worker/output \

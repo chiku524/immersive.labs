@@ -28,6 +28,7 @@ Engineers and collaborators implementing the studio worker, ComfyUI graphs, Blen
 | [hardening.md](./hardening.md) | Moderation, quotas, attribution, CI notes (Phase 6) |
 | [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) | **Free-tier GCP VM:** Docker worker, HTTPS, static host `VITE_STUDIO_API_URL` (e.g. Cloudflare Pages) |
 | [cloudflare-edge-and-storage.md](./cloudflare-edge-and-storage.md) | **Workers + R2 + D1 + KV:** what fits the edge vs the Python VM, **R2 already wired** (`STUDIO_JOB_ARTIFACTS=r2`), phased migration |
+| **[scale-postgres-r2-local-worker.md](./scale-postgres-r2-local-worker.md)** | **Postgres + R2 + split API + local GPU queue worker** — compose, Neon, scripts |
 
 ## Shared types
 

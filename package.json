@@ -10,6 +10,8 @@
     "preview": "npm run preview -w @immersive/web",
     "dev:studio-edge": "npm run dev -w @immersive/studio-edge",
     "deploy:studio-edge": "npm run deploy -w @immersive/studio-edge",
-    "deploy:web": "npm run build && node scripts/vercel-deploy-prod.mjs"
+    "deploy:web": "npm run build && node scripts/vercel-deploy-prod.mjs",
+    "studio:scale:api": "docker compose -f apps/studio-worker/docker-compose.scale.yml --env-file apps/studio-worker/.env.scale up --build studio-api",
+    "studio:scale:up": "docker compose -f apps/studio-worker/docker-compose.scale.yml --env-file apps/studio-worker/.env.scale --profile local-db --profile worker up --build"
   }
 }
