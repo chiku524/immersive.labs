@@ -201,6 +201,46 @@ def _material_slots_to_plain_dicts(spec: dict[str, Any]) -> None:
     spec["material_slots"] = out
 
 
+def _fix_material_slot_swapped_role_resolution(spec: dict[str, Any]) -> None:
+    """
+    LLMs sometimes put resolution in ``role`` (e.g. role=512) and omit ``resolution_hint``.
+    Recover when ``role`` parses as a resolution and ``id`` names the material role.
+    """
+    _material_slots_to_plain_dicts(spec)
+    for slot in spec.get("material_slots") or []:
+        if not isinstance(slot, dict):
+            continue
+        role_raw = slot.get("role")
+        hint_raw = slot.get("resolution_hint")
+        if hint_raw is not None:
+            continue
+        parsed_role: str | None = None
+        parsed_hint: int | None = None
+        if isinstance(role_raw, str) and role_raw.strip().lower() in _MATERIAL_ROLE_SET:
+            continue
+        if isinstance(role_raw, (int, float)) and not isinstance(role_raw, bool):
+            parsed_hint = _parse_resolution_hint(role_raw)
+        elif isinstance(role_raw, str):
+            rh = role_raw.strip().lower()
+            if rh in _MATERIAL_ROLE_SET:
+                continue
+            parsed_hint = _parse_resolution_hint(role_raw)
+        if parsed_hint is None:
+            continue
+        sid = slot.get("id")
+        if isinstance(sid, str) and sid.strip().lower() in _MATERIAL_ROLE_SET:
+            parsed_role = sid.strip().lower()
+        elif isinstance(sid, str) and sid.strip():
+            for candidate in _MATERIAL_ROLE_SET:
+                if candidate in sid.strip().lower():
+                    parsed_role = candidate
+                    break
+        if parsed_role is None:
+            parsed_role = "albedo"
+        slot["role"] = parsed_role
+        slot["resolution_hint"] = parsed_hint
+
+
 def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
     """resolution_hint must be JSON integer in {512,1024,2048,4096}; models often emit \"2048\"."""
     _material_slots_to_plain_dicts(spec)
@@ -554,6 +594,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _coerce_target_height_m(spec)
     _coerce_generation_negative_prompt(spec)
     _recover_material_slots_from_misplaced_palette(spec)
+    _fix_material_slot_swapped_role_resolution(spec)
     _coerce_material_slot_resolution_hints(spec)
     _ensure_required_material_roles(spec)
     _default_tags_if_missing(spec)

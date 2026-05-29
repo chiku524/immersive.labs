@@ -57,6 +57,18 @@ def test_json_schema_accepts_literal_string_resolution_enum_without_coercion() -
     load_asset_validator().validate(spec)
 
 
+def test_material_slot_swapped_role_and_resolution_recovered() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["material_slots"] = [{"id": "albedo", "role": 512, "notes": ""}]
+    validate_asset_spec(spec)
+    assert spec["material_slots"][0]["role"] == "albedo"
+    assert spec["material_slots"][0]["resolution_hint"] == 512
+
+
 def test_material_slot_resolution_hint_string_coerced_to_int() -> None:
     spec = build_mock_spec(
         user_prompt="crate",
