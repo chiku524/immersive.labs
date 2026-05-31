@@ -41,7 +41,12 @@ echo "Resetting VM (runs startup: docker prune, git pull, rebuild, cloudflared r
 gcloud compute instances reset "$VM" --zone="$ZONE" --project="$PROJECT"
 
 echo "Waiting for instance RUNNING..."
-gcloud compute instances wait-until-running "$VM" --zone="$ZONE" --project="$PROJECT" --timeout=300
+for _w in $(seq 1 30); do
+  st="$(gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJECT" --format='get(status)' 2>/dev/null || echo UNKNOWN)"
+  echo "  VM status: $st"
+  [[ "$st" == "RUNNING" ]] && break
+  sleep 10
+done
 
 echo "Polling https://api-origin.immersivelabs.space/api/studio/health (up to ~20 min for docker build)..."
 ok=0
