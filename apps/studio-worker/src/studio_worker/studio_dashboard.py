@@ -35,6 +35,11 @@ from studio_worker.ollama_client import (
     ollama_verify_model_enabled,
 )
 from studio_worker.paths import jobs_root
+from studio_worker.mesh_pipeline.config import (
+    mesh_provider_name,
+    tripo_api_key,
+    tripo_texture_enabled,
+)
 from studio_worker.sqlite_queue import count_queue_by_status, list_queue_jobs, queue_slo_hints
 from studio_worker.stripe_billing import billing_catalog_public_flags
 from studio_worker.tenant_context import RequestTenant
@@ -138,6 +143,10 @@ def worker_hints_dict() -> dict[str, Any]:
         "postgres_configured": bool(database_url()),
         "redis_configured": bool(redis_url()),
         "queue_max_job_age_s": _max_queue_job_age_hint(),
+        "mesh_provider": mesh_provider_name(),
+        "tripo_api_key_set": bool(tripo_api_key()),
+        "tripo_texture_enabled": tripo_texture_enabled(),
+        "mesh_tripo_fallback_to_blender": mesh_provider_name() in ("tripo", "tripo3d"),
     }
 
 

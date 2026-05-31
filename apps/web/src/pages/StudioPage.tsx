@@ -54,6 +54,16 @@ function formatQueueAgeSeconds(seconds: number | null | undefined): string | nul
   return `${(m / 60).toFixed(1)}h`;
 }
 
+/** Mesh step fell back from Tripo to free Blender placeholder (e.g. empty API credits). */
+function meshLogsIndicateTripoFallback(logs: readonly string[]): boolean {
+  return logs.some(
+    (line) =>
+      /tripo mesh unavailable/i.test(line) ||
+      /placeholder mesh instead/i.test(line) ||
+      /top up api credits/i.test(line),
+  );
+}
+
 /** Ages above this (seconds) usually indicate the queue is not draining, not normal backlog. */
 const STALE_QUEUE_AGE_SECONDS = 3600;
 
@@ -582,7 +592,11 @@ export function StudioPage() {
           setWorkerVersion(null);
           if (r.status === 530) {
             setHealthErrorHint(
-              "Cloudflare returned HTTP 530 (tunnel / origin unreachable). On the host behind your public API, start cloudflared and confirm the tunnel routes to immersive-studio on the expected port; see scripts/studio-cloudflare-tunnel/README.md.",
+              "Cloudflare HTTP 530 — the tunnel has no active connector (cloudflared not running on the GCE VM). " +
+                "Fix: GCP Console → Compute → immersive-studio-worker → SSH in browser → run " +
+                "sudo bash scripts/studio-cloudflare-tunnel/vm-recover-tunnel-and-docker.sh from /opt/immersive.labs. " +
+                "Or paste the script from the repo. Comfy at comfy.immersivelabs.space uses the same tunnel. " +
+                "See scripts/studio-cloudflare-tunnel/README.md.",
             );
           } else if (r.status >= 500) {
             setHealthErrorHint(`Gateway or server error (HTTP ${r.status}). Check the Worker / reverse proxy and the Python worker logs.`);
@@ -1391,6 +1405,16 @@ export function StudioPage() {
               <p>
                 Job <code>{jobResult.job_id}</code> — zip: <code className="studio-path">{jobResult.zip_path}</code>
               </p>
+              {meshLogsIndicateTripoFallback(jobResult.mesh_logs) ? (
+                <p className="studio-job-warn" role="status">
+                  <strong>Tripo credits unavailable.</strong> This pack used the free Blender placeholder mesh instead
+                  of prompt-faithful 3D. Top up at{" "}
+                  <a href="https://platform.tripo3d.ai" target="_blank" rel="noreferrer">
+                    platform.tripo3d.ai
+                  </a>{" "}
+                  (OpenAPI credits are separate from Tripo Studio web credits).
+                </p>
+              ) : null}
               {jobResult.errors.length > 0 ? (
                 <p className="studio-job-warn">Job reported issues: {jobResult.errors.join(" · ")}</p>
               ) : null}
@@ -1473,7 +1497,19 @@ export function StudioPage() {
                   </>
                 ) : null}
                 {workerHints.postgres_configured ? " (Postgres URL set)" : ""}
-                {workerHints.redis_configured ? " (Redis URL set)" : ""}. Job order: textures{" "}
+                {workerHints.redis_configured ? " (Redis URL set)" : ""}
+                {workerHints.mesh_provider ? (
+                  <>
+                    . Mesh: <code>{workerHints.mesh_provider}</code>
+                    {workerHints.mesh_tripo_fallback_to_blender ? (
+                      <> — tries Tripo first, falls back to Blender if API credits are empty</>
+                    ) : null}
+                    {workerHints.tripo_api_key_set === false && workerHints.mesh_provider === "tripo" ? (
+                      <> (<code>STUDIO_TRIPO_API_KEY</code> not set on worker)</>
+                    ) : null}
+                  </>
+                ) : null}
+                . Job order: textures{" "}
                 {workerHints.job_textures_before_mesh ? "before" : "after"} mesh (
                 <code>STUDIO_JOB_TEXTURES_BEFORE_MESH</code>). Queue consumer:{" "}
                 {workerHints.embedded_queue_worker ? (

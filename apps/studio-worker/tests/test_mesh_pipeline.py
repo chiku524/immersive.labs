@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import httpx
+from unittest.mock import MagicMock, patch
+
 import pytest
 import respx
 
 from studio_worker.mesh_pipeline.config import TRIPO_API_BASE
 from studio_worker.mesh_pipeline.providers.tripo import TripoMeshProvider, prompt_from_spec
-from studio_worker.mesh_pipeline.runner import resolve_mesh_provider, try_export_mesh_for_pack
+from studio_worker.mesh_pipeline.runner import FALLBACK_PIPELINE_ID, resolve_mesh_provider, try_export_mesh_for_pack
 
 
 def test_prompt_from_spec_prefers_source_prompt() -> None:
@@ -31,17 +33,35 @@ def test_resolve_tripo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert p.pipeline_id == "tripo:text_to_model"
 
 
-def test_tripo_missing_api_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_tripo_missing_api_key_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     root = tmp_path / "pack"
     root.mkdir()
     (root / "spec.json").write_text('{"asset_id": "x"}', encoding="utf-8")
     monkeypatch.setenv("STUDIO_MESH_PROVIDER", "tripo")
     monkeypatch.delenv("STUDIO_TRIPO_API_KEY", raising=False)
-    logs, errs, pipeline = try_export_mesh_for_pack(root, {"asset_id": "x"})
-    assert not logs
-    assert errs
-    assert "STUDIO_TRIPO_API_KEY" in errs[0]
-    assert pipeline == "tripo:text_to_model"
+
+    fake_blender = tmp_path / "blender_stub"
+    fake_blender.write_bytes(b"")
+    monkeypatch.setenv("STUDIO_BLENDER_BIN", str(fake_blender))
+
+    def run_side_effect(cmd: list[str], **kwargs: object) -> MagicMock:
+        out_i = cmd.index("--output") + 1
+        p = Path(cmd[out_i])
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"glb")
+        return MagicMock(returncode=0, stderr="", stdout="")
+
+    with patch("subprocess.run", side_effect=run_side_effect):
+        with patch(
+            "studio_worker.mesh_export.blender_export_script_path",
+            return_value=tmp_path / "export_mesh.py",
+        ):
+            (tmp_path / "export_mesh.py").write_text("#", encoding="utf-8")
+            logs, errs, pipeline = try_export_mesh_for_pack(root, {"asset_id": "x"})
+
+    assert not errs
+    assert pipeline == FALLBACK_PIPELINE_ID
+    assert logs
 
 
 @respx.mock

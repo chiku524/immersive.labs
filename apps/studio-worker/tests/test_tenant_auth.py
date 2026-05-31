@@ -205,6 +205,8 @@ def test_dashboard_contract_worker_hints(client_auth_off: TestClient) -> None:
     assert isinstance(qj, dict)
     assert isinstance(qj.get("jobs"), list)
     assert "job_textures_before_mesh" in wh
+    assert "mesh_provider" in wh
+    assert "mesh_tripo_fallback_to_blender" in wh
     qs = d.get("queue_slo")
     assert isinstance(qs, dict)
     assert set(qs.keys()) >= {
