@@ -32,6 +32,17 @@ if [[ -n "$JF_META" ]]; then
 else
   JF_ENV=(-e "STUDIO_OLLAMA_JSON_FORMAT=1")
 fi
+MESH_META="$(read_metadata_attr STUDIO_MESH_PROVIDER | tr -d '\r\n')"
+TRIPO_KEY_META="$(read_metadata_attr STUDIO_TRIPO_API_KEY | tr -d '\r\n')"
+TRIPO_TEX_META="$(read_metadata_attr STUDIO_TRIPO_TEXTURE | tr -d '\r\n')"
+TRIPO_PBR_META="$(read_metadata_attr STUDIO_TRIPO_PBR | tr -d '\r\n')"
+OLLAMA_OFF_META="$(read_metadata_attr STUDIO_OLLAMA_DISABLED | tr -d '\r\n')"
+MESH_ENV=()
+[[ -n "$MESH_META" ]] && MESH_ENV+=(-e "STUDIO_MESH_PROVIDER=${MESH_META}")
+[[ -n "$TRIPO_KEY_META" ]] && MESH_ENV+=(-e "STUDIO_TRIPO_API_KEY=${TRIPO_KEY_META}")
+[[ -n "$TRIPO_TEX_META" ]] && MESH_ENV+=(-e "STUDIO_TRIPO_TEXTURE=${TRIPO_TEX_META}")
+[[ -n "$TRIPO_PBR_META" ]] && MESH_ENV+=(-e "STUDIO_TRIPO_PBR=${TRIPO_PBR_META}")
+[[ -n "$OLLAMA_OFF_META" ]] && MESH_ENV+=(-e "STUDIO_OLLAMA_DISABLED=${OLLAMA_OFF_META}")
 cd /opt/immersive.labs
 sudo git fetch origin
 sudo git pull --ff-only origin main || sudo git reset --hard origin/main
@@ -54,6 +65,7 @@ if [[ "$NET_MODE" == "bridge" ]]; then
     "${READ_ENV[@]}" \
     "${KA_ENV[@]}" \
     "${JF_ENV[@]}" \
+    "${MESH_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local
 else
@@ -68,6 +80,7 @@ else
     "${READ_ENV[@]}" \
     "${KA_ENV[@]}" \
     "${JF_ENV[@]}" \
+    "${MESH_ENV[@]}" \
     -v studio-output:/repo/apps/studio-worker/output \
     immersive-studio-worker:local \
     immersive-studio serve --host 127.0.0.1 --port 8787

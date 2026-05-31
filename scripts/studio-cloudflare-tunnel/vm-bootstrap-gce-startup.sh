@@ -20,11 +20,26 @@ read_metadata_attr() {
     "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${key}" 2>/dev/null || true
 }
 
-# Fully configured: just ensure Docker + container are up
+# Fully configured: ensure Docker, worker, and cloudflared (tunnel) are up
 if [[ -f /var/lib/immersive-studio-bootstrapped ]]; then
   systemctl start docker 2>/dev/null || true
-  docker start studio-worker 2>/dev/null || true
-  echo "Fast path: studio-worker start attempted."
+  docker system prune -f 2>/dev/null || true
+  RECOVER="$(read_metadata_attr STUDIO_RECOVER_ON_BOOT | tr -d '\r\n')"
+  if [[ "$RECOVER" == "1" ]] && [[ -d /opt/immersive.labs/.git ]]; then
+    echo "STUDIO_RECOVER_ON_BOOT=1 — git sync + vm-rebuild-studio-worker.sh"
+    cd /opt/immersive.labs
+    git fetch origin
+    git reset --hard origin/main || git pull --ff-only origin main || true
+    bash scripts/studio-cloudflare-tunnel/vm-rebuild-studio-worker.sh || true
+  else
+    docker start studio-worker 2>/dev/null || true
+  fi
+  if systemctl list-unit-files cloudflared.service >/dev/null 2>&1; then
+    systemctl restart cloudflared 2>/dev/null || true
+  else
+    echo "cloudflared systemd unit missing — install install-cloudflared-debian.sh"
+  fi
+  echo "Fast path: studio-worker + cloudflared restart attempted. $(date -uIs)"
   exit 0
 fi
 
