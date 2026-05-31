@@ -12,7 +12,9 @@ from studio_worker.mesh_pipeline.config import (
     TRIPO_API_BASE,
     tripo_api_key,
     tripo_model_version,
+    tripo_pbr_enabled,
     tripo_poll_interval_s,
+    tripo_texture_enabled,
     tripo_timeout_s,
 )
 
@@ -71,13 +73,17 @@ class TripoMeshProvider:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        texture = tripo_texture_enabled()
         payload: dict[str, Any] = {
             "type": "text_to_model",
             "prompt": prompt,
             "model_version": tripo_model_version(),
             "auto_size": True,
+            "texture": texture,
+            "pbr": tripo_pbr_enabled() if texture else False,
         }
 
+        consumed_credit: int | None = None
         try:
             with httpx.Client(timeout=httpx.Timeout(60.0, connect=15.0)) as client:
                 create = client.post(f"{TRIPO_API_BASE}/task", headers=headers, json=payload)
@@ -98,6 +104,11 @@ class TripoMeshProvider:
                     status = str(data.get("status") or "").lower()
 
                     if status == "success":
+                        raw_credit = data.get("consumed_credit")
+                        if isinstance(raw_credit, int):
+                            consumed_credit = raw_credit
+                        elif isinstance(raw_credit, str) and raw_credit.isdigit():
+                            consumed_credit = int(raw_credit)
                         model_url = _pick_model_url(data.get("output"))
                         if not model_url:
                             return [], [f"Tripo task succeeded but no model URL in output: {data.get('output')!r}"]
@@ -121,6 +132,13 @@ class TripoMeshProvider:
 
         host = urlparse(model_url or "").netloc or "tripo"
         size = out_glb.stat().st_size
+        credit_note = (
+            f", consumed_credit={consumed_credit}"
+            if consumed_credit is not None
+            else ""
+        )
+        texture_note = "texture+on" if texture else "texture+off (credit saver)"
         return [
-            f"Tripo text_to_model → {out_glb.name} ({size} bytes from {host}, prompt={prompt[:80]!r})"
+            f"Tripo text_to_model → {out_glb.name} ({size} bytes from {host}, "
+            f"{texture_note}{credit_note}, prompt={prompt[:80]!r})"
         ], []
