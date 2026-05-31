@@ -79,6 +79,7 @@ User=${COMFY_USER}
 Group=${COMFY_USER}
 WorkingDirectory=${COMFY_ROOT}
 Environment=PYTHONUNBUFFERED=1
+Environment=TQDM_DISABLE=1
 # --cpu: e2/CPU-only VMs have no CUDA; without this ComfyUI crashes in model_management (torch.cuda).
 ExecStart=${VENV}/bin/python main.py --cpu --listen 127.0.0.1 --port 8188
 Restart=on-failure

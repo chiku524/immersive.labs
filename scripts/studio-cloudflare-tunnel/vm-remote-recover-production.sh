@@ -34,7 +34,7 @@ echo "Setting metadata (Tripo mesh, recover-on-boot, updated startup script)..."
 gcloud compute instances add-metadata "$VM" \
   --zone="$ZONE" \
   --project="$PROJECT" \
-  --metadata="STUDIO_MESH_PROVIDER=tripo,STUDIO_TRIPO_TEXTURE=0,STUDIO_TRIPO_PBR=0,STUDIO_OLLAMA_DISABLED=1,STUDIO_RECOVER_ON_BOOT=1,STUDIO_TRIPO_API_KEY=${STUDIO_TRIPO_API_KEY}" \
+  --metadata="STUDIO_MESH_PROVIDER=tripo,STUDIO_TRIPO_TEXTURE=0,STUDIO_TRIPO_PBR=0,STUDIO_OLLAMA_DISABLED=1,STUDIO_RECOVER_ON_BOOT=1,STUDIO_INSTALL_COMFY=1,STUDIO_COMFY_CHECKPOINT=v1-5-pruned-emaonly.safetensors,STUDIO_TRIPO_API_KEY=${STUDIO_TRIPO_API_KEY}" \
   --metadata-from-file="startup-script=${ROOT}/scripts/studio-cloudflare-tunnel/vm-bootstrap-gce-startup.sh"
 
 echo "Resetting VM (runs startup: docker prune, git pull, rebuild, cloudflared restart)..."
@@ -83,4 +83,20 @@ fi
 
 code_api="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "https://api.immersivelabs.space/api/studio/health" 2>/dev/null || echo 000)"
 echo "api (Worker): HTTP ${code_api}"
+
+echo "Polling https://comfy.immersivelabs.space/system_stats (Comfy install can take 20–40 min on first boot)..."
+comfy_ok=0
+for i in $(seq 1 90); do
+  ccode="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 "https://comfy.immersivelabs.space/system_stats" 2>/dev/null || echo 000)"
+  echo "  [$i/90] comfy HTTP ${ccode}"
+  if [[ "$ccode" == "200" ]]; then
+    comfy_ok=1
+    break
+  fi
+  sleep 30
+done
+if [[ "$comfy_ok" != "1" ]]; then
+  echo "WARN: Comfy still not 200 — check: journalctl -u comfyui on the VM" >&2
+fi
+
 echo "=== Recovery complete ==="

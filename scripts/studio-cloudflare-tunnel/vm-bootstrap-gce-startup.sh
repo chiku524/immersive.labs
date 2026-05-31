@@ -30,9 +30,11 @@ if [[ -f /var/lib/immersive-studio-bootstrapped ]]; then
     cd /opt/immersive.labs
     git fetch origin
     git reset --hard origin/main || git pull --ff-only origin main || true
+    bash scripts/studio-cloudflare-tunnel/ensure-comfyui-gce.sh || true
     bash scripts/studio-cloudflare-tunnel/vm-rebuild-studio-worker.sh || true
   else
     docker start studio-worker 2>/dev/null || true
+    bash /opt/immersive.labs/scripts/studio-cloudflare-tunnel/ensure-comfyui-gce.sh 2>/dev/null || true
   fi
   if systemctl list-unit-files cloudflared.service >/dev/null 2>&1; then
     systemctl restart cloudflared 2>/dev/null || true

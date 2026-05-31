@@ -48,11 +48,14 @@ else
 fi
 
 echo ""
-echo "== 4/4 ComfyUI (optional, :8188) =="
-if curl -fsS --max-time 5 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
+echo "== 4/4 ComfyUI (:8188) =="
+if systemctl list-unit-files comfyui.service >/dev/null 2>&1; then
+  systemctl restart comfyui 2>/dev/null || systemctl start comfyui || true
+fi
+if curl -fsS --max-time 8 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
   echo "OK ComfyUI on 127.0.0.1:8188"
 else
-  echo "ComfyUI not listening — textures will fail until Comfy is started on the VM."
+  echo "ComfyUI not listening — set STUDIO_INSTALL_COMFY=1 metadata and reboot, or run ensure-comfyui-gce.sh"
   echo "Tunnel hostname comfy.immersivelabs.space needs ingress → http://127.0.0.1:8188 in cloudflared config."
 fi
 

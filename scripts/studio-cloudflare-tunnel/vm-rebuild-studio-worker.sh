@@ -9,8 +9,8 @@ CORS="$(read_metadata_attr STUDIO_CORS_ORIGINS | tr -d '\r\n')"
 COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
 COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
 COMFY_CKPT_META="$(read_metadata_attr STUDIO_COMFY_CHECKPOINT | tr -d '\r\n')"
-# Hosted Comfy ships SD1.5 as .ckpt; workflows used to default to .safetensors.
-COMFY_CKPT="${COMFY_CKPT_META:-v1-5-pruned-emaonly.ckpt}"
+# Hosted Comfy install script ships SD1.5 as .safetensors; resolve_comfy_checkpoint maps .ckpt if needed.
+COMFY_CKPT="${COMFY_CKPT_META:-v1-5-pruned-emaonly.safetensors}"
 # Ollama on the VM host. Default Docker mode is --network host so STUDIO_OLLAMA_URL=http://127.0.0.1:11434
 # (bridge + 172.17.0.1 often hits UFW / wrong gateway / hairpin timeouts). Metadata STUDIO_DOCKER_NETWORK=bridge
 # restores -p 127.0.0.1:8787:8787 + bridge gateway for Ollama.
