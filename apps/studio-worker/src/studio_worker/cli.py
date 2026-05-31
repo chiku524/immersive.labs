@@ -186,10 +186,22 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         )
         print("  See: apps/studio-worker/comfy/README.md")
 
+    from studio_worker.mesh_pipeline.config import mesh_provider_name, tripo_api_key
+
+    mp = mesh_provider_name()
+    print(f"Mesh provider (STUDIO_MESH_PROVIDER): {mp}")
+    if mp in ("tripo", "tripo3d"):
+        print(f"  STUDIO_TRIPO_API_KEY set: {bool(tripo_api_key())}")
+        if not tripo_api_key():
+            print(
+                "  Tripo jobs need STUDIO_TRIPO_API_KEY — or use STUDIO_MESH_PROVIDER=blender_placeholder "
+                "for free local placeholder meshes."
+            )
+
     b = resolve_blender_executable()
     print("Blender: ", end="")
     if b:
-        print(f"{b} (mesh export)")
+        print(f"{b} (mesh export when provider=blender_placeholder)")
     else:
         print("not found on this machine")
         print(
@@ -200,11 +212,14 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     if not c["reachable"]:
         print("\nComfyUI unreachable — texture jobs will fail until the URL above responds.")
         return 1
-    if args.strict and not b:
-        print("\nStrict mode: Blender required but not found (use default doctor without --strict for dev laptops).")
+    needs_blender = mp in ("blender", "blender_placeholder", "placeholder", "") or mp not in ("tripo", "tripo3d")
+    if args.strict and needs_blender and not b:
+        print("\nStrict mode: Blender required for blender_placeholder but not found.")
         return 1
-    if not b:
-        print("\nComfyUI OK. Blender skipped (optional unless you pass --strict or enable mesh export on a host without Blender).")
+    if not b and needs_blender:
+        print("\nComfyUI OK. Blender skipped (optional unless mesh export uses blender_placeholder).")
+    elif not b:
+        print("\nComfyUI OK. Mesh provider is Tripo — Blender not required on this host.")
     else:
         print("\nComfyUI and Blender OK for full jobs on this machine.")
     return 0

@@ -1,5 +1,28 @@
 # Host Studio on your local PC (ComfyUI + Blender + API)
 
+## Quick start today (mock + mesh, no cloud)
+
+Prove the pipeline end-to-end before fixing production tunnels or paying for text-to-3D APIs:
+
+```powershell
+# Once: venv + editable install
+python -m venv apps/studio-worker/.venv
+apps\studio-worker\.venv\Scripts\pip install -e "apps/studio-worker[dev]"
+
+# Generate pack.zip with mock spec + Blender placeholder GLB (needs Blender on PATH)
+.\scripts\local-pc-studio\smoke-mock-mesh-pack.ps1
+```
+
+Git Bash / macOS / Linux: `bash scripts/local-pc-studio/smoke-mock-mesh-pack.sh`
+
+Then in Unity: **Immersive Labs → Import Studio Pack…** → pick the job folder under `apps/studio-worker/output/jobs/` (see [packages/studio-unity/README.md](../../packages/studio-unity/README.md)).
+
+**When you have Tripo credits** (~next week): in `apps/studio-worker/.env.local` set `STUDIO_MESH_PROVIDER=tripo` and `STUDIO_TRIPO_API_KEY=…`, then re-run the smoke script or `/studio` with **Export mesh** checked.
+
+**Production VM (HTTP 530):** GCP Console → VM **immersive-studio-worker** → **SSH in browser** → paste/run [vm-recover-tunnel-and-docker.sh](../studio-cloudflare-tunnel/vm-recover-tunnel-and-docker.sh).
+
+---
+
 **Production scale path (Neon Postgres + R2 + remote API):** run only the queue worker on this PC — see [docs/studio/scale-postgres-r2-local-worker.md](../../docs/studio/scale-postgres-r2-local-worker.md) and `bash scripts/studio-scale/run-local-queue-worker.sh`. Use the Comfy start scripts below; skip `start-studio-api` if the API runs on GCP.
 
 ---

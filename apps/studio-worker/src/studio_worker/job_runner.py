@@ -14,11 +14,8 @@ from studio_worker.paths import job_pack_dir
 from studio_worker.quotas import enforce_quota_before_new_job
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker import tenants_db
-from studio_worker.mesh_export import (
-    apply_mesh_toolchain_to_manifest,
-    export_mesh_default_from_env,
-    try_export_placeholder_for_pack,
-)
+from studio_worker.mesh_export import apply_mesh_toolchain_to_manifest, export_mesh_default_from_env
+from studio_worker.mesh_pipeline.runner import try_export_mesh_for_pack
 from studio_worker.scale_config import job_textures_before_mesh
 from studio_worker.texture_pipeline import comfy_profile, generate_pbr_textures_for_spec
 from studio_worker.tiers import CREDIT_COST_RUN_JOB, CREDIT_COST_RUN_JOB_TEXTURES
@@ -140,10 +137,14 @@ def run_studio_job(
 
         def _mesh_step() -> None:
             nonlocal mesh_logs, errors, manifest
-            m_ok_logs, m_errs = try_export_placeholder_for_pack(out_dir, spec)
+            m_ok_logs, m_errs, pipeline_id = try_export_mesh_for_pack(out_dir, spec)
             mesh_logs.extend(m_ok_logs)
             errors.extend(m_errs)
-            apply_mesh_toolchain_to_manifest(manifest, ok=len(m_errs) == 0 and len(m_ok_logs) > 0)
+            apply_mesh_toolchain_to_manifest(
+                manifest,
+                ok=len(m_errs) == 0 and len(m_ok_logs) > 0,
+                pipeline_id=pipeline_id,
+            )
             (out_dir / "manifest.json").write_text(
                 json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
             )

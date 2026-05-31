@@ -72,6 +72,12 @@ def test_apply_manifest_mesh_ok() -> None:
     assert m["toolchain"]["mesh_pipeline"] == "blender:export_mesh.py+ok"
 
 
+def test_apply_manifest_mesh_custom_pipeline() -> None:
+    m: dict = {"toolchain": {}}
+    apply_mesh_toolchain_to_manifest(m, ok=True, pipeline_id="tripo:text_to_model")
+    assert m["toolchain"]["mesh_pipeline"] == "tripo:text_to_model+ok"
+
+
 def test_resolve_blender_windows_program_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(sys, "platform", "win32")
     bf = tmp_path / "Blender Foundation" / "Blender 4.2"

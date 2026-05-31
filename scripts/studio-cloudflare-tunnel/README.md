@@ -28,6 +28,7 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`push-cloudflared-config-to-gce-vm.sh`](./push-cloudflared-config-to-gce-vm.sh) | **Laptop:** `gcloud compute scp` + `ingress validate` + `systemctl restart cloudflared` on **`immersive-studio-worker`**. |
 | [`vm-remote-rebuild-studio-worker.sh`](./vm-remote-rebuild-studio-worker.sh) | **Laptop:** `git fetch` / `reset --hard origin/main` under **`/opt/immersive.labs`** on the VM, then **[`vm-rebuild-studio-worker.sh`](./vm-rebuild-studio-worker.sh)** (Docker rebuild + `docker run` with metadata env). Optional **`IAP=1`** for IAP-only SSH. |
 | [`vm-check-studio-stack.sh`](./vm-check-studio-stack.sh) | **GCE VM (SSH):** `cloudflared`, `docker`, `127.0.0.1:8787` health, **Blender** in `studio-worker` container. |
+| [`vm-recover-tunnel-and-docker.sh`](./vm-recover-tunnel-and-docker.sh) | **GCE VM (browser SSH):** restart Docker + `cloudflared`, print public health curl hints (fixes HTTP **530**). |
 | [`cloudflared-connector-immersive-labs-studio-api.template.yml`](./cloudflared-connector-immersive-labs-studio-api.template.yml) | **Named tunnel ingress:** `api-origin` → `8787`, `comfy` → `8188`. Copy to the connector host; set `credentials-file` path; run `cloudflared tunnel run`. |
 | [`gce-ssh-immersive-studio-worker.ps1`](./gce-ssh-immersive-studio-worker.ps1) | **Windows:** IAP SSH using **OpenSSH** instead of PuTTY (`CLOUDSDK_COMPUTE_SSH_WITH_NATIVE_OPENSSH=1`). |
 

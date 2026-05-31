@@ -122,25 +122,21 @@ def try_export_placeholder_for_pack(
     spec: dict[str, Any],
 ) -> tuple[list[str], list[str]]:
     """
-    Export one GLB under Models/<asset_id>/<asset_id>.glb using pack_root/spec.json.
+    Export one GLB under Models/<asset_id>/<asset_id>.glb (legacy name; uses STUDIO_MESH_PROVIDER).
     Returns (logs, errors) — errors are non-fatal for the overall job (listed in pack).
     """
-    spec_path = pack_root / "spec.json"
-    if not spec_path.is_file():
-        return [], ["Mesh export skipped: spec.json not found in pack root"]
+    from studio_worker.mesh_pipeline.runner import try_export_mesh_for_pack
 
-    asset_id = str(spec.get("asset_id") or "asset")
-    out_glb = pack_root / "Models" / asset_id / f"{asset_id}.glb"
-
-    ok, msg = run_blender_placeholder_export(spec_json_path=spec_path, output_glb_path=out_glb)
-    if ok:
-        return [msg], []
-    return [], [f"Mesh export failed: {msg}"]
+    logs, errs, _pipeline = try_export_mesh_for_pack(pack_root, spec)
+    return logs, errs
 
 
-def apply_mesh_toolchain_to_manifest(manifest: dict[str, Any], ok: bool) -> None:
+def apply_mesh_toolchain_to_manifest(
+    manifest: dict[str, Any],
+    ok: bool,
+    *,
+    pipeline_id: str = "blender:export_mesh.py",
+) -> None:
     tc = manifest.setdefault("toolchain", {})
-    if ok:
-        tc["mesh_pipeline"] = "blender:export_mesh.py+ok"
-    else:
-        tc["mesh_pipeline"] = "blender:export_mesh.py+error"
+    suffix = "ok" if ok else "error"
+    tc["mesh_pipeline"] = f"{pipeline_id}+{suffix}"
