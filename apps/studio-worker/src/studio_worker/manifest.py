@@ -3,7 +3,19 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
+
+EngineTarget = Literal["unity", "unreal"]
+
+ENGINE_TARGETS: frozenset[str] = frozenset({"unity", "unreal"})
+
+
+def normalize_engine_target(value: str | None) -> EngineTarget:
+    v = (value or "unity").strip().lower()
+    if v not in ENGINE_TARGETS:
+        allowed = ", ".join(sorted(ENGINE_TARGETS))
+        raise ValueError(f"engine_target must be one of: {allowed}")
+    return v  # type: ignore[return-value]
 
 
 def utc_now_iso() -> str:
@@ -18,6 +30,7 @@ def build_job_manifest(
     image_pipeline: str | None = None,
     mesh_pipeline: str | None = None,
     unity_urp_version: str | None = None,
+    engine_target: str | None = None,
 ) -> dict[str, Any]:
     toolchain: dict[str, str] = {}
     if llm_model:
@@ -34,7 +47,7 @@ def build_job_manifest(
         "manifest_version": "0.1",
         "job_id": job_id or str(uuid.uuid4()),
         "created_at": utc_now_iso(),
-        "engine_target": "unity",
+        "engine_target": normalize_engine_target(engine_target),
         "assets": assets,
         "toolchain": toolchain,
     }

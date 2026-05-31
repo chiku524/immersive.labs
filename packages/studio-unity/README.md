@@ -21,6 +21,8 @@ UPM-style package for importing **Video Game Generation Studio** output folders 
 
 The importer copies `Textures/<asset_id>/*.png` into `Assets/ImmersiveStudioImports/<job_id>/…`, refreshes the Asset Database, and builds **URP Lit** materials by grouping PBR filenames. It then assigns Lit materials to **MeshRenderer** / **SkinnedMeshRenderer** on imported `.glb` / `.gltf`: if a glTF material name matches a PBR base (`{variant_id}_{slot_id}`), that slot uses the corresponding `{base}_Lit.mat`; otherwise slots are filled in **spec order** (variant × PBR slots), then the **preferred** slot (first variant × first PBR role), then any material in `Materials/`.
 
+For Unreal Engine, see `packages/studio-unreal` (**Tools → Import Studio Pack…**).
+
 - Pattern: `{variant}_{slot}_albedo.png`, `{variant}_{slot}_normal.png`, `{variant}_{slot}_orm.png` (role suffix matters).
 - **Albedo** → `_BaseMap` / `_MainTex`
 - **Normal** → `_BumpMap` (texture type **Normal map**, `_NORMALMAP` keyword)

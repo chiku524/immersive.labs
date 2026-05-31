@@ -1,0 +1,36 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Immersive Studio Import",
+  "Description": "Import Video Game Generation Studio packs (manifest.json, GLB, PBR textures) into Unreal Engine projects.",
+  "Category": "Importers",
+  "CreatedBy": "Immersive Labs",
+  "CreatedByURL": "https://immersivelabs.space",
+  "DocsURL": "https://github.com/chiku524/immersive.labs/tree/main/packages/studio-unreal",
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "ImmersiveStudio",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "Interchange",
+      "Enabled": true
+    },
+    {
+      "Name": "InterchangeImporter",
+      "Enabled": true
+    },
+    {
+      "Name": "glTFExporter",
+      "Enabled": true
+    }
+  ]
+}

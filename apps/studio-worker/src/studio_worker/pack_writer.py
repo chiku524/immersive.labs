@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from studio_worker.manifest import build_job_manifest
+from studio_worker.manifest import build_job_manifest, normalize_engine_target
 from studio_worker.validate import validate_asset_spec
 
 
@@ -53,6 +53,62 @@ def _unity_import_notes(
     return "\n".join(lines) + "\n"
 
 
+def _unreal_import_notes(
+    *,
+    job_id: str,
+    assets: list[dict[str, Any]],
+) -> str:
+    lines = [
+        "# Unreal Engine import notes",
+        "",
+        f"- **Job ID:** `{job_id}`",
+        "- **Target engine:** Unreal Engine 5.3+ with the Immersive Studio Import plugin (`packages/studio-unreal`).",
+        "",
+        "## Pack contents",
+        "",
+        "- `manifest.json` — full job manifest (specs + toolchain metadata).",
+        "- `Models/` — `.glb` / `.gltf` meshes per asset.",
+        "- `Textures/` — PBR PNGs (`{variant}_{slot}_albedo|normal|orm.png`).",
+        "",
+        "## Assets in this job",
+        "",
+    ]
+    for a in assets:
+        aid = a.get("asset_id", "?")
+        st = a.get("style_preset", "?")
+        unity = a.get("unity") or {}
+        col = unity.get("collider", "?")
+        lines.append(f"- **{aid}** — style `{st}`, collider hint `{col}` (reads `unity.collider` until spec adds `unreal`).")
+    lines.extend(
+        [
+            "",
+            "## Import checklist",
+            "",
+            "1. Copy `packages/studio-unreal/ImmersiveStudio` into your project's `Plugins/` folder and compile.",
+            "2. Enable **Interchange**, **InterchangeImporter**, and **glTFExporter** if prompted.",
+            "3. **Tools → Import Studio Pack…** and select this folder (contains `manifest.json`).",
+            "4. Find assets under `Content/ImmersiveStudioImports/<job_id>/`.",
+            "5. Verify glTF scale (meters) vs your project's unit settings; adjust actor scale if needed.",
+            "",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _pack_readme(*, job_id: str, engine_target: str) -> str:
+    if engine_target == "unreal":
+        return (
+            f"Immersive Studio pack — job `{job_id}`\n"
+            "Engine target: Unreal Engine 5\n"
+            "Import: UnrealImportNotes.md (Tools → Import Studio Pack… with packages/studio-unreal)\n"
+        )
+    return (
+        f"Immersive Studio pack — job `{job_id}`\n"
+        "Engine target: Unity (URP)\n"
+        "Import: UnityImportNotes.md (Immersive Labs → Import Studio Pack… with packages/studio-unity)\n"
+    )
+
+
 def write_pack(
     output_dir: Path,
     spec: dict[str, Any],
@@ -62,10 +118,13 @@ def write_pack(
     image_pipeline: str | None = None,
     unity_urp_hint: str = "6000.0.x LTS (pin when smoke-tested)",
     write_spec_json: bool = False,
+    engine_target: str = "unity",
 ) -> dict[str, Any]:
     validate_asset_spec(spec)
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    target = normalize_engine_target(engine_target)
 
     manifest = build_job_manifest(
         [spec],
@@ -74,6 +133,7 @@ def write_pack(
         image_pipeline=image_pipeline or "comfyui:unconfigured",
         mesh_pipeline="blender:export_mesh.py",
         unity_urp_version=unity_urp_hint,
+        engine_target=target,
     )
 
     (output_dir / "manifest.json").write_text(
@@ -85,14 +145,28 @@ def write_pack(
             json.dumps(spec, indent=2) + "\n", encoding="utf-8"
         )
 
-    (output_dir / "UnityImportNotes.md").write_text(
-        _unity_import_notes(
-            job_id=manifest["job_id"],
-            assets=manifest["assets"],
-            unity_urp_hint=unity_urp_hint,
-        ),
+    (output_dir / "README.txt").write_text(
+        _pack_readme(job_id=manifest["job_id"], engine_target=target),
         encoding="utf-8",
     )
+
+    if target == "unreal":
+        (output_dir / "UnrealImportNotes.md").write_text(
+            _unreal_import_notes(
+                job_id=manifest["job_id"],
+                assets=manifest["assets"],
+            ),
+            encoding="utf-8",
+        )
+    else:
+        (output_dir / "UnityImportNotes.md").write_text(
+            _unity_import_notes(
+                job_id=manifest["job_id"],
+                assets=manifest["assets"],
+                unity_urp_hint=unity_urp_hint,
+            ),
+            encoding="utf-8",
+        )
 
     for a in manifest["assets"]:
         aid = a["asset_id"]

@@ -24,6 +24,7 @@ Engineers and collaborators implementing the studio worker, ComfyUI graphs, Blen
 | [art-style-presets.md](./art-style-presets.md) | How we achieve multiple looks without prompt-only chaos |
 | [json-schema-spec.md](./json-schema-spec.md) | Canonical asset spec and job manifest (draft) |
 | [unity-export-conventions.md](./unity-export-conventions.md) | Folder layout, units, materials, colliders |
+| [unreal-import-conventions.md](./unreal-import-conventions.md) | Unreal import plugin, shared pack layout, scale/collision notes |
 | [phased-roadmap.md](./phased-roadmap.md) | Phased delivery plan with deliverables and risks |
 | [hardening.md](./hardening.md) | Moderation, quotas, attribution, CI notes (Phase 6) |
 | [deploy-gcp-free-vm.md](./deploy-gcp-free-vm.md) | **Free-tier GCP VM:** Docker worker, HTTPS, static host `VITE_STUDIO_API_URL` (e.g. Cloudflare Pages) |
@@ -36,7 +37,7 @@ TypeScript mirrors of the asset spec live in `@immersive/studio-types` (`package
 
 ## Status
 
-**Active implementation:** Python worker (`apps/studio-worker`) covers spec generation (Ollama + mock), JSON Schema validation, **ComfyUI albedo** workflows, persisted **jobs + zip downloads**, pack writer, and HTTP API. **`/studio`** in `@immersive/web` runs jobs and lists downloads. **Unity** import lives in `packages/studio-unity`.
+**Active implementation:** Python worker (`apps/studio-worker`) covers spec generation (Ollama + mock), JSON Schema validation, **ComfyUI albedo** workflows, persisted **jobs + zip downloads**, pack writer, and HTTP API. **`/studio`** in `@immersive/web` runs jobs and lists downloads. **Unity** import lives in `packages/studio-unity`. **Unreal** import lives in `packages/studio-unreal`.
 
 See [phased-roadmap.md](./phased-roadmap.md) and [DECISIONS.md](./DECISIONS.md).
 

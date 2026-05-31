@@ -39,4 +39,5 @@ def execute_queued_payload(payload: dict[str, Any]) -> dict[str, Any]:
         request_tenant=request_tenant,
         export_mesh=bool(p.get("export_mesh", False)),
         queue_id=str(qid).strip() if qid else None,
+        engine_target=str(p.get("engine_target", "unity")),
     )

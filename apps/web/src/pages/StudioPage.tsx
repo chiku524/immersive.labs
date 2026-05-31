@@ -16,9 +16,11 @@ import "../App.css";
 import "./StudioPage.css";
 
 const API_KEY_STORAGE = "immersive_studio_api_key";
+const ENGINE_TARGET_STORAGE = "immersive_studio_engine_target";
 
 type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
 type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
+type StudioEngineTarget = "unity" | "unreal";
 
 /** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
 function comfyLocalhostRefused(detail: string | null | undefined, url: string): boolean {
@@ -509,6 +511,7 @@ export function StudioPage() {
   const [mock, setMock] = useState(false);
   const [generateTextures, setGenerateTextures] = useState(false);
   const [exportMesh, setExportMesh] = useState(false);
+  const [engineTarget, setEngineTarget] = useState<StudioEngineTarget>("unity");
   const [loading, setLoading] = useState(false);
   const [packLoading, setPackLoading] = useState(false);
   const [jobLoading, setJobLoading] = useState(false);
@@ -550,6 +553,10 @@ export function StudioPage() {
       const stored = window.localStorage.getItem(API_KEY_STORAGE);
       if (stored) {
         setApiKey(stored);
+      }
+      const storedEngine = window.localStorage.getItem(ENGINE_TARGET_STORAGE);
+      if (storedEngine === "unity" || storedEngine === "unreal") {
+        setEngineTarget(storedEngine);
       }
     } catch {
       /* private mode */
@@ -824,7 +831,7 @@ export function StudioPage() {
       const r = await fetch(`${STUDIO_API_BASE}/api/studio/pack`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ spec, output_name: outputName }),
+        body: JSON.stringify({ spec, output_name: outputName, engine_target: engineTarget }),
       });
       const data = await readApiJson<{
         detail?: unknown;
@@ -877,6 +884,7 @@ export function StudioPage() {
           mock,
           generate_textures: generateTextures,
           export_mesh: exportMesh,
+          engine_target: engineTarget,
           unity_urp_hint: "6000.0.x LTS (pin when smoke-tested)",
           // One queue attempt: otherwise a failed job (e.g. Ollama down) returns status `pending`
           // for retries while the UI only treats `dead` / `completed` as terminal — button stays
@@ -1037,8 +1045,9 @@ export function StudioPage() {
           <h1 className="studio-title">Pipeline</h1>
           <p className="studio-lede">
             Generate a validated <code>StudioAssetSpec</code>, run a full persisted <strong>job</strong> (pack + zip +
-            index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in Unity via{" "}
-            <code>packages/studio-unity</code>. Start with the on-site{" "}
+            index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in <strong>Unity</strong>{" "}
+            (<code>packages/studio-unity</code>) or <strong>Unreal Engine 5</strong> (
+            <code>packages/studio-unreal</code>) using the import-target toggle below. Start with the on-site{" "}
             <Link to="/docs">documentation hub</Link> (overview, deployment, ComfyUI, Blender, Unity); deep reference:{" "}
             <code className="studio-code-inline">docs/studio/essentials.md</code> and{" "}
             <code className="studio-code-inline">docs/studio/platform-manual.md</code>.
@@ -1303,6 +1312,26 @@ export function StudioPage() {
                 </select>
               </label>
             </div>
+
+            <label className="studio-label">
+              Import target (pack.zip)
+              <select
+                className="studio-input"
+                value={engineTarget}
+                onChange={(e) => {
+                  const next = e.target.value as StudioEngineTarget;
+                  setEngineTarget(next);
+                  try {
+                    window.localStorage.setItem(ENGINE_TARGET_STORAGE, next);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                <option value="unity">Unity (URP) — UnityImportNotes.md</option>
+                <option value="unreal">Unreal Engine 5 — UnrealImportNotes.md</option>
+              </select>
+            </label>
 
             <label className="studio-check">
               <input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} />

@@ -52,11 +52,13 @@ export interface StudioAssetSpec {
   };
 }
 
+export type StudioEngineTarget = "unity" | "unreal";
+
 export interface StudioJobManifest {
   manifest_version: "0.1";
   job_id: string;
   created_at: string;
-  engine_target: "unity";
+  engine_target: StudioEngineTarget;
   assets: StudioAssetSpec[];
   toolchain: {
     llm_model?: string;

@@ -39,6 +39,7 @@ def run_studio_job(
     request_tenant: RequestTenant | None = None,
     export_mesh: bool = False,
     queue_id: str | None = None,
+    engine_target: str = "unity",
 ) -> dict[str, Any]:
     rt: RequestTenant | None = request_tenant
     slot_held = False
@@ -67,12 +68,13 @@ def run_studio_job(
         folder = new_job_folder_name(job_id)
         out_dir = job_pack_dir(folder)
         _log.info(
-            "job_begin job_id=%s folder=%s mock=%s textures=%s export_mesh=%s",
+            "job_begin job_id=%s folder=%s mock=%s textures=%s export_mesh=%s engine_target=%s",
             job_id,
             folder,
             use_mock,
             generate_textures,
             export_mesh,
+            engine_target,
         )
 
         if out_dir.exists():
@@ -130,6 +132,7 @@ def run_studio_job(
             image_pipeline=image_pipeline,
             unity_urp_hint=unity_urp_hint,
             write_spec_json=True,
+            engine_target=engine_target,
         )
 
         do_mesh = bool(export_mesh) or export_mesh_default_from_env()
@@ -197,6 +200,7 @@ def run_studio_job(
                     "job_id": job_id,
                     "folder": folder,
                     "tenant_id": tenant_id_for_jobs,
+                    "engine_target": manifest.get("engine_target", engine_target),
                     "texture_logs": texture_logs,
                     "mesh_logs": mesh_logs,
                     "errors": errors,

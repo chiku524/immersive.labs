@@ -79,6 +79,7 @@ def _cmd_pack(args: argparse.Namespace) -> int:
             image_pipeline="comfyui:cli-pack",
             unity_urp_hint=args.unity_urp,
             write_spec_json=True,
+            engine_target=args.engine_target,
         )
         write_pack_attribution(out, spec=spec, manifest=manifest, meta=None)
     except ValueError as e:
@@ -101,6 +102,7 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
             unity_urp_hint=args.unity_urp,
             comfy_base_url=comfy_url,
             export_mesh=args.export_mesh,
+            engine_target=args.engine_target,
         )
     except Exception as e:
         print(str(e), file=sys.stderr)
@@ -298,9 +300,16 @@ def main() -> None:
     v.add_argument("--file", required=True)
     v.set_defaults(func=_cmd_validate_spec)
 
-    p = sub.add_parser("pack", help="Write Unity-oriented pack folder from a spec JSON file")
+    p = sub.add_parser("pack", help="Write engine-targeted pack folder from a spec JSON file")
     p.add_argument("--spec", required=True, help="Spec JSON or generate-spec output with 'spec' key")
     p.add_argument("--output", required=True, help="Output directory")
+    p.add_argument(
+        "--engine-target",
+        default="unity",
+        choices=["unity", "unreal"],
+        dest="engine_target",
+        help="Import target: Unity URP pack or Unreal Engine 5 pack (default: unity)",
+    )
     p.add_argument(
         "--unity-urp",
         default="6000.0.x LTS (pin when smoke-tested)",
@@ -387,6 +396,13 @@ def main() -> None:
         "--unity-urp",
         default="6000.0.x LTS (pin when smoke-tested)",
         dest="unity_urp",
+    )
+    j.add_argument(
+        "--engine-target",
+        default="unity",
+        choices=["unity", "unreal"],
+        dest="engine_target",
+        help="Pack import target for manifest + import notes (default: unity)",
     )
     j.add_argument(
         "--comfy-url",

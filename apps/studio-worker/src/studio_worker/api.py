@@ -236,6 +236,7 @@ def favicon() -> Response:
 
 Category = Literal["prop", "environment_piece", "character_base", "material_library"]
 StylePreset = Literal["realistic_hd_pbr", "anime_stylized", "toon_bold"]
+EngineTarget = Literal["unity", "unreal"]
 
 
 class GenerateSpecRequest(BaseModel):
@@ -376,6 +377,7 @@ class PackRequest(BaseModel):
     output_name: str = Field(default="StudioPack", pattern=r"^[\w\-]+$")
     unity_urp_hint: str = "6000.0.x LTS (pin when smoke-tested)"
     write_spec_json: bool = True
+    engine_target: EngineTarget = "unity"
 
 
 class PackResponse(BaseModel):
@@ -402,6 +404,7 @@ def post_pack(
             image_pipeline="comfyui:pack-endpoint",
             unity_urp_hint=body.unity_urp_hint,
             write_spec_json=body.write_spec_json,
+            engine_target=body.engine_target,
         )
         write_pack_attribution(out, spec=body.spec, manifest=manifest, meta=None)
     except ValueError as e:
@@ -417,6 +420,7 @@ class RunJobRequest(BaseModel):
     generate_textures: bool = False
     export_mesh: bool = False
     unity_urp_hint: str = "6000.0.x LTS (pin when smoke-tested)"
+    engine_target: EngineTarget = "unity"
 
 
 class RunJobResponse(BaseModel):
@@ -439,6 +443,7 @@ class EnqueueJobRequest(BaseModel):
     generate_textures: bool = False
     export_mesh: bool = False
     unity_urp_hint: str = "6000.0.x LTS (pin when smoke-tested)"
+    engine_target: EngineTarget = "unity"
     max_attempts: int = Field(default=3, ge=1, le=50)
     comfy_base_url: str | None = None
     idempotency_key: str | None = Field(
@@ -497,6 +502,7 @@ def post_enqueue_job(
         "generate_textures": body.generate_textures,
         "export_mesh": body.export_mesh,
         "unity_urp_hint": body.unity_urp_hint,
+        "engine_target": body.engine_target,
         "tenant_id": tenant.tenant_id,
         "tier_id": tenant.tier_id,
         "limits_enforced": tenant.limits_enforced,
@@ -656,6 +662,7 @@ def post_run_job(
             comfy_base_url=None,
             request_tenant=tenant,
             export_mesh=body.export_mesh,
+            engine_target=body.engine_target,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
