@@ -30,11 +30,32 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`vm-remote-rebuild-studio-worker.sh`](./vm-remote-rebuild-studio-worker.sh) | **Laptop:** `git fetch` / `reset --hard origin/main` under **`/opt/immersive.labs`** on the VM, then **[`vm-rebuild-studio-worker.sh`](./vm-rebuild-studio-worker.sh)** (Docker rebuild + `docker run` with metadata env). Optional **`IAP=1`** for IAP-only SSH. |
 | [`vm-check-studio-stack.sh`](./vm-check-studio-stack.sh) | **GCE VM (SSH):** `cloudflared`, `docker`, `127.0.0.1:8787` health, **Blender** in `studio-worker` container. |
 | [`vm-recover-tunnel-and-docker.sh`](./vm-recover-tunnel-and-docker.sh) | **GCE VM (browser SSH):** restart Docker + `cloudflared`, print public health curl hints (fixes HTTP **530**). |
+| [`vm-remote-recover-tunnel-light.sh`](./vm-remote-recover-tunnel-light.sh) | **Laptop:** refresh startup script + **reset VM** (fast path, no docker rebuild) — first choice for HTTP **530**. |
+| [`vm-remote-recover-production.sh`](./vm-remote-recover-production.sh) | **Laptop:** metadata + reset + **full** git pull + docker rebuild (use when light recover fails). |
+| [`studio-stack-watchdog.sh`](./studio-stack-watchdog.sh) | **GCE VM (root/systemd):** every 5 min — restart Docker/cloudflared/Comfy if unhealthy; reboot after 3 failed network/tunnel checks. |
+| [`install-studio-watchdog-gce.sh`](./install-studio-watchdog-gce.sh) | Install **`studio-stack-watchdog.timer`** on the VM (auto-run from bootstrap fast path). |
 | [`diagnose-tunnel-status.sh`](./diagnose-tunnel-status.sh) | **Laptop:** Cloudflare tunnel connector count + public health probes (needs repo `.env`). |
 | [`cloudflared-connector-immersive-labs-studio-api.template.yml`](./cloudflared-connector-immersive-labs-studio-api.template.yml) | **Named tunnel ingress:** `api-origin` → `8787`, `comfy` → `8188`. Copy to the connector host; set `credentials-file` path; run `cloudflared tunnel run`. |
 | [`gce-ssh-immersive-studio-worker.ps1`](./gce-ssh-immersive-studio-worker.ps1) | **Windows:** IAP SSH using **OpenSSH** instead of PuTTY (`CLOUDSDK_COMPUTE_SSH_WITH_NATIVE_OPENSSH=1`). |
 
 **Tunnel had no connectors (HTTP 530):** start `cloudflared` on a host that can reach `127.0.0.1:8787` (VM with Docker, or your dev PC while testing). A working Windows example lives at `%USERPROFILE%\.cloudflared\immersive-labs-studio-api-connector.yml` after you copy the template and point `credentials-file` at your `52513248-….json`.
+
+### Why HTTP 530 keeps coming back (VM does **not** sleep)
+
+**GCE `e2-micro` instances do not sleep** like a laptop — they run until stopped, preempted, or rebooted. HTTP **530** / error **1033** means Cloudflare has **zero active tunnel connectors**, not that the VM powered off.
+
+Common causes on a small always-on VM:
+
+| Cause | What you see | Fix |
+|-------|----------------|-----|
+| **Host network hung** | Serial log: `network is unreachable`, metadata server errors, cloudflared QUIC failures | **Reset VM** (`vm-remote-recover-tunnel-light.sh`) — reboot restores NIC |
+| **cloudflared crashed / stuck** | Tunnel 0 connectors; local `:8787` may still work | `systemctl restart cloudflared` or light recover |
+| **Docker / studio-worker stopped** | Origin 502/530; tunnel up but origin refused | `docker start studio-worker` or recover script |
+| **OOM on 1 GiB RAM** | Random service death (Comfy + Docker + cloudflared) | Swap (bootstrap adds 2 GiB), avoid heavy concurrent jobs, watchdog restarts stack |
+| **Startup script only runs on boot** | Services died mid-uptime; no auto-heal until reboot | **`studio-stack-watchdog.timer`** (installed by bootstrap) |
+
+**First response from your laptop:** `bash scripts/studio-cloudflare-tunnel/vm-remote-recover-tunnel-light.sh`  
+**If still broken:** `bash scripts/studio-cloudflare-tunnel/vm-remote-recover-production.sh` (full rebuild).
 
 **Stray connector you cannot SSH to:** `cloudflared tunnel cleanup --connector-id …` only drops sessions until the process reconnects. To invalidate old credentials everywhere, **rotate** the tunnel secret: `PATCH …/cfd_tunnel/{tunnel_id}` with a new `tunnel_secret` (base64 of 32 random bytes), rebuild the credentials JSON (`AccountTag`, `TunnelID`, `TunnelSecret`, optional `Endpoint: ""`), **`gcloud compute scp`** to `/etc/cloudflared/52513248-….json` on **`immersive-studio-worker`**, then **`sudo systemctl restart cloudflared`**. Requires **Cloudflare Tunnel Edit** on the API token. Then **`cf-tunnel-admin.sh connector-cleanup`** if a stale `client_id` still appears, and **`wrangler kv key delete studio:health:v1`** (remote) for a fresh edge health cache.
 

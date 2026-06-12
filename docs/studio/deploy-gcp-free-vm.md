@@ -10,6 +10,7 @@ This guide runs **`immersive-studio serve`** on a small **Google Cloud** virtual
 
 - You need a **billing account** on GCP; staying free depends on **staying inside** free-tier limits. Check **Billing → Reports** after setup.
 - **`e2-micro` has 1 GiB RAM.** Full **Ollama / ComfyUI / Blender** on the same VM is usually unrealistic. Plan on **mock specs** and lightweight jobs first.
+- **The VM does not sleep**, but HTTP **530** on `api` / `comfy` means the **Cloudflare tunnel lost its connector** (often after a **network hang** or OOM on the VM, not a powered-off instance). From your laptop: **`bash scripts/studio-cloudflare-tunnel/vm-remote-recover-tunnel-light.sh`**. Bootstrap installs a **5‑minute watchdog** (`studio-stack-watchdog.timer`) to restart Docker/cloudflared and reboot after repeated failures — see [`scripts/studio-cloudflare-tunnel/README.md`](../../scripts/studio-cloudflare-tunnel/README.md).
 - The marketing site is served over **HTTPS**; the worker must be **HTTPS** too (mixed content). Use **Cloudflare Tunnel** (below) or Caddy.
 
 **Automation:** [`scripts/studio-cloudflare-tunnel/`](../../scripts/studio-cloudflare-tunnel/) — see [§10](#10-terminal-scripts-this-repo).

@@ -34,12 +34,21 @@ if [[ -f /var/lib/immersive-studio-bootstrapped ]]; then
     bash scripts/studio-cloudflare-tunnel/vm-rebuild-studio-worker.sh || true
   else
     docker start studio-worker 2>/dev/null || true
+    if [[ -d /opt/immersive.labs/.git ]]; then
+      cd /opt/immersive.labs
+      git fetch origin 2>/dev/null || true
+      git reset --hard origin/main 2>/dev/null || git pull --ff-only origin main 2>/dev/null || true
+    fi
     bash /opt/immersive.labs/scripts/studio-cloudflare-tunnel/ensure-comfyui-gce.sh 2>/dev/null || true
   fi
   if systemctl list-unit-files cloudflared.service >/dev/null 2>&1; then
     systemctl restart cloudflared 2>/dev/null || true
   else
     echo "cloudflared systemd unit missing — install install-cloudflared-debian.sh"
+  fi
+  WATCHDOG="$(read_metadata_attr STUDIO_INSTALL_WATCHDOG | tr -d '\r\n')"
+  if [[ "$WATCHDOG" == "1" ]] || [[ -d /opt/immersive.labs/.git ]]; then
+    bash /opt/immersive.labs/scripts/studio-cloudflare-tunnel/install-studio-watchdog-gce.sh 2>/dev/null || true
   fi
   echo "Fast path: studio-worker + cloudflared restart attempted. $(date -uIs)"
   exit 0
@@ -156,4 +165,5 @@ else
 fi
 
 touch /var/lib/immersive-studio-bootstrapped
+bash /opt/immersive.labs/scripts/studio-cloudflare-tunnel/install-studio-watchdog-gce.sh 2>/dev/null || true
 echo "Bootstrap complete; studio-worker running. $(date -uIs)"
