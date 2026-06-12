@@ -10,6 +10,8 @@
 const HEALTH_PATH = "/api/studio/health";
 const HEALTH_KV_KEY = "studio:health:v1";
 const HEALTH_KV_TTL_SECONDS = 60;
+/** When origin returns 502/504, still serve last good health JSON up to this age (ms). */
+const HEALTH_STALE_MS = 120_000;
 
 /** Anonymous probe; edge treats KV entries stale before this (see COMFY_EDGE_STALE_MS). */
 const COMFY_STATUS_PATH = "/api/studio/comfy-status";
@@ -243,11 +245,19 @@ async function coerceJsonForStudioApiHtmlErrors(
 }
 
 async function cachedHealth(request: Request, env: Env): Promise<Response | null> {
+  return cachedHealthFromKv(request, env, healthCacheTtlMs(env), "HIT");
+}
+
+async function cachedHealthFromKv(
+  request: Request,
+  env: Env,
+  maxAgeMs: number,
+  cacheLabel: "HIT" | "STALE",
+): Promise<Response | null> {
   const kv = env.STUDIO_KV;
   if (!kv) {
     return null;
   }
-  const ttlMs = healthCacheTtlMs(env);
   const raw = await kv.get(HEALTH_KV_KEY);
   if (!raw) {
     return null;
@@ -258,15 +268,18 @@ async function cachedHealth(request: Request, env: Env): Promise<Response | null
   } catch {
     return null;
   }
-  if (typeof entry.t !== "number" || Date.now() - entry.t > ttlMs) {
+  if (typeof entry.t !== "number" || Date.now() - entry.t > maxAgeMs) {
     return null;
   }
   const allowed = parseCorsOrigins(env);
   const headers = new Headers({
     "Content-Type": "application/json",
-    "X-Studio-Edge-Cache": "HIT",
+    "X-Studio-Edge-Cache": cacheLabel,
     "X-Studio-Edge-Origin-Host": originHostname(env),
   });
+  if (cacheLabel === "STALE") {
+    headers.set("X-Studio-Edge-Stale", "true");
+  }
   const o = pickAllowOrigin(request, allowed);
   if (o) {
     headers.set("Access-Control-Allow-Origin", o);
@@ -404,11 +417,21 @@ async function fetchAndStoreHealth(request: Request, env: Env, kv: KVNamespace):
   try {
     bodyJson = JSON.parse(text) as unknown;
   } catch {
+    const stale = await cachedHealthFromKv(request, env, HEALTH_STALE_MS, "STALE");
+    if (stale) {
+      return stale;
+    }
     const allowed = parseCorsOrigins(env);
     const out = new Headers(upstream.headers);
     out.set("X-Studio-Edge-Cache", "MISS");
     const r = new Response(text, { status: upstream.status, statusText: upstream.statusText, headers: out });
     return mergeCors(request, r, allowed);
+  }
+  if (upstream.status >= 500) {
+    const stale = await cachedHealthFromKv(request, env, HEALTH_STALE_MS, "STALE");
+    if (stale) {
+      return stale;
+    }
   }
   const acao = upstream.headers.get("Access-Control-Allow-Origin");
   try {

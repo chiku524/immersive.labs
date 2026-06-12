@@ -589,7 +589,7 @@ export function StudioPage() {
     setHealth("checking");
     setHealthErrorHint(null);
     setWorkerVersion(null);
-    void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/health`, { signal })
+    void fetchWithTransientRetry(`${STUDIO_API_BASE}/api/studio/health`, { signal }, 5)
       .then(async (r) => {
         if (signal?.aborted) {
           return;
@@ -606,7 +606,9 @@ export function StudioPage() {
                 "See scripts/studio-cloudflare-tunnel/README.md.",
             );
           } else if (r.status >= 500) {
-            setHealthErrorHint(`Gateway or server error (HTTP ${r.status}). Check the Worker / reverse proxy and the Python worker logs.`);
+            setHealthErrorHint(
+              `Gateway or server error (HTTP ${r.status}). On the free-tier VM this is often a brief origin timeout while Comfy or a job holds the CPU — wait and click Refresh, or check cloudflared/docker on the VM.`,
+            );
           } else {
             setHealthErrorHint(`Unexpected HTTP ${r.status} from ${STUDIO_API_BASE}/api/studio/health.`);
           }

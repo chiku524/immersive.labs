@@ -4,8 +4,10 @@ credentials-file: /etc/cloudflared/52513248-a776-4f3d-b6fb-7e17c3858b2b.json
 # Defaults for every origin behind this connector (override per ingress rule if needed).
 # See: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/configure-tunnels/local-management/configuration-file/
 originRequest:
-  connectTimeout: 60s
+  connectTimeout: 90s
   tlsTimeout: 30s
+  keepAliveTimeout: 180s
+  tcpKeepAlive: 30s
   noHappyEyeballs: false
 
 # api-origin → studio-worker (FastAPI). Public `api` may be served by Cloudflare Worker → ORIGIN_URL.
@@ -16,6 +18,12 @@ originRequest:
 ingress:
   - hostname: api-origin.immersivelabs.space
     service: http://127.0.0.1:8787
+    originRequest:
+      connectTimeout: 90s
+      keepAliveTimeout: 180s
   - hostname: comfy.immersivelabs.space
     service: http://127.0.0.1:8188
+    originRequest:
+      connectTimeout: 90s
+      keepAliveTimeout: 180s
   - service: http_status:404
