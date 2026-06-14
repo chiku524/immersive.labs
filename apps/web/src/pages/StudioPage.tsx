@@ -17,6 +17,67 @@ import "./StudioPage.css";
 
 const API_KEY_STORAGE = "immersive_studio_api_key";
 const ENGINE_TARGET_STORAGE = "immersive_studio_engine_target";
+const PROMPT_STORAGE = "immersive_studio_prompt";
+const LAST_JOB_STORAGE = "immersive_studio_last_job_v1";
+const ACTIVE_QUEUE_STORAGE = "immersive_studio_active_queue_id";
+const JOB_OPTS_STORAGE = "immersive_studio_job_opts_v1";
+
+type PersistedJobResult = {
+  job_id: string;
+  zip_path: string;
+  errors: string[];
+  texture_logs: string[];
+  mesh_logs: string[];
+  prompt?: string;
+};
+
+function readStoredPrompt(): string {
+  try {
+    return localStorage.getItem(PROMPT_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function readStoredJobResult(): PersistedJobResult | null {
+  try {
+    const raw = localStorage.getItem(LAST_JOB_STORAGE);
+    if (!raw) {
+      return null;
+    }
+    const j = JSON.parse(raw) as PersistedJobResult;
+    if (!j?.job_id) {
+      return null;
+    }
+    return j;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredJobOpts(): { generateTextures: boolean; exportMesh: boolean } {
+  try {
+    const raw = localStorage.getItem(JOB_OPTS_STORAGE);
+    if (!raw) {
+      return { generateTextures: false, exportMesh: false };
+    }
+    const j = JSON.parse(raw) as { generateTextures?: boolean; exportMesh?: boolean };
+    return {
+      generateTextures: Boolean(j.generateTextures),
+      exportMesh: Boolean(j.exportMesh),
+    };
+  } catch {
+    return { generateTextures: false, exportMesh: false };
+  }
+}
+
+function isGatewayDetailMessage(msg: string): boolean {
+  return (
+    /Gateway or tunnel returned HTTP/i.test(msg) ||
+    /gateway_status/i.test(msg) ||
+    /invalid JSON.*502/i.test(msg)
+  );
+}
 
 type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
 type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
@@ -346,6 +407,9 @@ async function consumeQueueJobSse(
         } catch {
           /* use raw */
         }
+        if (isGatewayDetailMessage(detail)) {
+          throw new SseTransportError(detail);
+        }
         throw new Error(detail);
       }
       if (eventName === "job") {
@@ -375,24 +439,59 @@ async function pollQueueJobUntilTerminal(
   auth: Record<string, string>,
   signal: AbortSignal,
   onProgress?: (row: QueueJobRow) => void,
+  onGatewayBlip?: () => void,
 ): Promise<QueueJobRow> {
   const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
   let lastStatus = "unknown";
+  let gatewayBlips = 0;
   while (Date.now() < deadline) {
     if (signal.aborted) {
       throw new DOMException("Aborted", "AbortError");
     }
-    const pr = await fetchWithTransientRetry(
-      `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}`,
-      { headers: auth, signal },
-    );
-    const row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
+    let pr: Response;
+    try {
+      pr = await fetchWithTransientRetry(
+        `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}`,
+        { headers: auth, signal },
+        8,
+      );
+    } catch (e) {
+      if (signal.aborted || isAbortError(e)) {
+        throw e;
+      }
+      gatewayBlips++;
+      onGatewayBlip?.();
+      await delay(Math.min(STUDIO_QUEUE_POLL_MS * 2, 8000), signal);
+      continue;
+    }
+    if (RETRYABLE_HTTP.has(pr.status)) {
+      gatewayBlips++;
+      onGatewayBlip?.();
+      await delay(Math.min(STUDIO_QUEUE_POLL_MS * 2, 8000), signal);
+      continue;
+    }
+    let row: QueueJobRow & { detail?: unknown };
+    try {
+      row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
+    } catch {
+      gatewayBlips++;
+      onGatewayBlip?.();
+      await delay(STUDIO_QUEUE_POLL_MS, signal);
+      continue;
+    }
     if (signal.aborted) {
       throw new DOMException("Aborted", "AbortError");
     }
     if (!pr.ok) {
+      if (RETRYABLE_HTTP.has(pr.status)) {
+        gatewayBlips++;
+        onGatewayBlip?.();
+        await delay(STUDIO_QUEUE_POLL_MS * 2, signal);
+        continue;
+      }
       throw new Error(formatApiDetail(row.detail));
     }
+    gatewayBlips = 0;
     lastStatus = row.status;
     if (row.status === "completed") {
       return row;
@@ -406,7 +505,7 @@ async function pollQueueJobUntilTerminal(
     await delay(STUDIO_QUEUE_POLL_MS, signal);
   }
   throw new Error(
-    `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus})`,
+    `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus}${gatewayBlips > 0 ? `; ${gatewayBlips} gateway blips` : ""})`,
   );
 }
 
@@ -416,6 +515,7 @@ async function waitForQueueJobCompletion(
   auth: Record<string, string>,
   signal: AbortSignal,
   onProgress?: (row: QueueJobRow) => void,
+  onGatewayBlip?: () => void,
 ): Promise<QueueJobRow> {
   const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
   try {
@@ -425,11 +525,11 @@ async function waitForQueueJobCompletion(
       throw e;
     }
     if (e instanceof SseTransportError) {
-      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress);
+      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress, onGatewayBlip);
     }
     const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("queue SSE max duration exceeded")) {
-      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress);
+    if (msg.includes("queue SSE max duration exceeded") || isGatewayDetailMessage(msg)) {
+      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress, onGatewayBlip);
     }
     throw e;
   }
@@ -505,29 +605,32 @@ type QueueJobRow = {
 };
 
 export function StudioPage() {
-  const [prompt, setPrompt] = useState("");
+  const storedJobOpts = readStoredJobOpts();
+  const [prompt, setPrompt] = useState(() => {
+    const stored = readStoredPrompt();
+    if (stored.trim()) {
+      return stored;
+    }
+    return readStoredJobResult()?.prompt ?? "";
+  });
   const [category, setCategory] = useState<StudioCategory>("prop");
   const [stylePreset, setStylePreset] = useState<StudioStyle>("toon_bold");
   const [mock, setMock] = useState(false);
-  const [generateTextures, setGenerateTextures] = useState(false);
-  const [exportMesh, setExportMesh] = useState(false);
+  const [generateTextures, setGenerateTextures] = useState(storedJobOpts.generateTextures);
+  const [exportMesh, setExportMesh] = useState(storedJobOpts.exportMesh);
   const [engineTarget, setEngineTarget] = useState<StudioEngineTarget>("unity");
   const [loading, setLoading] = useState(false);
   const [packLoading, setPackLoading] = useState(false);
   const [jobLoading, setJobLoading] = useState(false);
   /** Long job: Comfy / mesh sub-step from queue ``progress`` field (SSE or poll). */
   const [jobRunProgress, setJobRunProgress] = useState<string | null>(null);
+  /** Transient tunnel blip while polling — job may still be running on the server. */
+  const [jobGatewayNotice, setJobGatewayNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spec, setSpec] = useState<Record<string, unknown> | null>(null);
   const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
   const [packResult, setPackResult] = useState<{ output_dir: string; job_id: string } | null>(null);
-  const [jobResult, setJobResult] = useState<{
-    job_id: string;
-    zip_path: string;
-    errors: string[];
-    texture_logs: string[];
-    mesh_logs: string[];
-  } | null>(null);
+  const [jobResult, setJobResult] = useState<PersistedJobResult | null>(() => readStoredJobResult());
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
   /** From GET /api/studio/health when present (helps confirm prod worker redeploy). */
   const [workerVersion, setWorkerVersion] = useState<string | null>(null);
@@ -547,6 +650,42 @@ export function StudioPage() {
   const [dashboardPollSlow, setDashboardPollSlow] = useState(false);
   /** Aborts in-flight queue polling when leaving /studio or starting a new run. */
   const jobPollAbortRef = useRef<AbortController | null>(null);
+  const jobLoadingRef = useRef(false);
+  const resumeQueueRef = useRef(false);
+
+  useEffect(() => {
+    jobLoadingRef.current = jobLoading;
+  }, [jobLoading]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROMPT_STORAGE, prompt);
+    } catch {
+      /* ignore */
+    }
+  }, [prompt]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        JOB_OPTS_STORAGE,
+        JSON.stringify({ generateTextures, exportMesh }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [generateTextures, exportMesh]);
+
+  useEffect(() => {
+    if (!jobResult) {
+      return;
+    }
+    try {
+      localStorage.setItem(LAST_JOB_STORAGE, JSON.stringify(jobResult));
+    } catch {
+      /* ignore */
+    }
+  }, [jobResult]);
 
   useEffect(() => {
     try {
@@ -595,6 +734,13 @@ export function StudioPage() {
           return;
         }
         if (!r.ok) {
+          if (jobLoadingRef.current && RETRYABLE_HTTP.has(r.status)) {
+            setHealth("ok");
+            setHealthErrorHint(
+              "Brief gateway timeout while a full job is running on the VM (textures/mesh can block the API). Polling continues — refresh if this persists.",
+            );
+            return;
+          }
           setHealth("error");
           setWorkerVersion(null);
           if (r.status === 530) {
@@ -699,6 +845,67 @@ export function StudioPage() {
       });
   }, [authHeaders]);
 
+  const finishJobFromQueueRow = useCallback(
+    (row: QueueJobRow, promptHint: string) => {
+      if (row.status !== "completed") {
+        throw new Error(`Unexpected terminal queue status: ${row.status}`);
+      }
+      const data = row.result;
+      if (!data) {
+        throw new Error("Job completed without result payload");
+      }
+      setSpec(data.spec ?? null);
+      const next: PersistedJobResult = {
+        job_id: data.job_id ?? "?",
+        zip_path: data.zip_path ?? "",
+        errors: data.errors ?? [],
+        texture_logs: data.texture_logs ?? [],
+        mesh_logs: data.mesh_logs ?? [],
+        prompt: promptHint,
+      };
+      setJobResult(next);
+      setJobGatewayNotice(null);
+      setError(null);
+      try {
+        localStorage.removeItem(ACTIVE_QUEUE_STORAGE);
+      } catch {
+        /* ignore */
+      }
+      void refreshDashboard();
+    },
+    [refreshDashboard],
+  );
+
+  const followQueueJob = useCallback(
+    async (queueId: string, promptHint: string, signal: AbortSignal) => {
+      const row = await waitForQueueJobCompletion(
+        queueId,
+        authHeaders(),
+        signal,
+        (r) => {
+          const p = r.progress;
+          if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
+            const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
+            setJobRunProgress(
+              `Textures ${p.done}/${p.total}${p.label ? ` · ${p.label}` : ""}${w}`,
+            );
+          } else if (r.status === "running" || r.status === "pending") {
+            setJobRunProgress(`Job ${r.status} on server…`);
+          } else {
+            setJobRunProgress(null);
+          }
+        },
+        () => {
+          setJobGatewayNotice(
+            "Tunnel returned a brief HTTP 502/504 while checking job status — the job may still be running on the VM. Waiting…",
+          );
+        },
+      );
+      finishJobFromQueueRow(row, promptHint);
+    },
+    [authHeaders, finishJobFromQueueRow],
+  );
+
   const recentJobs = mergeRecentJobRows(jobs, queueJobs);
 
   const refreshComfy = useCallback((signal?: AbortSignal) => {
@@ -767,6 +974,50 @@ export function StudioPage() {
       window.clearInterval(t);
     };
   }, [refreshDashboard, jobLoading, dashboardPollSlow]);
+
+  useEffect(() => {
+    if (!STUDIO_API_READY || resumeQueueRef.current) {
+      return;
+    }
+    let queueId: string | null = null;
+    try {
+      queueId = localStorage.getItem(ACTIVE_QUEUE_STORAGE);
+    } catch {
+      queueId = null;
+    }
+    if (!queueId?.trim()) {
+      return;
+    }
+    resumeQueueRef.current = true;
+    setJobLoading(true);
+    setJobGatewayNotice("Resuming in-flight job after page reload…");
+    setError(null);
+    jobPollAbortRef.current?.abort();
+    const runAc = new AbortController();
+    jobPollAbortRef.current = runAc;
+    const promptHint = readStoredPrompt() || readStoredJobResult()?.prompt || "";
+    void followQueueJob(queueId, promptHint, runAc.signal)
+      .catch((err) => {
+        if (runAc.signal.aborted || isAbortError(err)) {
+          return;
+        }
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!isGatewayDetailMessage(msg)) {
+          setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
+        } else {
+          setJobGatewayNotice(
+            "Could not reach the queue API after reload — check Recent jobs below or run Refresh now.",
+          );
+        }
+      })
+      .finally(() => {
+        if (jobPollAbortRef.current === runAc) {
+          jobPollAbortRef.current = null;
+        }
+        setJobRunProgress(null);
+        setJobLoading(false);
+      });
+  }, [STUDIO_API_READY, followQueueJob]);
 
   useEffect(
     () => () => {
@@ -862,15 +1113,13 @@ export function StudioPage() {
     setJobLoading(true);
     setError(null);
     setJobRunProgress(null);
+    setJobGatewayNotice(null);
     setPackResult(null);
-    setJobResult(null);
     jobPollAbortRef.current?.abort();
     const runAc = new AbortController();
     jobPollAbortRef.current = runAc;
     const signal = runAc.signal;
     try {
-      // Enqueue + poll: Cloudflare Worker → origin fetch times out on long synchronous /jobs/run
-      // (textures + mesh). Short requests stay under proxy limits.
       const idem =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -888,9 +1137,6 @@ export function StudioPage() {
           export_mesh: exportMesh,
           engine_target: engineTarget,
           unity_urp_hint: "6000.0.x LTS (pin when smoke-tested)",
-          // One queue attempt: otherwise a failed job (e.g. Ollama down) returns status `pending`
-          // for retries while the UI only treats `dead` / `completed` as terminal — button stays
-          // "Running job…" for up to max_attempts × long LLM timeouts.
           max_attempts: 1,
           idempotency_key: idem,
         }),
@@ -903,44 +1149,34 @@ export function StudioPage() {
       if (!queueId) {
         throw new Error("Enqueue response missing queue_id");
       }
+      try {
+        localStorage.setItem(ACTIVE_QUEUE_STORAGE, queueId);
+      } catch {
+        /* ignore */
+      }
 
-      const row = await waitForQueueJobCompletion(queueId, authHeaders(), signal, (r) => {
-        const p = r.progress;
-        if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
-          const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
-          setJobRunProgress(
-            `Textures ${p.done}/${p.total}${p.label ? ` · ${p.label}` : ""}${w}`,
-          );
-        } else {
-          setJobRunProgress(null);
-        }
-      });
+      await followQueueJob(queueId, prompt, signal);
       if (signal.aborted) {
         return;
       }
-      if (row.status !== "completed") {
-        throw new Error(`Unexpected terminal queue status: ${row.status}`);
-      }
-      const data = row.result;
-      if (!data) {
-        throw new Error("Job completed without result payload");
-      }
-      setSpec(data.spec ?? null);
-      setJobResult({
-        job_id: data.job_id ?? "?",
-        zip_path: data.zip_path ?? "",
-        errors: data.errors ?? [],
-        texture_logs: data.texture_logs ?? [],
-        mesh_logs: data.mesh_logs ?? [],
-      });
       setJobRunProgress(null);
-      void refreshDashboard();
     } catch (err) {
       if (signal.aborted || isAbortError(err)) {
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
-      setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
+      if (isGatewayDetailMessage(msg)) {
+        setJobGatewayNotice(
+          "Lost contact with the queue API, but the job may still be running — check Recent jobs or refresh the page to resume polling.",
+        );
+      } else {
+        setError(`${msg} — worker: ${studioWorkerDisplayOrigin()}`);
+        try {
+          localStorage.removeItem(ACTIVE_QUEUE_STORAGE);
+        } catch {
+          /* ignore */
+        }
+      }
     } finally {
       if (jobPollAbortRef.current === runAc) {
         jobPollAbortRef.current = null;
@@ -1405,6 +1641,11 @@ export function StudioPage() {
             {jobLoading && jobRunProgress ? (
               <p className="studio-job-run-progress" role="status" aria-live="polite">
                 {jobRunProgress}
+              </p>
+            ) : null}
+            {jobGatewayNotice ? (
+              <p className="studio-job-gateway-notice" role="status" aria-live="polite">
+                {jobGatewayNotice}
               </p>
             ) : null}
           </form>
