@@ -31,7 +31,7 @@ if (Test-Path $EnvFile) {
   }
   Write-Host "Loaded $EnvFile"
 } else {
-  Write-Host "No $EnvFile — create it from scripts/local-pc-studio/env.studio-worker.local.template"
+  Write-Host "No $EnvFile - create it from scripts/local-pc-studio/env.studio-worker.local.template"
 }
 
 $venvPy = Join-Path $Root "apps\studio-worker\.venv\Scripts\python.exe"
@@ -46,5 +46,5 @@ if (Test-Path $venvPy) {
 }
 Write-Host "STUDIO_REPO_ROOT=$($env:STUDIO_REPO_ROOT)"
 Write-Host "Using Python: $pyExe"
-Write-Host "Starting immersive-studio serve on http://127.0.0.1:8787 ..."
+Write-Host "Starting immersive-studio serve on http://127.0.0.1:8787"
 & $pyExe -m studio_worker.cli serve --host 127.0.0.1 --port 8787

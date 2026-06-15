@@ -5,7 +5,13 @@
 ## Bootstrap once
 
 ```powershell
-# From monorepo root (Windows)
+# From monorepo root (Windows) — Ollama + Blender, no cloud / no Tripo
+.\scripts\local-pc-studio\start-free-local-studio.ps1
+```
+
+Or manual bootstrap:
+
+```powershell
 .\scripts\local-pc-studio\setup-local-studio.ps1
 ```
 
@@ -15,7 +21,9 @@ Git Bash / macOS / Linux:
 bash scripts/local-pc-studio/setup-local-studio.sh
 ```
 
-**Docker API** (Comfy still on host for GPU): add `-UseDocker` / `--docker`, then use `start-studio-api-docker.ps1` or `docker compose -f scripts/local-pc-studio/docker-compose.local.yml up --build`.
+**What “free local” gives you:** Ollama writes a real `StudioAssetSpec`, Blender exports a procedural GLB (category-based placeholder mesh), optional ComfyUI albedo PNGs. It does **not** include Tripo-style prompt-to-3D mesh (that needs paid API credits).
+
+**Docker API** (only if you prefer containerized worker): add `-UseDocker` to setup, Comfy must use `COMFYUI_DOCKER_WORKER=1`. On Windows, **native venv** (`start-free-local-studio.ps1`) is simpler for Blender + Ollama paths.
 
 ## Every session
 

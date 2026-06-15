@@ -14,6 +14,30 @@ from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker.validate import validate_asset_spec_file
 
 
+def _load_env_local_file() -> None:
+    """Load apps/studio-worker/.env.local into os.environ (doctor / serve without PowerShell wrapper)."""
+    import os
+
+    candidates: list[Path] = []
+    rr = os.environ.get("STUDIO_REPO_ROOT", "").strip()
+    if rr:
+        candidates.append(Path(rr) / "apps" / "studio-worker" / ".env.local")
+    candidates.append(Path.cwd() / "apps" / "studio-worker" / ".env.local")
+    for path in candidates:
+        if not path.is_file():
+            continue
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, val)
+        return
+
+
 def _cmd_queue_worker(args: argparse.Namespace) -> int:
     from studio_worker.sqlite_queue import run_worker_loop
 
@@ -140,6 +164,7 @@ def _cmd_init_db(_args: argparse.Namespace) -> int:
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
+    _load_env_local_file()
     from studio_worker.comfy_client import DEFAULT_COMFY_BASE_URL, comfy_reachability
     from studio_worker.mesh_export import resolve_blender_executable
     from studio_worker.scale_config import (
@@ -228,6 +253,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
+    _load_env_local_file()
     import uvicorn
 
     uvicorn.run(
