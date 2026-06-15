@@ -40,7 +40,7 @@ Required top-level keys:
 - target_height_m: positive number (meters), typically 0.5–3.0 for props; use 1.0 if scale is unknown (never null)
 - palette: optional array of #RRGGBB strings only (color locking). Never put material slot objects here — they belong only in material_slots.
 - tags: non-empty array of short strings
-- material_slots: array; each item has id, role, resolution_hint as JSON integer (512|1024|2048|4096), not a string, optional notes
+- material_slots: array; each item has id (JSON string, e.g. "main" — never a number), role, resolution_hint as JSON integer (512|1024|2048|4096), not a string, optional notes
   Required roles for this style: {roles}
 - variants: at least one item with variant_id and label; optional integer seed per variant. Never put source_prompt, reference_assets, or notes inside variants — those belong only under generation.
 - generation: object with source_prompt (echo the user's creative brief faithfully), optional negative_prompt (must be a JSON string if present, never null — omit the key or use an empty string if unused), optional reference_assets array of strings (paths/ids), not objects
