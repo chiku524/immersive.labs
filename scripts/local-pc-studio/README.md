@@ -1,5 +1,42 @@
 # Host Studio on your local PC (ComfyUI + Blender + API)
 
+**Local-first (recommended):** run the full pipeline on **your PC** with GPU/CPU. The GCE VM is optional — only needed for 24/7 public `api.immersivelabs.space` without your machine online.
+
+## Bootstrap once
+
+```powershell
+# From monorepo root (Windows)
+.\scripts\local-pc-studio\setup-local-studio.ps1
+```
+
+Git Bash / macOS / Linux:
+
+```bash
+bash scripts/local-pc-studio/setup-local-studio.sh
+```
+
+**Docker API** (Comfy still on host for GPU): add `-UseDocker` / `--docker`, then use `start-studio-api-docker.ps1` or `docker compose -f scripts/local-pc-studio/docker-compose.local.yml up --build`.
+
+## Every session
+
+| Step | Command |
+|------|---------|
+| ComfyUI (textures) | `.\scripts\local-pc-studio\start-comfyui.ps1` — use `COMFYUI_USE_GPU=1` when CUDA PyTorch is installed |
+| Studio API | `.\scripts\local-pc-studio\start-studio-api.ps1` **or** Docker compose above |
+| Web `/studio` | `npm run dev` → http://localhost:5173/studio (Vite proxies `/api/studio` → `:8787`) |
+
+## Retire the GCE VM
+
+When you no longer need cloud-hosted API:
+
+```bash
+bash scripts/studio-cloudflare-tunnel/retire-gce-studio-vm.sh
+```
+
+Public **https://immersivelabs.space/studio** will show worker errors until you either use **local dev** only, or run **Cloudflare Tunnel** from your PC and update Worker `ORIGIN_URL` (see [Optional: expose your PC](#optional-expose-your-pc-to-the-browser)).
+
+---
+
 ## Quick start today (mock + mesh, no cloud)
 
 Prove the pipeline end-to-end before fixing production tunnels or paying for text-to-3D APIs:
@@ -17,9 +54,7 @@ Git Bash / macOS / Linux: `bash scripts/local-pc-studio/smoke-mock-mesh-pack.sh`
 
 Then in Unity: **Immersive Labs → Import Studio Pack…** → pick the job folder under `apps/studio-worker/output/jobs/` (see [packages/studio-unity/README.md](../../packages/studio-unity/README.md)).
 
-**When you have Tripo credits** (~next week): in `apps/studio-worker/.env.local` set `STUDIO_MESH_PROVIDER=tripo` and `STUDIO_TRIPO_API_KEY=…`, then re-run the smoke script or `/studio` with **Export mesh** checked.
-
-**Production VM (HTTP 530):** GCP Console → VM **immersive-studio-worker** → **SSH in browser** → paste/run [vm-recover-tunnel-and-docker.sh](../studio-cloudflare-tunnel/vm-recover-tunnel-and-docker.sh).
+**When you have Tripo credits:** in `apps/studio-worker/.env.local` set `STUDIO_MESH_PROVIDER=tripo` and `STUDIO_TRIPO_API_KEY=…`, then re-run the smoke script or `/studio` with **Export mesh** checked.
 
 ---
 
@@ -170,9 +205,10 @@ Then set **`STUDIO_CORS_ORIGINS`** on the worker to include your dev origin, e.g
 
 ## Migrating off cloud workers
 
-1. **Stop** (or scale down) the GCE / tunnel-backed API if you no longer want traffic there.
-2. **Vercel:** for production builds, either keep `VITE_STUDIO_API_URL` pointing at a **tunnel URL** that reaches your PC (see below), or ship the site only for local use.
-3. **Comfy:** remove reliance on `https://comfy.immersivelabs.space` by using `STUDIO_COMFY_URL=http://127.0.0.1:8188` locally (already in the template).
+1. **Bootstrap local:** `setup-local-studio.ps1` / `.sh` (creates `.env.local` + Vite proxy).
+2. **Retire VM:** `bash scripts/studio-cloudflare-tunnel/retire-gce-studio-vm.sh` (stops GCP billing).
+3. **Use `/studio` locally:** `npm run dev` — do not rely on `VITE_STUDIO_API_URL=https://api.immersivelabs.space` in dev (proxy mode overrides it).
+4. **Production site:** Vercel builds still point at the public Worker until you change env or add a PC tunnel. For personal use, local dev is enough.
 
 ## Optional: expose your PC to the browser
 
