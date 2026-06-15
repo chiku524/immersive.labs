@@ -6,8 +6,16 @@ read_metadata_attr() {
     "http://metadata.google.internal/computeMetadata/v1/instance/attributes/${1}" 2>/dev/null || true
 }
 CORS="$(read_metadata_attr STUDIO_CORS_ORIGINS | tr -d '\r\n')"
-COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
-COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
+COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL | tr -d '\r\n')"
+NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
+# Avoid tunnel hairpin (worker → Cloudflare → same VM) during /history polls while Comfy renders.
+if [[ -n "$COMFY_META" ]]; then
+  COMFY_URL="$COMFY_META"
+elif [[ "$NET_MODE" == "bridge" ]]; then
+  COMFY_URL="http://host.docker.internal:8188"
+else
+  COMFY_URL="http://127.0.0.1:8188"
+fi
 COMFY_CKPT_META="$(read_metadata_attr STUDIO_COMFY_CHECKPOINT | tr -d '\r\n')"
 # Hosted Comfy install script ships SD1.5 as .safetensors; resolve_comfy_checkpoint maps .ckpt if needed.
 COMFY_CKPT="${COMFY_CKPT_META:-v1-5-pruned-emaonly.safetensors}"
@@ -15,7 +23,6 @@ COMFY_CKPT="${COMFY_CKPT_META:-v1-5-pruned-emaonly.safetensors}"
 # (bridge + 172.17.0.1 often hits UFW / wrong gateway / hairpin timeouts). Metadata STUDIO_DOCKER_NETWORK=bridge
 # restores -p 127.0.0.1:8787:8787 + bridge gateway for Ollama.
 OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
-NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 # tinyllama fits e2-micro disks; set metadata STUDIO_OLLAMA_MODEL=llama3.2 when you have space.
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"

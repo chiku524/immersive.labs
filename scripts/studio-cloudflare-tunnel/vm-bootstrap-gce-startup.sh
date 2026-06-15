@@ -110,14 +110,19 @@ if [[ -z "${CORS}" ]]; then
   exit 0
 fi
 
-# ComfyUI HTTP API (textures). The worker runs INSIDE Docker: http://127.0.0.1:8188 is the *container*
-# loopback, NOT the VM host — use the public URL (tunnel → host:8188) unless ComfyUI is in the same
-# container network. Default matches studio_worker (https://comfy.immersivelabs.space). Override via
-# instance metadata STUDIO_COMFY_URL (e.g. http://host.docker.internal:8188 if you add --add-host).
-COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL)"
-COMFY_URL="${COMFY_META:-https://comfy.immersivelabs.space}"
+# ComfyUI HTTP API (textures). Worker in Docker must not use http://127.0.0.1:8188 (container loopback).
+# Default: host.docker.internal:8188 (ComfyUI systemd on VM host). Override via metadata STUDIO_COMFY_URL
+# (e.g. https://comfy.immersivelabs.space only when Comfy runs on another machine).
+COMFY_META="$(read_metadata_attr STUDIO_COMFY_URL | tr -d '\r\n')"
 OLLAMA_META="$(read_metadata_attr STUDIO_OLLAMA_URL)"
 NET_MODE="$(read_metadata_attr STUDIO_DOCKER_NETWORK | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
+if [[ -n "$COMFY_META" ]]; then
+  COMFY_URL="$COMFY_META"
+elif [[ "$NET_MODE" == "bridge" ]]; then
+  COMFY_URL="http://host.docker.internal:8188"
+else
+  COMFY_URL="http://127.0.0.1:8188"
+fi
 OLLAMA_MODEL_META="$(read_metadata_attr STUDIO_OLLAMA_MODEL)"
 OLLAMA_MODEL="${OLLAMA_MODEL_META:-tinyllama}"
 READ_META="$(read_metadata_attr STUDIO_OLLAMA_READ_TIMEOUT_S | tr -d '\r\n')"

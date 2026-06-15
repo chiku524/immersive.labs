@@ -40,6 +40,14 @@ class ComfyUIError(RuntimeError):
     pass
 
 
+# Tunnel / reverse-proxy blips while Comfy is busy rendering (same class of errors as studio-edge).
+_COMFY_RETRYABLE_HTTP = frozenset({502, 503, 504, 524, 530})
+
+
+def _comfy_transient_http(status: int) -> bool:
+    return status in _COMFY_RETRYABLE_HTTP
+
+
 # Default when STUDIO_COMFY_URL is unset: hosted ComfyUI (Immersive Labs). Override with
 # STUDIO_COMFY_URL=http://127.0.0.1:8188 for a local ComfyUI, or http://127.0.0.1:8188 on the
 # worker VM when ComfyUI runs on the same machine (see GCE instance metadata).
@@ -268,6 +276,19 @@ def _unwrap_prompt_history_entry(data: Any, prompt_id: str) -> dict[str, Any] | 
     return None
 
 
+def _fetch_full_history_entry(
+    prompt_id: str,
+    *,
+    base_url: str | None = None,
+) -> dict[str, Any] | None:
+    try:
+        full = fetch_history(base_url=base_url)
+    except ComfyUIError:
+        return None
+    ent = full.get(prompt_id)
+    return ent if isinstance(ent, dict) else None
+
+
 def fetch_history_prompt_entry(
     prompt_id: str,
     *,
@@ -276,15 +297,13 @@ def fetch_history_prompt_entry(
     """
     Prefer ``GET /history/{prompt_id}`` when ComfyUI supports it (smaller than full /history).
     Returns the prompt's history object, or None if still pending / not present yet.
-    On HTTP errors other than 404, falls back to full ``/history`` and extracts ``prompt_id``.
+    Transient gateway 5xx returns None so ``wait_for_prompt`` can keep polling.
     """
     import os
 
     mode = os.environ.get("STUDIO_COMFY_HISTORY_MODE", "").strip().lower()
     if mode in ("full", "legacy"):
-        full = fetch_history(base_url=base_url)
-        ent = full.get(prompt_id)
-        return ent if isinstance(ent, dict) else None
+        return _fetch_full_history_entry(prompt_id, base_url=base_url)
 
     base = (base_url or comfy_base_url()).rstrip("/")
     try:
@@ -295,25 +314,21 @@ def fetch_history_prompt_entry(
             follow_redirects=True,
         )
     except httpx.RequestError:
-        full = fetch_history(base_url=base_url)
-        ent = full.get(prompt_id)
-        return ent if isinstance(ent, dict) else None
-    if r.status_code in (404, 405) or r.status_code >= 400:
-        full = fetch_history(base_url=base_url)
-        ent = full.get(prompt_id)
-        return ent if isinstance(ent, dict) else None
+        return None
+    if _comfy_transient_http(r.status_code):
+        return None
+    if r.status_code in (404, 405):
+        return _fetch_full_history_entry(prompt_id, base_url=base_url)
+    if r.status_code >= 400:
+        raise ComfyUIError(f"ComfyUI /history/{prompt_id} {r.status_code}: {r.text[:400]}")
     try:
         data = r.json()
     except json.JSONDecodeError:
-        full = fetch_history(base_url=base_url)
-        ent = full.get(prompt_id)
-        return ent if isinstance(ent, dict) else None
+        return _fetch_full_history_entry(prompt_id, base_url=base_url)
     ent = _unwrap_prompt_history_entry(data, prompt_id)
     if ent is not None:
         return ent
-    full = fetch_history(base_url=base_url)
-    ent = full.get(prompt_id)
-    return ent if isinstance(ent, dict) else None
+    return _fetch_full_history_entry(prompt_id, base_url=base_url)
 
 
 def wait_for_prompt(
@@ -329,10 +344,7 @@ def wait_for_prompt(
         try:
             last = fetch_history_prompt_entry(prompt_id, base_url=base_url)
         except ComfyUIError:
-            hist = fetch_history(base_url=base_url)
-            last = hist.get(prompt_id)
-            if not isinstance(last, dict):
-                last = None
+            last = None
         if isinstance(last, dict):
             if last.get("outputs"):
                 return last

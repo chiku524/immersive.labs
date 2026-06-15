@@ -28,6 +28,7 @@ Operator-focused scripts used with **`docs/studio/deploy-gcp-free-vm.md`**. They
 | [`cf-bootstrap-user-token.sh`](./cf-bootstrap-user-token.sh) | Mint a **User** API token with Tunnel **Read** using **Global API Key** + email (when Account token cannot list connectors). |
 | [`push-cloudflared-config-to-gce-vm.sh`](./push-cloudflared-config-to-gce-vm.sh) | **Laptop:** `gcloud compute scp` + `ingress validate` + `systemctl restart cloudflared` on **`immersive-studio-worker`**. |
 | [`vm-remote-rebuild-studio-worker.sh`](./vm-remote-rebuild-studio-worker.sh) | **Laptop:** `git fetch` / `reset --hard origin/main` under **`/opt/immersive.labs`** on the VM, then **[`vm-rebuild-studio-worker.sh`](./vm-rebuild-studio-worker.sh)** (Docker rebuild + `docker run` with metadata env). Optional **`IAP=1`** for IAP-only SSH. |
+| [`apply-gce-comfy-local-url.sh`](./apply-gce-comfy-local-url.sh) | **Laptop:** set **`STUDIO_COMFY_URL=http://host.docker.internal:8188`** metadata and rebuild (fixes texture `/history` 502 hairpin). Use **`CLEAR_METADATA=1`** to rely on script default only. |
 | [`vm-check-studio-stack.sh`](./vm-check-studio-stack.sh) | **GCE VM (SSH):** `cloudflared`, `docker`, `127.0.0.1:8787` health, **Blender** in `studio-worker` container. |
 | [`vm-recover-tunnel-and-docker.sh`](./vm-recover-tunnel-and-docker.sh) | **GCE VM (browser SSH):** restart Docker + `cloudflared`, print public health curl hints (fixes HTTP **530**). |
 | [`vm-remote-recover-tunnel-light.sh`](./vm-remote-recover-tunnel-light.sh) | **Laptop:** refresh startup script + **reset VM** (fast path, no docker rebuild) — first choice for HTTP **530**. |
@@ -82,9 +83,10 @@ Prerequisites (CLI, project **`immersive-labs-studio`**):
 - **`STUDIO_CORS_ORIGINS`** — Set on the **running container** (and in metadata for the startup script). Every browser origin for `/studio` must match **exactly** (scheme + host).
 - **Ollama (optional metadata / `docker -e`)** — From **`immersive-studio` 0.1.9+**, defaults are a **600s** base read timeout (when unset), **8s** connect timeout, and **preflight + model verify** enabled. **`vm-bootstrap-gce-startup.sh`** / **`vm-rebuild-studio-worker.sh`** pass **`STUDIO_OLLAMA_READ_TIMEOUT_S`** through instance metadata when set (omit metadata to use worker defaults). You can also set **`STUDIO_OLLAMA_DISABLED`**, **`STUDIO_OLLAMA_CONNECT_TIMEOUT_S`**, **`STUDIO_OLLAMA_PREFLIGHT`**, **`STUDIO_OLLAMA_VERIFY_MODEL`**, **`STUDIO_OLLAMA_URL`**, **`STUDIO_OLLAMA_MODEL`** on the container — see **`docs/studio/deploy-gcp-free-vm.md`** and **`apps/studio-worker/README.md`**.
 - **`STUDIO_COMFY_URL`** — Base URL for ComfyUI’s HTTP API **as seen from the worker process**.
-  - **Worker in Docker, ComfyUI on the VM host:** use **`https://comfy.immersivelabs.space`** (tunnel to host `127.0.0.1:8188`), **not** `http://127.0.0.1:8188` (that targets the container loopback → connection refused). Alternative: `http://host.docker.internal:8188` with `docker run --add-host=host.docker.internal:host-gateway`.
-  - **ComfyUI on another host:** set to that host’s HTTPS URL.
-  - **Worker and ComfyUI on the same host without Docker:** `http://127.0.0.1:8188` is fine.
+  - **Worker in Docker, ComfyUI on the VM host (recommended):** **`http://host.docker.internal:8188`** with `docker run --add-host=host.docker.internal:host-gateway`. This is the **default** in `vm-rebuild-studio-worker.sh` / `vm-bootstrap-gce-startup.sh` when metadata is unset — avoids polling `/history` through **`https://comfy.immersivelabs.space`** while Comfy is busy on the same VM.
+  - **Worker `--network host` on the VM:** default **`http://127.0.0.1:8188`**.
+  - **Public tunnel URL:** use **`https://comfy.immersivelabs.space`** only when ComfyUI runs on **another** machine, or for browser/`curl` checks — not for same-VM Docker workers.
+  - **ComfyUI on another host:** set metadata to that host’s HTTPS URL.
 - **Tunnel public hostnames** — Typically **`api-origin`** (or your API hostname) → **`http://127.0.0.1:8787`**, and optionally **`comfy`** → **`http://127.0.0.1:8188`**. Use the Cloudflare account that owns **`immersivelabs.space`** (or your zone) when creating DNS routes; `cloudflared tunnel route dns` uses the CLI login’s default zone.
 
 ## DNS: `cloudflared tunnel route dns` picks the wrong zone
