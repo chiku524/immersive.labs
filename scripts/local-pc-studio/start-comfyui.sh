@@ -33,6 +33,11 @@ EXTRA=(--cpu)
 if [[ "${COMFYUI_USE_GPU:-}" == "1" ]]; then
   EXTRA=()
 fi
+LISTEN_HOST="127.0.0.1"
+if [[ "${COMFYUI_DOCKER_WORKER:-}" == "1" ]]; then
+  LISTEN_HOST="0.0.0.0"
+  echo "COMFYUI_DOCKER_WORKER=1 — listening on 0.0.0.0:8188 (reachable from Docker studio-worker)"
+fi
 cd "$COMFY_ROOT"
-echo "Starting ComfyUI from $COMFY_ROOT (GPU mode: ${COMFYUI_USE_GPU:-0})"
-exec "$VENV_PY" main.py --listen 127.0.0.1 --port 8188 "${EXTRA[@]}" "$@"
+echo "Starting ComfyUI from $COMFY_ROOT (GPU mode: ${COMFYUI_USE_GPU:-0}, listen: $LISTEN_HOST)"
+exec "$VENV_PY" main.py --listen "$LISTEN_HOST" --port 8188 "${EXTRA[@]}" "$@"

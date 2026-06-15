@@ -2,8 +2,10 @@
 #
 #   docker compose -f scripts/local-pc-studio/docker-compose.local.yml up --build
 #
-# ComfyUI must listen on the host at 127.0.0.1:8188 (start-comfyui.ps1 / .sh).
-# Jobs and SQLite persist under apps/studio-worker/output/ (bind mount).
+# ComfyUI on the host must listen on 0.0.0.0:8188 (not only 127.0.0.1) so the container can reach it:
+#   $env:COMFYUI_DOCKER_WORKER='1'; .\scripts\local-pc-studio\start-comfyui.ps1
+#
+# Tripo / Ollama / mesh settings come from apps/studio-worker/.env.local only (not overridden here).
 
 services:
   studio-worker:
@@ -16,12 +18,9 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       STUDIO_REPO_ROOT: /repo
-      STUDIO_COMFY_URL: ${STUDIO_COMFY_URL:-http://host.docker.internal:8188}
-      STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
-      STUDIO_EMBEDDED_QUEUE_WORKER: ${STUDIO_EMBEDDED_QUEUE_WORKER:-1}
-      STUDIO_OLLAMA_URL: ${STUDIO_OLLAMA_URL:-http://host.docker.internal:11434}
-      STUDIO_OLLAMA_MODEL: ${STUDIO_OLLAMA_MODEL:-llama3.2}
-      STUDIO_MESH_PROVIDER: ${STUDIO_MESH_PROVIDER:-blender_placeholder}
+      STUDIO_COMFY_URL: http://host.docker.internal:8188
+      STUDIO_CORS_ORIGINS: http://127.0.0.1:5173,http://localhost:5173
+      STUDIO_EMBEDDED_QUEUE_WORKER: "1"
     env_file:
       - path: ../../apps/studio-worker/.env.local
         required: false

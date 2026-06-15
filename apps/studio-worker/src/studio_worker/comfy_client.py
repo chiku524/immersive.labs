@@ -54,10 +54,34 @@ def _comfy_transient_http(status: int) -> bool:
 DEFAULT_COMFY_BASE_URL = "https://comfy.immersivelabs.space"
 
 
+def _comfy_base_url_ipv4(raw: str) -> str:
+    """
+    Docker Desktop on Windows often resolves host.docker.internal to IPv6 first; httpx then
+    fails with [Errno 101] Network is unreachable. Prefer IPv4 (e.g. 192.168.65.254).
+    """
+    from urllib.parse import urlparse, urlunparse
+    import socket
+
+    p = urlparse(raw)
+    host = (p.hostname or "").lower()
+    if host != "host.docker.internal":
+        return raw.rstrip("/")
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+    except OSError:
+        return raw.rstrip("/")
+    if not infos:
+        return raw.rstrip("/")
+    ipv4 = infos[0][4][0]
+    port = p.port or 8188
+    return urlunparse(p._replace(netloc=f"{ipv4}:{port}")).rstrip("/")
+
+
 def comfy_base_url() -> str:
     import os
 
-    return os.environ.get("STUDIO_COMFY_URL", DEFAULT_COMFY_BASE_URL).rstrip("/")
+    raw = os.environ.get("STUDIO_COMFY_URL", DEFAULT_COMFY_BASE_URL).rstrip("/")
+    return _comfy_base_url_ipv4(raw)
 
 
 def comfy_image_wait_timeout_s() -> float:

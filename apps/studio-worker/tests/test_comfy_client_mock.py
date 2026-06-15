@@ -4,7 +4,20 @@ import httpx
 import pytest
 import respx
 
-from studio_worker.comfy_client import comfy_reachability, resolve_comfy_checkpoint, run_txt2image_workflow
+from studio_worker.comfy_client import (
+    _comfy_base_url_ipv4,
+    comfy_reachability,
+    resolve_comfy_checkpoint,
+    run_txt2image_workflow,
+)
+
+
+def test_comfy_base_url_ipv4_host_docker_internal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_COMFY_URL", "http://host.docker.internal:8188")
+    resolved = _comfy_base_url_ipv4("http://host.docker.internal:8188")
+    assert "host.docker.internal" not in resolved
+    assert resolved.startswith("http://")
+    assert resolved.endswith(":8188")
 
 
 @respx.mock

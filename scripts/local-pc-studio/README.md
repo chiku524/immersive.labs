@@ -22,7 +22,8 @@ bash scripts/local-pc-studio/setup-local-studio.sh
 | Step | Command |
 |------|---------|
 | ComfyUI (textures) | `.\scripts\local-pc-studio\start-comfyui.ps1` — use `COMFYUI_USE_GPU=1` when CUDA PyTorch is installed |
-| Studio API | `.\scripts\local-pc-studio\start-studio-api.ps1` **or** Docker compose above |
+| Studio API | `.\scripts\local-pc-studio\ensure-local-api.ps1` (native venv on Windows) **or** `ensure-local-api.ps1 -UseDocker` |
+| Comfy + Docker API | `$env:COMFYUI_DOCKER_WORKER='1'` before `start-comfyui.ps1` (binds `0.0.0.0:8188` for the container) |
 | Web `/studio` | `npm run dev` → http://localhost:5173/studio (Vite proxies `/api/studio` → `:8787`) |
 
 ## Retire the GCE VM

@@ -30,7 +30,12 @@ $cpuArg = @()
 if (-not ($env:COMFYUI_USE_GPU -eq "1")) {
   $cpuArg = @("--cpu")
 }
+$listenHost = "127.0.0.1"
+if ($env:COMFYUI_DOCKER_WORKER -eq "1") {
+  $listenHost = "0.0.0.0"
+  Write-Host "COMFYUI_DOCKER_WORKER=1 — listening on 0.0.0.0:8188 (reachable from Docker studio-worker)"
+}
 Set-Location $ComfyRoot
 $gpuMode = if ($env:COMFYUI_USE_GPU -eq "1") { "yes" } else { "no" }
-Write-Host "Starting ComfyUI from $ComfyRoot (GPU mode: $gpuMode)"
-& $VenvPy main.py --listen 127.0.0.1 --port 8188 @cpuArg @args
+Write-Host "Starting ComfyUI from $ComfyRoot (GPU mode: $gpuMode, listen: $listenHost)"
+& $VenvPy main.py --listen $listenHost --port 8188 @cpuArg @args
