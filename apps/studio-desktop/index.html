@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Immersive Studio</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Immersive Labs</p>
+        <h1>Immersive Studio</h1>
+        <p class="lede">
+          Local-first 3D asset pipeline — Ollama specs, Blender mesh export, optional ComfyUI textures.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Prerequisites</h2>
+          <button type="button" id="refresh" class="ghost">Refresh</button>
+        </div>
+        <ul id="checks" class="checks" aria-live="polite"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Startup</h2>
+        <div class="settings">
+          <label class="setting-row">
+            <input type="checkbox" id="opt-auto-api" />
+            <span>Auto-start Studio API on launch</span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="opt-auto-comfy" />
+            <span>Auto-start ComfyUI on launch (textures)</span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="opt-close-tray" />
+            <span>Close to system tray (keep services running)</span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="opt-open-studio" />
+            <span>Open Studio when API is ready</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button type="button" id="start-api" class="primary">Start Studio API</button>
+        <button type="button" id="start-comfy" class="secondary">Start ComfyUI</button>
+        <button type="button" id="open-studio" class="secondary" disabled>Open Studio</button>
+        <button type="button" id="open-jobs" class="ghost">Open jobs folder</button>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+      <p class="hint">
+        Tray icon: left-click to show the window. Dev mode loads Studio from the Vite dev server on port
+        5173 (or the next free port). Run <code>npm run dev:studio-desktop</code> from the repo root.
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

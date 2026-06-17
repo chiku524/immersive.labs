@@ -1,0 +1,86 @@
+.studio-desktop-panel {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(110, 168, 255, 0.06);
+}
+
+.studio-desktop-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.studio-desktop-settings-toggle {
+  margin-left: auto;
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.studio-desktop-settings {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.studio-desktop-setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted, #9aa8bc);
+}
+
+.studio-desktop-panel-sub {
+  color: var(--muted, #9aa8bc);
+  font-size: 0.85rem;
+}
+
+.studio-desktop-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.studio-desktop-pill {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.studio-desktop-pill--ok .studio-desktop-pill-state {
+  color: #3ecf8e;
+}
+
+.studio-desktop-pill--bad .studio-desktop-pill-state {
+  color: #ff8f8f;
+}
+
+.studio-desktop-pill--unknown .studio-desktop-pill-state {
+  color: #9aa8bc;
+}
+
+.studio-desktop-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.studio-desktop-panel-message {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #9aa8bc);
+}

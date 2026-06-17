@@ -9,6 +9,8 @@ interface ImportMetaEnv {
    * Release `.../download/v1.0.0/`). If unset, links are same-origin `/plugin-packages/...`.
    */
   readonly VITE_FAB_MARKETPLACE_ZIP_BASE?: string;
+  /** Optional override for desktop release asset base URL (GitHub `.../releases/download/tag/`). */
+  readonly VITE_STUDIO_DESKTOP_RELEASE_BASE?: string;
 }
 
 interface ImportMeta {

@@ -6,6 +6,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "npm run dev -w @immersive/web",
+    "dev:studio-desktop": "npm run dev:app -w @immersive/studio-desktop",
+    "build:studio-desktop": "npm run build:app -w @immersive/studio-desktop",
     "build": "npm run build -w @immersive/web",
     "preview": "npm run preview -w @immersive/web",
     "dev:studio-edge": "npm run dev -w @immersive/studio-edge",

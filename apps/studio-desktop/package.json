@@ -1,0 +1,26 @@
+{
+  "name": "@immersive/studio-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:web": "npm run build:desktop -w @immersive/web",
+    "dev:web": "npm run dev -w @immersive/web -- --port 5173 --strictPort --host 127.0.0.1",
+    "dev:launcher": "concurrently -k -n web,launcher \"npm run dev:web\" \"vite --port 1420 --strictPort --host 127.0.0.1\"",
+    "dev:all": "npm run dev:launcher",
+    "tauri": "tauri",
+    "dev:app": "tauri dev",
+    "build:app": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.4.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.4.0",
+    "concurrently": "^9.1.2",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.3"
+  }
+}

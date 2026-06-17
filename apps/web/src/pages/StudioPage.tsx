@@ -11,6 +11,11 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
+import { StudioDesktopPanel, isTauriRuntime } from "../components/StudioDesktopPanel";
+import {
+  studioDesktopReleasePageUrl,
+  studioDesktopWindowsInstallerUrl,
+} from "../studioDesktopDownload";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
 import "../App.css";
 import "./StudioPage.css";
@@ -737,7 +742,7 @@ export function StudioPage() {
           if (jobLoadingRef.current && RETRYABLE_HTTP.has(r.status)) {
             setHealth("ok");
             setHealthErrorHint(
-              "Brief gateway timeout while a full job is running on the VM (textures/mesh can block the API). Polling continues — refresh if this persists.",
+              "Brief gateway timeout while a full job is running (textures/mesh can block the API). Polling continues — refresh if this persists.",
             );
             return;
           }
@@ -745,15 +750,17 @@ export function StudioPage() {
           setWorkerVersion(null);
           if (r.status === 530) {
             setHealthErrorHint(
-              "Cloudflare HTTP 530 — the tunnel has no active connector (cloudflared not running on the GCE VM). " +
-                "Fix: GCP Console → Compute → immersive-studio-worker → SSH in browser → run " +
-                "sudo bash scripts/studio-cloudflare-tunnel/vm-recover-tunnel-and-docker.sh from /opt/immersive.labs. " +
-                "Or paste the script from the repo. Comfy at comfy.immersivelabs.space uses the same tunnel. " +
-                "See scripts/studio-cloudflare-tunnel/README.md.",
+              import.meta.env.PROD
+                ? "Cloudflare HTTP 530 — the public API origin is offline (the GCE VM was retired for local-first Studio). " +
+                  "On this PC: run docker compose -f scripts/local-pc-studio/docker-compose.local.yml up -d, then npm run dev and open http://localhost:5173/studio (not immersivelabs.space). " +
+                  "See scripts/local-pc-studio/README.md."
+                : "Cloudflare HTTP 530 — tunnel has no connector. If you retired the GCE VM, use local dev (npm run dev + worker on :8787).",
             );
           } else if (r.status >= 500) {
             setHealthErrorHint(
-              `Gateway or server error (HTTP ${r.status}). On the free-tier VM this is often a brief origin timeout while Comfy or a job holds the CPU — wait and click Refresh, or check cloudflared/docker on the VM.`,
+              import.meta.env.PROD
+                ? `Gateway error HTTP ${r.status} from the public API. The cloud worker may be offline — use http://localhost:5173/studio with the local Docker/venv API on :8787 instead.`
+                : `Gateway or server error (HTTP ${r.status}). Start the local worker (docker compose or start-studio-api.ps1) and Comfy on :8188 if using textures.`,
             );
           } else {
             setHealthErrorHint(`Unexpected HTTP ${r.status} from ${STUDIO_API_BASE}/api/studio/health.`);
@@ -1279,6 +1286,7 @@ export function StudioPage() {
         </header>
 
         <main className="studio-main">
+          <StudioDesktopPanel />
           <p className="eyebrow">Video Game Generation Studio</p>
           <h1 className="studio-title">Pipeline</h1>
           <p className="studio-lede">
@@ -1297,6 +1305,29 @@ export function StudioPage() {
             </a>
             : <code>pipx install immersive-studio</code> or <code>pip install immersive-studio</code>.
           </p>
+          {!isTauriRuntime() ? (
+            <div className="studio-desktop-download-cta">
+              <a
+                className="btn btn-primary studio-desktop-download-btn"
+                href={studioDesktopWindowsInstallerUrl()}
+                download
+              >
+                Download desktop app (Windows)
+              </a>
+              <a
+                className="btn btn-ghost studio-desktop-download-btn"
+                href={studioDesktopReleasePageUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                All platforms
+              </a>
+              <p className="studio-desktop-download-note">
+                Local-first app for Ollama specs, Blender mesh, and optional ComfyUI textures. Run{" "}
+                <code>scripts/local-pc-studio/setup-local-studio.ps1</code> once after install.
+              </p>
+            </div>
+          ) : null}
 
           {!STUDIO_API_READY ? (
             <div className="studio-health studio-health--error studio-config-banner" role="alert">
@@ -1326,10 +1357,12 @@ export function StudioPage() {
                   Worker not reachable at {studioWorkerDisplayOrigin()}.{" "}
                   {import.meta.env.PROD ? (
                     <>
-                      This is the public API URL baked into the site at build time — it is not your laptop. Fix the
-                      server, tunnel, or <code>ORIGIN_URL</code> behind <code>{studioWorkerDisplayOrigin()}</code> (see{" "}
-                      <code>apps/studio-edge/README.md</code>), then redeploy only if you change{" "}
-                      <code>VITE_STUDIO_API_URL</code>.
+                      This build calls the public API at build time — it does not reach your laptop. The GCE VM was
+                      retired; run the stack locally instead:{" "}
+                      <code>docker compose -f scripts/local-pc-studio/docker-compose.local.yml up -d</code>, then{" "}
+                      <code>npm run dev</code> and open <strong>http://localhost:5173/studio</strong>. To serve the
+                      public site again later, run a Cloudflare Tunnel from your PC and update Worker{" "}
+                      <code>ORIGIN_URL</code> (see <code>scripts/local-pc-studio/README.md</code>).
                     </>
                   ) : (
                     <>
