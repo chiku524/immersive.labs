@@ -142,6 +142,20 @@ export function StudioDesktopPanel() {
         <button
           type="button"
           className="studio-retry"
+          disabled={busy}
+          onClick={() => {
+            void invoke<string>("run_worker_setup")
+              .then((text) => setMessage(text))
+              .catch((err) => {
+                setMessage(err instanceof Error ? err.message : String(err));
+              });
+          }}
+        >
+          Run setup
+        </button>
+        <button
+          type="button"
+          className="studio-retry"
           disabled={busy || apiReady}
           onClick={() => {
             void (async () => {

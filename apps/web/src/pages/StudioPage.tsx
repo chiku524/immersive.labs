@@ -14,6 +14,8 @@ import { EngravedBackdrop } from "../components/EngravedBackdrop";
 import { StudioDesktopPanel, isTauriRuntime } from "../components/StudioDesktopPanel";
 import {
   studioDesktopReleasePageUrl,
+  studioDesktopSetupOneLiner,
+  studioDesktopSetupScriptUrl,
   studioDesktopWindowsInstallerUrl,
 } from "../studioDesktopDownload";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
@@ -1306,25 +1308,46 @@ export function StudioPage() {
             : <code>pipx install immersive-studio</code> or <code>pip install immersive-studio</code>.
           </p>
           {!isTauriRuntime() ? (
-            <div className="studio-desktop-download-cta">
-              <a
-                className="btn btn-primary studio-desktop-download-btn"
-                href={studioDesktopWindowsInstallerUrl()}
-                download
-              >
-                Download desktop app (Windows)
-              </a>
-              <a
-                className="btn btn-ghost studio-desktop-download-btn"
-                href={studioDesktopReleasePageUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                All platforms
-              </a>
+            <div className="studio-desktop-download-cta" id="desktop-setup">
+              <p className="studio-desktop-download-steps">
+                <strong>Windows desktop app</strong> — two steps after download:
+              </p>
+              <ol className="studio-desktop-download-step-list">
+                <li>Install the app (NSIS installer).</li>
+                <li>
+                  Run the one-time worker setup (Python + PyPI <code>immersive-studio</code>, Ollama/Blender config).
+                </li>
+              </ol>
+              <div className="studio-desktop-download-actions">
+                <a
+                  className="btn btn-primary studio-desktop-download-btn"
+                  href={studioDesktopWindowsInstallerUrl()}
+                  download
+                >
+                  1. Download desktop app
+                </a>
+                <a
+                  className="btn btn-secondary studio-desktop-download-btn"
+                  href={studioDesktopSetupScriptUrl()}
+                  download="setup-desktop-studio.ps1"
+                >
+                  2. Download setup script
+                </a>
+                <a
+                  className="btn btn-ghost studio-desktop-download-btn"
+                  href={studioDesktopReleasePageUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  All platforms
+                </a>
+              </div>
               <p className="studio-desktop-download-note">
-                Local-first app for Ollama specs, Blender mesh, and optional ComfyUI textures. Run{" "}
-                <code>scripts/local-pc-studio/setup-local-studio.ps1</code> once after install.
+                Or paste in PowerShell (step 2):{" "}
+                <code className="studio-desktop-oneliner">{studioDesktopSetupOneLiner()}</code>
+              </p>
+              <p className="studio-desktop-download-note">
+                Requires Python 3.11+ on PATH, Ollama, and Blender. Optional ComfyUI on :8188 for textures.
               </p>
             </div>
           ) : null}

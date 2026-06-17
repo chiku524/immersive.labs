@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+**/.git
+**/src-tauri/target
+**/target
+apps/studio-worker/.venv
+**/.venv
+jobs
+apps/studio-worker/output
+**/*.zip
+apps/web/public/plugin-packages/**/*.zip
+apps/web/public/fab-samples/**/*.zip
+.cursor

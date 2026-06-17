@@ -89,31 +89,59 @@ pub fn dev_repo_root() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
 }
 
+pub fn desktop_data_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
+        return PathBuf::from(base).join("Immersive Studio");
+    }
+    #[cfg(not(windows))]
+    {
+        let base = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        return PathBuf::from(base).join(".immersive-studio");
+    }
+}
+
+pub fn worker_env_path() -> PathBuf {
+    #[cfg(debug_assertions)]
+    {
+        dev_repo_root().join("apps/studio-worker/.env.local")
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        desktop_data_dir().join("worker.env")
+    }
+}
+
 pub fn repo_root() -> PathBuf {
     if let Ok(path) = std::env::var("STUDIO_REPO_ROOT") {
         let candidate = PathBuf::from(path.trim());
         if candidate.exists() {
-            return candidate
-                .canonicalize()
-                .unwrap_or(candidate);
+            return candidate.canonicalize().unwrap_or(candidate);
         }
     }
 
     let dev = dev_repo_root();
-    if let Some(from_env) = read_env_local_value(&dev, "STUDIO_REPO_ROOT") {
+    if let Some(from_env) = read_env_value("STUDIO_REPO_ROOT") {
         let candidate = PathBuf::from(from_env);
         if candidate.exists() {
-            return candidate
-                .canonicalize()
-                .unwrap_or(candidate);
+            return candidate.canonicalize().unwrap_or(candidate);
         }
     }
 
-    dev
+    #[cfg(not(debug_assertions))]
+    {
+        return desktop_data_dir();
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        dev
+    }
 }
 
-pub fn read_env_local_value(root: &Path, key: &str) -> Option<String> {
-    let path = root.join("apps/studio-worker/.env.local");
+pub fn read_env_value(key: &str) -> Option<String> {
+    let path = worker_env_path();
     let file = std::fs::File::open(path).ok()?;
     for line in BufReader::new(file).lines().flatten() {
         let trimmed = line.trim();
@@ -130,6 +158,10 @@ pub fn read_env_local_value(root: &Path, key: &str) -> Option<String> {
     None
 }
 
+pub fn read_env_local_value(_root: &Path, key: &str) -> Option<String> {
+    read_env_value(key)
+}
+
 fn unquote_env_value(raw: &str) -> String {
     if (raw.starts_with('"') && raw.ends_with('"')) || (raw.starts_with('\'') && raw.ends_with('\'')) {
         raw[1..raw.len() - 1].to_string()
@@ -139,8 +171,9 @@ fn unquote_env_value(raw: &str) -> String {
 }
 
 pub fn apply_env_local(cmd: &mut Command, root: &Path) {
-    let path = root.join("apps/studio-worker/.env.local");
-    let Ok(file) = std::fs::File::open(path) else {
+    let path = worker_env_path();
+    let Ok(file) = std::fs::File::open(&path) else {
+        #[cfg(debug_assertions)]
         cmd.env("STUDIO_REPO_ROOT", root);
         return;
     };
@@ -155,6 +188,7 @@ pub fn apply_env_local(cmd: &mut Command, root: &Path) {
         };
         cmd.env(k.trim(), unquote_env_value(v.trim()));
     }
+    #[cfg(debug_assertions)]
     cmd.env("STUDIO_REPO_ROOT", root);
 }
 
@@ -263,6 +297,17 @@ pub fn docker_check() -> ServiceCheck {
 }
 
 pub fn python_exe(root: &Path) -> PathBuf {
+    #[cfg(not(debug_assertions))]
+    {
+        #[cfg(windows)]
+        let desktop_py = desktop_data_dir().join("worker-venv/Scripts/python.exe");
+        #[cfg(not(windows))]
+        let desktop_py = desktop_data_dir().join("worker-venv/bin/python");
+        if desktop_py.exists() {
+            return desktop_py;
+        }
+    }
+
     #[cfg(windows)]
     {
         let venv_py = root.join("apps/studio-worker/.venv/Scripts/python.exe");
@@ -280,6 +325,13 @@ pub fn python_exe(root: &Path) -> PathBuf {
     }
 
     PathBuf::from("python")
+}
+
+fn jobs_folder() -> PathBuf {
+    if let Some(data) = read_env_value("STUDIO_WORKER_DATA_DIR") {
+        return PathBuf::from(data).join("jobs");
+    }
+    repo_root().join("jobs")
 }
 
 pub fn comfy_root(repo: &Path) -> Result<PathBuf, String> {
@@ -587,9 +639,48 @@ pub fn stop_comfy(state: State<AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_jobs_folder() -> Result<(), String> {
-    let jobs = repo_root().join("jobs");
+    let jobs = jobs_folder();
     std::fs::create_dir_all(&jobs).map_err(|err| err.to_string())?;
     tauri_plugin_opener::open_path(&jobs, None::<&str>).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn run_worker_setup(app: AppHandle) -> Result<String, String> {
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        return Err("Worker setup script is Windows-only for now. Install immersive-studio from PyPI and configure ~/.immersive-studio/worker.".into());
+    }
+
+    #[cfg(windows)]
+    {
+        let script = app
+            .path()
+            .resolve(
+                "resources/setup-desktop-studio.ps1",
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|err| err.to_string())?;
+
+        if !script.exists() {
+            return Err(
+                "Bundled setup script missing. Download from https://immersivelabs.space/downloads/setup-desktop-studio.ps1 and run with PowerShell.".into(),
+            );
+        }
+
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                &script.to_string_lossy(),
+            ])
+            .spawn()
+            .map_err(|err| format!("Failed to launch setup: {err}"))?;
+
+        Ok("Setup window opened — follow the prompts, then click Start API in Studio.".into())
+    }
 }
 
 #[tauri::command]
