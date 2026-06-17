@@ -26,7 +26,7 @@ if (!linked && !token) {
 }
 
 const scope = (process.env.VERCEL_SCOPE ?? process.env.VERCEL_TEAM ?? "").trim();
-const args = ["vercel", "deploy", "--prod", "--yes"];
+const args = ["vercel", "deploy", "--prod", "--yes", "--archive=tgz"];
 if (scope) {
   args.push("--scope", scope);
 }
