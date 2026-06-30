@@ -136,6 +136,12 @@ def _cors_allow_origins() -> list[str]:
     return [
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        # Immersive Studio desktop (Tauri v2 WebView2 / WKWebView)
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+        "tauri://localhost",
+        "http://localhost",
+        "https://localhost",
     ]
 
 

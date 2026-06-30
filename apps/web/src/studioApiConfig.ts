@@ -1,11 +1,17 @@
 /**
  * Worker base URL for Studio API calls.
  *
- * - Production builds must set VITE_STUDIO_API_URL at build time (e.g. Cloudflare Pages env).
+ * - Desktop (Tauri): always local worker on :8787.
+ * - Production web builds: VITE_STUDIO_API_URL at build time.
  * - Local dev: unset → http://127.0.0.1:8787 (direct; set STUDIO_CORS_ORIGINS on the worker).
  * - Local dev: VITE_STUDIO_API_PROXY=1 → "" (same-origin `/api/studio/*`; Vite proxies to 8787).
  */
+import { isTauriRuntime } from "./tauriRuntime";
+
 function resolveStudioApiBase(): string {
+  if (isTauriRuntime()) {
+    return "http://127.0.0.1:8787";
+  }
   // In dev, proxy mode must win over VITE_STUDIO_API_URL — many machines have a production URL in `.env`
   // for `vite build` / preview; that would break `npm run dev` + same-origin proxy.
   if (import.meta.env.DEV && import.meta.env.VITE_STUDIO_API_PROXY === "1") {
@@ -24,6 +30,7 @@ function resolveStudioApiBase(): string {
 export const STUDIO_API_BASE = resolveStudioApiBase();
 
 export const STUDIO_API_READY =
+  isTauriRuntime() ||
   STUDIO_API_BASE.length > 0 ||
   (Boolean(import.meta.env.DEV) && import.meta.env.VITE_STUDIO_API_PROXY === "1");
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isTauriRuntime } from "./StudioDesktopPanel";
+import { isTauriRuntime } from "../tauriRuntime";
 import {
   STUDIO_DESKTOP_PRODUCT_FILE,
   STUDIO_DESKTOP_VERSION,

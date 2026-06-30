@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
+import { isTauriRuntime } from "../tauriRuntime";
 import "./StudioDesktopPanel.css";
 
 type ServiceCheck = { ok: boolean; detail: string };
@@ -21,9 +22,7 @@ type DesktopSettings = {
   openStudioWhenReady: boolean;
 };
 
-export function isTauriRuntime(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+export { isTauriRuntime };
 
 export function StudioDesktopPanel() {
   const [status, setStatus] = useState<PrereqStatus | null>(null);
@@ -72,6 +71,7 @@ export function StudioDesktopPanel() {
 
   const apiReady = status?.api.ok ?? false;
   const comfyReady = status?.comfy.ok ?? false;
+  const comfyInstalled = Boolean(status?.comfy_root);
 
   async function saveSettings(patch: Partial<DesktopSettings>) {
     if (!settings) {
@@ -178,7 +178,12 @@ export function StudioDesktopPanel() {
         <button
           type="button"
           className="studio-retry"
-          disabled={busy || comfyReady}
+          disabled={busy || comfyReady || !comfyInstalled}
+          title={
+            comfyInstalled
+              ? undefined
+              : "ComfyUI not installed (optional). Install ComfyUI or set COMFYUI_ROOT in worker.env."
+          }
           onClick={() => {
             void (async () => {
               setBusy(true);

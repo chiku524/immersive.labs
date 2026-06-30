@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
 import { StudioDesktopPanel } from "../components/StudioDesktopPanel";
+import { isTauriRuntime } from "../tauriRuntime";
 import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
 import "../App.css";
@@ -1312,7 +1313,7 @@ export function StudioPage() {
           </p>
           <StudioDesktopDownloadCTA />
 
-          {!STUDIO_API_READY ? (
+          {!STUDIO_API_READY && !isTauriRuntime() ? (
             <div className="studio-health studio-health--error studio-config-banner" role="alert">
               <strong>Worker URL is not configured for this build.</strong> The browser cannot call{" "}
               <code>127.0.0.1:8787</code> from a deployed site or from another machine. Set{" "}
@@ -1338,7 +1339,13 @@ export function StudioPage() {
               {health === "error" && (
                 <>
                   Worker not reachable at {studioWorkerDisplayOrigin()}.{" "}
-                  {import.meta.env.PROD ? (
+                  {isTauriRuntime() ? (
+                    <>
+                      Use the <strong>Desktop</strong> panel above: click <strong>Run setup</strong> once, then{" "}
+                      <strong>Start API</strong> and wait a few seconds. Check{" "}
+                      <code>%LOCALAPPDATA%\Immersive Studio\worker-serve.log</code> if it stays red.
+                    </>
+                  ) : import.meta.env.PROD ? (
                     <>
                       This build calls the public API at build time — it does not reach your laptop. The GCE VM was
                       retired; run the stack locally instead:{" "}
@@ -1490,6 +1497,12 @@ export function StudioPage() {
                       network) too slow. On the worker VM raise <code>STUDIO_COMFY_PROBE_TIMEOUT_S</code>, verify Comfy is
                       listening and <code>cloudflared</code> is healthy, then click Refresh.
                     </>
+                  ) : isTauriRuntime() ? (
+                    <>
+                      <strong>Textures are optional.</strong> ComfyUI is not installed on this PC — leave{" "}
+                      <strong>Generate albedo textures</strong> unchecked, or install ComfyUI and set{" "}
+                      <code>COMFYUI_ROOT</code> in <code>%LOCALAPPDATA%\Immersive Studio\worker.env</code>.
+                    </>
                   ) : (
                     <>
                       (optional — only if you enable <strong>Generate albedo textures</strong>. Set{" "}
@@ -1511,6 +1524,7 @@ export function StudioPage() {
             </p>
           ) : null}
 
+          {!isTauriRuntime() ? (
           <section className="studio-queue-hint" aria-labelledby="queue-hint-title">
             <h3 id="queue-hint-title" className="studio-queue-hint-title">
               Async queue (optional)
@@ -1521,6 +1535,7 @@ export function StudioPage() {
               credits again. Response includes <code>deduplicated: true</code> when matched.
             </p>
           </section>
+          ) : null}
 
           <form
             className="studio-form"

@@ -1,9 +1,34 @@
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn hide_console(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+}
+
+fn worker_log_path() -> PathBuf {
+    desktop_data_dir().join("worker-serve.log")
+}
+
+fn append_worker_log(line: &str) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(worker_log_path())
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -349,15 +374,34 @@ pub fn comfy_root(repo: &Path) -> Result<PathBuf, String> {
         }
     }
 
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    #[cfg(windows)]
+    {
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            candidates.push(PathBuf::from(profile).join("ComfyUI"));
+        }
+        candidates.push(PathBuf::from(r"C:\ComfyUI"));
+    }
+    #[cfg(not(windows))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            candidates.push(PathBuf::from(home).join("ComfyUI"));
+        }
+    }
+
     if let Some(parent) = repo.parent() {
-        let sibling = parent.join("ComfyUI");
-        if sibling.join("main.py").exists() {
-            return Ok(sibling);
+        candidates.push(parent.join("ComfyUI"));
+    }
+
+    for path in candidates {
+        if path.join("main.py").exists() {
+            return Ok(path);
         }
     }
 
     Err(
-        "ComfyUI not found. Clone ComfyUI next to the monorepo parent folder or set COMFYUI_ROOT."
+        "ComfyUI not installed (optional for textures). Install from https://github.com/comfyanonymous/ComfyUI \
+         or set COMFYUI_ROOT in worker.env."
             .into(),
     )
 }
@@ -414,16 +458,33 @@ pub fn start_worker_internal(state: &AppState) -> Result<String, String> {
         "--port",
         "8787",
     ])
-    .current_dir(&root)
-    .stdout(Stdio::null())
-    .stderr(Stdio::null());
+    .current_dir(&root);
+    hide_console(&mut cmd);
+    cmd.stdout(Stdio::null());
+    if let Ok(log) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(worker_log_path())
+    {
+        cmd.stderr(Stdio::from(log));
+    } else {
+        cmd.stderr(Stdio::null());
+    }
     apply_env_local(&mut cmd, &root);
 
+    append_worker_log(&format!(
+        "--- spawn worker via {} (cwd {}) ---",
+        python.display(),
+        root.display()
+    ));
+
     let child = cmd.spawn().map_err(|err| {
-        format!(
-            "Failed to start worker with {}: {err}. Run scripts/local-pc-studio/setup-local-studio.ps1 first.",
+        let msg = format!(
+            "Failed to start worker with {}: {err}. Run setup from the Desktop panel or worker-serve.log.",
             python.display()
-        )
+        );
+        append_worker_log(&msg);
+        msg
     })?;
 
     *guard = Some(child);
@@ -463,6 +524,7 @@ pub fn start_comfy_internal(state: &AppState) -> Result<String, String> {
         .env("TQDM_DISABLE", "1")
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    hide_console(&mut cmd);
 
     if !use_gpu {
         cmd.arg("--cpu");
@@ -668,18 +730,21 @@ pub fn run_worker_setup(app: AppHandle) -> Result<String, String> {
             );
         }
 
-        Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                &script.to_string_lossy(),
-            ])
-            .spawn()
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-File",
+            &script.to_string_lossy(),
+        ]);
+        hide_console(&mut cmd);
+        cmd.spawn()
             .map_err(|err| format!("Failed to launch setup: {err}"))?;
 
-        Ok("Setup window opened — follow the prompts, then click Start API in Studio.".into())
+        Ok("Setup running in the background — wait for it to finish, then click Start API.".into())
     }
 }
 

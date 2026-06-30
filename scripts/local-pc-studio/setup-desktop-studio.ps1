@@ -71,6 +71,7 @@ STUDIO_EXPORT_MESH_DEFAULT=1
 STUDIO_BLENDER_BIN=$blenderUnix
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 STUDIO_EMBEDDED_QUEUE_WORKER=1
+STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:5173,http://localhost:5173
 "@ | Set-Content -Path $EnvFile -Encoding utf8
 
 Write-Host ""
