@@ -131,7 +131,7 @@ export function DocsPage() {
                     <a href={studioDesktopReleasePageUrl()} target="_blank" rel="noopener noreferrer">
                       GitHub Releases
                     </a>{" "}
-                    (tag <code>studio-desktop-v0.1.0</code>). Direct Windows installer:{" "}
+                    (tag <code>studio-desktop-v0.1.1</code>). Direct Windows installer:{" "}
                     <a href={studioDesktopWindowsInstallerUrl()} download>
                       NSIS setup.exe
                     </a>

@@ -50,7 +50,7 @@ If API stays red, click **Start API** in the Desktop strip or tray menu.
 npm run build:studio-desktop
 ```
 
-**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive.Studio_0.1.0_x64-setup.exe`
+**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive.Studio_0.1.1_x64-setup.exe`
 
 GitHub Release assets use `Immersive.Studio_*` (dots, not spaces). The Game Studio site links match those filenames.
 
@@ -61,7 +61,7 @@ The web bundle uses `apps/web/.env.desktop` (`VITE_STUDIO_API_URL=http://127.0.0
 ### GitHub Release (CI)
 
 1. Commit and push the desktop app to `main`.
-2. Create a GitHub Release (tag e.g. `studio-desktop-v0.1.0`) or run **Actions → Release Immersive Studio (desktop) → Run workflow**.
+2. Create a GitHub Release (tag e.g. `studio-desktop-v0.1.1`) or run **Actions → Release Immersive Studio (desktop) → Run workflow**.
 3. CI builds Windows, macOS, and Linux installers and uploads them as draft release assets.
 
 Code signing is not configured yet — Windows SmartScreen and macOS Gatekeeper may warn on first install.
