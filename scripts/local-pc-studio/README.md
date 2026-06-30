@@ -30,6 +30,9 @@ bash scripts/local-pc-studio/setup-local-studio.sh
 | Step | Command |
 |------|---------|
 | ComfyUI (textures) | `.\scripts\local-pc-studio\start-comfyui.ps1` — use `COMFYUI_USE_GPU=1` when CUDA PyTorch is installed |
+| ComfyUI (background) | `.\scripts\local-pc-studio\start-comfyui-background.ps1` — no console window (desktop-friendly) |
+| **First-time ComfyUI** | `.\scripts\local-pc-studio\setup-comfyui.ps1` — venv, CPU PyTorch, SD1.5 checkpoint |
+| **Desktop worker upgrade** | `.\scripts\local-pc-studio\upgrade-desktop-worker.ps1` — editable install + restart API on `:8787` |
 | Studio API | `.\scripts\local-pc-studio\ensure-local-api.ps1` (native venv on Windows) **or** `ensure-local-api.ps1 -UseDocker` |
 | Comfy + Docker API | `$env:COMFYUI_DOCKER_WORKER='1'` before `start-comfyui.ps1` (binds `0.0.0.0:8188` for the container) |
 | Web `/studio` | `npm run dev` → http://localhost:5173/studio (Vite proxies `/api/studio` → `:8787`) |

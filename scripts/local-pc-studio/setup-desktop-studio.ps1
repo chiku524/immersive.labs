@@ -61,6 +61,29 @@ if (-not $blenderBin) {
 $dataDirUnix = $DataDir -replace '\\', '/'
 $blenderUnix = $blenderBin -replace '\\', '/'
 
+$comfyRoot = $env:COMFYUI_ROOT
+if (-not $comfyRoot) {
+  foreach ($c in @(
+      (Join-Path $env:USERPROFILE "Desktop\vibe-code\ComfyUI"),
+      (Join-Path $env:USERPROFILE "ComfyUI"),
+      "C:\ComfyUI"
+    )) {
+    if (Test-Path (Join-Path $c "main.py")) {
+      $comfyRoot = $c
+      break
+    }
+  }
+}
+$comfyLines = @()
+if ($comfyRoot) {
+  $comfyUnix = $comfyRoot -replace '\\', '/'
+  $comfyLines = @(
+    "COMFYUI_ROOT=$comfyUnix",
+    "STUDIO_COMFY_CHECKPOINT=v1-5-pruned-emaonly.safetensors",
+    "COMFYUI_USE_GPU=0"
+  )
+}
+
 @"
 STUDIO_WORKER_DATA_DIR=$dataDirUnix
 STUDIO_OLLAMA_URL=http://127.0.0.1:11434
@@ -70,6 +93,7 @@ STUDIO_TRIPO_API_KEY=
 STUDIO_EXPORT_MESH_DEFAULT=1
 STUDIO_BLENDER_BIN=$blenderUnix
 STUDIO_COMFY_URL=http://127.0.0.1:8188
+$($comfyLines -join "`n")
 STUDIO_EMBEDDED_QUEUE_WORKER=1
 STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:5173,http://localhost:5173
 "@ | Set-Content -Path $EnvFile -Encoding utf8
