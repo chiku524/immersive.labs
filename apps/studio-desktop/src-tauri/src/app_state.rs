@@ -625,16 +625,6 @@ pub fn open_studio_window(app: &AppHandle) -> Result<String, String> {
     }
 }
 
-pub fn wait_for_health(url: &str, attempts: u32) -> bool {
-    for _ in 0..attempts {
-        if http_check(url).ok {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(750));
-    }
-    false
-}
-
 pub fn run_autostart(app: &AppHandle) {
     let settings = load_settings(app);
 
@@ -648,16 +638,6 @@ pub fn run_autostart(app: &AppHandle) {
 
     if settings.auto_start_comfy {
         let _ = start_comfy_internal(&app.state::<AppState>());
-    }
-
-    if settings.open_studio_when_ready {
-        let handle = app.clone();
-        std::thread::spawn(move || {
-            let ready = wait_for_health("http://127.0.0.1:8787/api/studio/health", 40);
-            if ready {
-                let _ = open_studio_window(&handle);
-            }
-        });
     }
 }
 

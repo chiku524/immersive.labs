@@ -6,12 +6,14 @@
   "rewrites": [
     {
       "source": "/downloads/desktop/(.*)",
-      "destination": "https://github.com/chiku524/immersive.labs/releases/download/studio-desktop-v0.1.1/$1"
+      "destination": "https://github.com/chiku524/immersive.labs/releases/download/studio-desktop-v0.1.2/$1"
     },
     { "source": "/docs", "destination": "/index.html" },
     { "source": "/docs/", "destination": "/index.html" },
     { "source": "/studio", "destination": "/index.html" },
     { "source": "/studio/", "destination": "/index.html" },
+    { "source": "/desktop/splash", "destination": "/index.html" },
+    { "source": "/desktop/launch", "destination": "/index.html" },
     { "source": "/p/plugins/:slug", "destination": "/index.html" }
   ]
 }

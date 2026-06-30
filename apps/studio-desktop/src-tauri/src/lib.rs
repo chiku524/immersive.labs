@@ -9,13 +9,48 @@ use app_state::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
+
+const WINDOW_LABEL_MAIN: &str = "main";
+const WINDOW_LABEL_SPLASH: &str = "splashscreen";
+
+#[tauri::command]
+fn close_splash_and_show_main(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(splash) = app.get_webview_window(WINDOW_LABEL_SPLASH) {
+        splash.close().map_err(|e| e.to_string())?;
+    }
+    if let Some(main_win) = app.get_webview_window(WINDOW_LABEL_MAIN) {
+        main_win.show().map_err(|e| e.to_string())?;
+        main_win.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+fn focus_studio_windows(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window(WINDOW_LABEL_SPLASH) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    if let Some(w) = app.get_webview_window(WINDOW_LABEL_MAIN) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(AppState {
             worker: std::sync::Mutex::new(None),
             comfy: std::sync::Mutex::new(None),
@@ -33,6 +68,8 @@ pub fn run() {
             open_studio,
             show_window,
             run_worker_setup,
+            close_splash_and_show_main,
+            get_app_version,
         ])
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "tray_show", "Show Immersive Studio", true, None::<&str>)?;
@@ -41,10 +78,12 @@ pub fn run() {
             let start_comfy_i =
                 MenuItem::with_id(app, "tray_start_comfy", "Start ComfyUI", true, None::<&str>)?;
             let jobs_i = MenuItem::with_id(app, "tray_jobs", "Open jobs folder", true, None::<&str>)?;
+            let updates_i =
+                MenuItem::with_id(app, "tray_check_updates", "Check for Updates", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "tray_quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
-                &[&show_i, &start_api_i, &start_comfy_i, &jobs_i, &quit_i],
+                &[&show_i, &start_api_i, &start_comfy_i, &jobs_i, &updates_i, &quit_i],
             )?;
 
             let icon = app
@@ -71,6 +110,9 @@ pub fn run() {
                     "tray_jobs" => {
                         let _ = open_jobs_folder();
                     }
+                    "tray_check_updates" => {
+                        let _ = app.emit("menu-check-updates", ());
+                    }
                     "tray_quit" => {
                         let state = app.state::<AppState>();
                         stop_all_internal(&state);
@@ -85,11 +127,14 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        let _ = show_window(app.clone());
+                        focus_studio_windows(tray.app_handle());
                     }
                 })
                 .build(app)?;
+
+            if let Some(main_win) = app.get_webview_window(WINDOW_LABEL_MAIN) {
+                let _ = main_win.center();
+            }
 
             let autostart_handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -101,6 +146,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != WINDOW_LABEL_MAIN {
+                    return;
+                }
                 let app = window.app_handle();
                 let close_to_tray = app
                     .state::<AppState>()

@@ -1,0 +1,13 @@
+{
+  "identifier": "updater-all",
+  "description": "Grant updater plugin IPC on all windows (main + splash).",
+  "local": true,
+  "windows": ["*"],
+  "webviews": ["*"],
+  "permissions": [
+    "updater:allow-check",
+    "updater:allow-download",
+    "updater:allow-install",
+    "updater:allow-download-and-install"
+  ]
+}

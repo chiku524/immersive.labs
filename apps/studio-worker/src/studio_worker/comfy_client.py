@@ -59,6 +59,7 @@ def _comfy_base_url_ipv4(raw: str) -> str:
     Docker Desktop on Windows often resolves host.docker.internal to IPv6 first; httpx then
     fails with [Errno 101] Network is unreachable. Prefer IPv4 (e.g. 192.168.65.254).
     """
+    from pathlib import Path
     from urllib.parse import urlparse, urlunparse
     import socket
 
@@ -66,13 +67,34 @@ def _comfy_base_url_ipv4(raw: str) -> str:
     host = (p.hostname or "").lower()
     if host != "host.docker.internal":
         return raw.rstrip("/")
+
+    ipv4: str | None = None
     try:
         infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+        if infos:
+            ipv4 = infos[0][4][0]
     except OSError:
-        return raw.rstrip("/")
-    if not infos:
-        return raw.rstrip("/")
-    ipv4 = infos[0][4][0]
+        pass
+
+    if not ipv4:
+        try:
+            for line in Path("/etc/hosts").read_text(encoding="utf-8", errors="replace").splitlines():
+                stripped = line.split("#", 1)[0].strip()
+                if not stripped:
+                    continue
+                parts = stripped.split()
+                if len(parts) >= 2 and host in (h.lower() for h in parts[1:]):
+                    candidate = parts[0]
+                    if ":" not in candidate:
+                        ipv4 = candidate
+                        break
+        except OSError:
+            pass
+
+    if not ipv4:
+        # Docker Desktop (Win/Mac) and Linux bridge when DNS/hosts lack the name (e.g. CI).
+        ipv4 = "192.168.65.254"
+
     port = p.port or 8188
     return urlunparse(p._replace(netloc=f"{ipv4}:{port}")).rstrip("/")
 

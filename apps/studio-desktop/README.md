@@ -4,7 +4,9 @@ Tauri v2 shell for local-first Studio on Windows, macOS, and Linux.
 
 ## What it does
 
-- **Opens directly to Game Studio** (`/studio` Pipeline UI) — same React app as `apps/web`.
+- **Splash intro** — frameless splash with staggered logo animation, then optional auto-update check before opening Studio.
+- **Auto-updater** — checks on launch and every 30 minutes; tray menu **Check for Updates**; quiet Windows installs when signed bundles are published.
+- **Opens to Game Studio** (`/studio` Pipeline UI) — same React app as `apps/web`.
 - **Desktop control strip** on `/studio`: API / Ollama / Blender / Comfy status, start API & Comfy, jobs folder, settings.
 - **System tray**: left-click to show the window; menu for API, ComfyUI, jobs folder, quit.
 - **Close to tray**: closing the window keeps API/Comfy running (default).
@@ -37,7 +39,7 @@ npm run dev:studio-desktop
 
 ### Expected flow
 
-1. Tauri waits for Vite, then opens **http://127.0.0.1:5173/studio** (Pipeline page).
+1. Tauri shows the **splash** window (`/desktop/splash`), then the main window at `/studio`.
 2. Studio API auto-starts on `:8787` (watch the **Desktop** strip — API should turn OK within a few seconds).
 3. Enter a prompt and run a job (**Generate 3D mesh** is on by default — Tripo primary, Blender fallback).
 4. Close the window — app stays in the tray; API keeps running.
@@ -50,7 +52,7 @@ If API stays red, click **Start API** in the Desktop strip or tray menu.
 npm run build:studio-desktop
 ```
 
-**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive.Studio_0.1.1_x64-setup.exe`
+**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive.Studio_0.1.2_x64-setup.exe`
 
 GitHub Release assets use `Immersive.Studio_*` (dots, not spaces). The Game Studio site links match those filenames.
 
@@ -60,11 +62,13 @@ The web bundle uses `apps/web/.env.desktop` (`VITE_STUDIO_API_URL=http://127.0.0
 
 ### GitHub Release (CI)
 
-1. Commit and push the desktop app to `main`.
-2. Create a GitHub Release (tag e.g. `studio-desktop-v0.1.1`) or run **Actions → Release Immersive Studio (desktop) → Run workflow**.
-3. CI builds Windows, macOS, and Linux installers and uploads them as draft release assets.
+1. Add GitHub repo secrets **`TAURI_PRIVATE_KEY`** (contents of `apps/studio-desktop/immersive-studio-updater.key`, generated locally — never commit) and optional **`TAURI_KEY_PASSWORD`**.
+2. Push tag `studio-desktop-v0.1.2` (or run **Actions → Release Immersive Studio (desktop)**).
+3. CI builds installers, signed `.nsis.zip` / `.app.tar.gz` updater bundles, and uploads **`latest.json`** for auto-update.
 
-Code signing is not configured yet — Windows SmartScreen and macOS Gatekeeper may warn on first install.
+The updater endpoint is `https://github.com/chiku524/immersive.labs/releases/latest/download/latest.json` — publish each desktop release as the newest GitHub release so `latest` resolves correctly.
+
+Code signing for the installer itself is not configured — Windows SmartScreen and macOS Gatekeeper may warn on first install.
 
 ## Settings file
 

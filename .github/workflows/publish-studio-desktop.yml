@@ -1,25 +1,43 @@
-# Build Immersive Studio desktop installers and attach them to GitHub Releases.
+# Build Immersive Studio desktop installers, signed updater bundles, and latest.json.
 #
 # Triggers:
-#   - workflow_dispatch (manual)
-#   - release published (tag like studio-desktop-v0.1.0)
+#   - push tag studio-desktop-v* (e.g. studio-desktop-v0.1.2)
+#   - workflow_dispatch
 #
-# Outputs: Windows (.exe NSIS), macOS (.dmg), Linux (.deb / .AppImage) uploaded to the release.
-# Code signing is not configured yet — users may see SmartScreen / Gatekeeper warnings.
+# Required GitHub secrets for auto-updates:
+#   TAURI_PRIVATE_KEY — minisign private key (contents of immersive-studio-updater.key)
+#   TAURI_KEY_PASSWORD — optional if key has no password
 
 name: Release Immersive Studio (desktop)
 
 on:
+  push:
+    tags:
+      - "studio-desktop-v*"
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: write
 
 jobs:
+  create-release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Immersive Studio ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release:
     name: Build ${{ matrix.platform }}
+    needs: create-release
+    if: always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -36,6 +54,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Set version from tag
+        if: github.event_name == 'push'
+        run: node scripts/studio-desktop/set-version-from-tag.cjs ${{ github.ref_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -61,18 +83,49 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: apps/studio-desktop
-          tagName: ${{ github.event.release.tag_name || 'studio-desktop-v__VERSION__' }}
+          tagName: ${{ github.event.release.tag_name || github.ref_name || 'studio-desktop-v__VERSION__' }}
           releaseName: Immersive Studio v__VERSION__
           releaseBody: |
             Local-first Immersive Studio desktop app — Tripo AI meshes, Ollama specs, optional ComfyUI textures.
 
+            **Auto-update:** this release includes signed updater bundles when `TAURI_PRIVATE_KEY` is configured.
+
             **After install (Windows):** run `setup-desktop-studio.ps1` from the release assets or use **Run setup** in the app Desktop panel.
 
-            **Requires:** Python 3.11+, `STUDIO_TRIPO_API_KEY` for prompt-faithful 3D, Ollama for real specs, Blender for mesh fallback; ComfyUI optional.
-
-            Download the installer for your OS below. Asset names use `Immersive.Studio_*` (Tauri bundle naming).
-          releaseDraft: true
+            Download the installer for your OS below. Asset names use `Immersive.Studio_*`.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+  update-manifest:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Generate latest.json for Tauri updater
+        run: |
+          node scripts/studio-desktop/generate-update-manifest.js "${{ github.ref_name }}" "${{ github.repository }}" --out=latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload latest.json to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: latest.json
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
