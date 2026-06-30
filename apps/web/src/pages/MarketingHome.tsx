@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { DigitalProductShowcase } from "../components/DigitalProductShowcase";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
-import { StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
+import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import "../App.css";
 
 export function MarketingHome() {
@@ -37,9 +37,7 @@ export function MarketingHome() {
               production.
             </p>
             <div className="hero-actions">
-              <Link className="btn btn-primary" to="/studio#desktop-setup">
-                Download Game Studio app
-              </Link>
+              <StudioDesktopDownloadCTA compact />
               <Link className="btn btn-ghost" to="/studio">
                 Open in browser
               </Link>

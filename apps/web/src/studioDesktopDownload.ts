@@ -24,7 +24,7 @@ export type DesktopDownloadOffer = {
   macArch?: "aarch64" | "x64";
 };
 
-function releaseBase(): string {
+function githubReleaseBase(): string {
   const fromEnv = import.meta.env.VITE_STUDIO_DESKTOP_RELEASE_BASE?.trim();
   if (fromEnv) {
     return fromEnv.replace(/\/$/, "");
@@ -32,8 +32,17 @@ function releaseBase(): string {
   return `https://github.com/${GITHUB_REPO}/releases/download/${STUDIO_DESKTOP_RELEASE_TAG}`;
 }
 
+/** Direct GitHub release asset URL (used by the site proxy target). */
+export function studioDesktopGitHubAssetUrl(filename: string): string {
+  return `${githubReleaseBase()}/${encodeURIComponent(filename)}`;
+}
+
+/**
+ * Same-origin installer URL — Vite (dev) and Vercel proxy to GitHub so the browser
+ * saves the file instead of opening the releases page.
+ */
 export function studioDesktopAssetUrl(filename: string): string {
-  return `${releaseBase()}/${encodeURIComponent(filename)}`;
+  return `${SITE_ORIGIN}/downloads/desktop/${filename}`;
 }
 
 /** Link to the release page (all platform assets + notes). */
@@ -112,11 +121,12 @@ export function studioDesktopDownloadOffer(
   macArch: "aarch64" | "x64" = guessMacArch(),
 ): DesktopDownloadOffer {
   if (os === "other") {
+    const filename = assetFilename("windows");
     return {
       os,
-      href: studioDesktopReleasePageUrl(),
-      label: "Download desktop app",
-      filename: null,
+      href: studioDesktopAssetUrl(filename),
+      label: "Download desktop app (Windows)",
+      filename,
     };
   }
 

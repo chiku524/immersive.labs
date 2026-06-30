@@ -4,6 +4,10 @@
   "installCommand": "npm install",
   "outputDirectory": "apps/web/dist",
   "rewrites": [
+    {
+      "source": "/downloads/desktop/(.*)",
+      "destination": "https://github.com/chiku524/immersive.labs/releases/download/studio-desktop-v0.1.1/$1"
+    },
     { "source": "/docs", "destination": "/index.html" },
     { "source": "/docs/", "destination": "/index.html" },
     { "source": "/studio", "destination": "/index.html" },
