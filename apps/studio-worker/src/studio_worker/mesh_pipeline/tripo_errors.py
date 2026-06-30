@@ -33,8 +33,19 @@ def is_tripo_credit_error(messages: list[str]) -> bool:
 
 
 def is_tripo_fallback_eligible_error(messages: list[str]) -> bool:
-    """Credit errors and missing-key hints — fall back instead of failing the job."""
+    """Tripo failures that should use Blender placeholder instead of failing the job."""
+    from studio_worker.mesh_pipeline.config import mesh_fallback_enabled
+
+    if not mesh_fallback_enabled():
+        return False
+    blob = " ".join(messages)
+    if not blob.strip():
+        return False
+    blob_lower = blob.lower()
+    if "banned" in blob_lower:
+        return False
     if is_tripo_credit_error(messages):
         return True
-    blob = " ".join(messages).lower()
-    return "studio_tripo_api_key" in blob and "requires" in blob
+    if "studio_tripo_api_key" in blob_lower and "requires" in blob_lower:
+        return True
+    return "tripo" in blob_lower

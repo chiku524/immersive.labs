@@ -1,6 +1,11 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
+import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
+import {
+  studioDesktopReleasePageUrl,
+  studioDesktopWindowsInstallerUrl,
+} from "../studioDesktopDownload";
 import "../App.css";
 import "./DocsPage.css";
 
@@ -27,6 +32,7 @@ export function DocsPage() {
           <nav className="nav" aria-label="Primary">
             <Link to="/">Home</Link>
             <Link to="/studio">Game studio</Link>
+            <StudioDesktopDownloadNavLink />
             <Link to="/docs" className="nav-active">
               Docs
             </Link>
@@ -60,6 +66,9 @@ export function DocsPage() {
                   <ol>
                     <li>
                       <a href="#overview">Overview</a>
+                    </li>
+                    <li>
+                      <a href="#desktop-app">Desktop app</a>
                     </li>
                     <li>
                       <a href="#quick-start">Quick start</a>
@@ -106,6 +115,28 @@ export function DocsPage() {
                     <strong>Split deploy:</strong> the marketing site and <Link to="/studio">/studio</Link> are static
                     (e.g. Cloudflare Pages). The worker runs on a VM or container with persistent disk for SQLite and job output.
                     Point <code>VITE_STUDIO_API_URL</code> at the worker&apos;s public HTTPS origin.
+                  </p>
+                </section>
+
+                <section id="desktop-app" className="docs-section" aria-labelledby="desktop-app-heading">
+                  <h2 id="desktop-app-heading">Desktop app</h2>
+                  <p>
+                    <strong>Immersive Studio</strong> is a local-first Tauri app for Windows, macOS, and Linux. It opens
+                    directly to <Link to="/studio">Game studio</Link>, auto-starts the worker API on your machine, and
+                    supports Tripo AI meshes (Blender fallback), Ollama specs, and optional ComfyUI textures.
+                  </p>
+                  <StudioDesktopDownloadCTA />
+                  <p>
+                    Installers are published on{" "}
+                    <a href={studioDesktopReleasePageUrl()} target="_blank" rel="noopener noreferrer">
+                      GitHub Releases
+                    </a>{" "}
+                    (tag <code>studio-desktop-v0.1.0</code>). Direct Windows installer:{" "}
+                    <a href={studioDesktopWindowsInstallerUrl()} download>
+                      NSIS setup.exe
+                    </a>
+                    . After install, run the setup script or use <strong>Run setup</strong> in the app&apos;s Desktop
+                    panel.
                   </p>
                 </section>
 

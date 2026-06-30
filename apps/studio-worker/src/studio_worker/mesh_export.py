@@ -57,7 +57,9 @@ def blender_timeout_s() -> float:
 
 
 def export_mesh_default_from_env() -> bool:
-    return os.environ.get("STUDIO_EXPORT_MESH_DEFAULT", "").lower() in ("1", "true", "yes")
+    from studio_worker.mesh_pipeline.config import export_mesh_default_enabled
+
+    return export_mesh_default_enabled()
 
 
 def run_blender_placeholder_export(

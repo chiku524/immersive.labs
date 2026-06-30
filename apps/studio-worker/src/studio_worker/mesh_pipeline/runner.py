@@ -42,8 +42,8 @@ def _try_blender_fallback(
 ) -> tuple[list[str], list[str], str]:
     notice = (
         f"Tripo mesh unavailable ({reason}). "
-        "Using free Blender placeholder mesh instead — top up API credits at "
-        "https://platform.tripo3d.ai for prompt-faithful 3D."
+        "Using Blender placeholder mesh as fallback — set STUDIO_TRIPO_API_KEY and keep credits "
+        "at https://platform.tripo3d.ai for prompt-faithful 3D."
     )
     blender = BlenderPlaceholderProvider()
     b_logs, b_errs = blender.export_for_pack(pack_root, spec)
@@ -59,7 +59,7 @@ def try_export_mesh_for_pack(
 ) -> tuple[list[str], list[str], str]:
     """
     Export mesh GLB under Models/<asset_id>/ using the configured provider.
-    When STUDIO_MESH_PROVIDER=tripo and Tripo fails for credits/quota, falls back to Blender.
+    When STUDIO_MESH_PROVIDER=tripo (default), Tripo runs first; eligible failures fall back to Blender.
     Returns (logs, errors, pipeline_id for manifest.toolchain.mesh_pipeline).
     """
     name = _ALIASES.get(mesh_provider_name(), mesh_provider_name())

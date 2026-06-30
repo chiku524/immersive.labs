@@ -36,6 +36,8 @@ from studio_worker.ollama_client import (
 )
 from studio_worker.paths import jobs_root
 from studio_worker.mesh_pipeline.config import (
+    export_mesh_default_enabled,
+    mesh_fallback_enabled,
     mesh_provider_name,
     tripo_api_key,
     tripo_texture_enabled,
@@ -146,7 +148,9 @@ def worker_hints_dict() -> dict[str, Any]:
         "mesh_provider": mesh_provider_name(),
         "tripo_api_key_set": bool(tripo_api_key()),
         "tripo_texture_enabled": tripo_texture_enabled(),
-        "mesh_tripo_fallback_to_blender": mesh_provider_name() in ("tripo", "tripo3d"),
+        "mesh_tripo_fallback_to_blender": mesh_provider_name() in ("tripo", "tripo3d")
+        and mesh_fallback_enabled(),
+        "mesh_export_default": export_mesh_default_enabled(),
     }
 
 

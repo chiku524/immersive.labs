@@ -21,7 +21,7 @@ Git Bash / macOS / Linux:
 bash scripts/local-pc-studio/setup-local-studio.sh
 ```
 
-**What “free local” gives you:** Ollama writes a real `StudioAssetSpec`, Blender exports a procedural GLB (category-based placeholder mesh), optional ComfyUI albedo PNGs. It does **not** include Tripo-style prompt-to-3D mesh (that needs paid API credits).
+**What “free local” gives you:** Ollama writes a real `StudioAssetSpec`, optional ComfyUI albedo PNGs, and **Tripo AI meshes** when `STUDIO_TRIPO_API_KEY` is set (default provider). Without Tripo credits or key, jobs fall back to a **Blender procedural placeholder** GLB. Tripo OpenAPI credits are separate from Tripo Studio web credits.
 
 **Docker API** (only if you prefer containerized worker): add `-UseDocker` to setup, Comfy must use `COMFYUI_DOCKER_WORKER=1`. On Windows, **native venv** (`start-free-local-studio.ps1`) is simpler for Blender + Ollama paths.
 
@@ -64,7 +64,7 @@ Git Bash / macOS / Linux: `bash scripts/local-pc-studio/smoke-mock-mesh-pack.sh`
 
 Then in Unity: **Immersive Labs → Import Studio Pack…** → pick the job folder under `apps/studio-worker/output/jobs/` (see [packages/studio-unity/README.md](../../packages/studio-unity/README.md)).
 
-**When you have Tripo credits:** in `apps/studio-worker/.env.local` set `STUDIO_MESH_PROVIDER=tripo` and `STUDIO_TRIPO_API_KEY=…`, then re-run the smoke script or `/studio` with **Export mesh** checked.
+**When Tripo is unavailable:** set `STUDIO_MESH_PROVIDER=blender_placeholder` in `apps/studio-worker/.env.local` for local-only placeholder meshes, or add `STUDIO_TRIPO_API_KEY` and credits for prompt-faithful 3D (default).
 
 ---
 

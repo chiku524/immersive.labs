@@ -66,11 +66,13 @@ jobs:
           tagName: ${{ github.event.release.tag_name || 'studio-desktop-v__VERSION__' }}
           releaseName: Immersive Studio v__VERSION__
           releaseBody: |
-            Local-first Immersive Studio desktop app (Ollama specs, Blender mesh, optional ComfyUI textures).
+            Local-first Immersive Studio desktop app — Tripo AI meshes, Ollama specs, optional ComfyUI textures.
 
-            **Requires on your PC:** Python venv worker setup (`scripts/local-pc-studio/setup-local-studio.ps1`), Ollama, Blender, optional ComfyUI.
+            **After install (Windows):** run `setup-desktop-studio.ps1` from the release assets or use **Run setup** in the app Desktop panel.
 
-            Download the installer for your OS below.
+            **Requires:** Python 3.11+, `STUDIO_TRIPO_API_KEY` for prompt-faithful 3D, Ollama for real specs, Blender for mesh fallback; ComfyUI optional.
+
+            Download the installer for your OS below. Asset names use `Immersive.Studio_*` (Tauri bundle naming).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

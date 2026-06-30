@@ -164,11 +164,13 @@ export interface StudioWorkerHints {
   redis_configured?: boolean;
   /** Max seconds a queue row may stay pending/running before auto-dead (SQLite; ``STUDIO_QUEUE_MAX_JOB_AGE_S``). */
   queue_max_job_age_s?: number | null;
-  /** ``STUDIO_MESH_PROVIDER`` — ``tripo`` tries Tripo then falls back to Blender when credits are empty. */
+  /** ``STUDIO_MESH_PROVIDER`` — default ``tripo``; falls back to Blender placeholder on failure. */
   mesh_provider?: string;
   tripo_api_key_set?: boolean;
   tripo_texture_enabled?: boolean;
   mesh_tripo_fallback_to_blender?: boolean;
+  /** Worker runs mesh export on full jobs when the client omits ``export_mesh`` (default on for Tripo). */
+  mesh_export_default?: boolean;
 }
 
 /** `GET /api/studio/dashboard` → `queue_slo` (matches ``GET /api/studio/metrics`` → ``slo``). */

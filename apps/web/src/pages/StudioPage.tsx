@@ -11,13 +11,8 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
-import { StudioDesktopPanel, isTauriRuntime } from "../components/StudioDesktopPanel";
-import {
-  studioDesktopReleasePageUrl,
-  studioDesktopSetupOneLiner,
-  studioDesktopSetupScriptUrl,
-  studioDesktopWindowsInstallerUrl,
-} from "../studioDesktopDownload";
+import { StudioDesktopPanel } from "../components/StudioDesktopPanel";
+import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
 import "../App.css";
 import "./StudioPage.css";
@@ -66,15 +61,15 @@ function readStoredJobOpts(): { generateTextures: boolean; exportMesh: boolean }
   try {
     const raw = localStorage.getItem(JOB_OPTS_STORAGE);
     if (!raw) {
-      return { generateTextures: false, exportMesh: false };
+      return { generateTextures: false, exportMesh: true };
     }
     const j = JSON.parse(raw) as { generateTextures?: boolean; exportMesh?: boolean };
     return {
       generateTextures: Boolean(j.generateTextures),
-      exportMesh: Boolean(j.exportMesh),
+      exportMesh: j.exportMesh !== false,
     };
   } catch {
-    return { generateTextures: false, exportMesh: false };
+    return { generateTextures: false, exportMesh: true };
   }
 }
 
@@ -124,11 +119,12 @@ function formatQueueAgeSeconds(seconds: number | null | undefined): string | nul
   return `${(m / 60).toFixed(1)}h`;
 }
 
-/** Mesh step fell back from Tripo to free Blender placeholder (e.g. empty API credits). */
+/** Mesh step fell back from Tripo to Blender placeholder (credits, API errors, missing key, etc.). */
 function meshLogsIndicateTripoFallback(logs: readonly string[]): boolean {
   return logs.some(
     (line) =>
       /tripo mesh unavailable/i.test(line) ||
+      /blender placeholder mesh as fallback/i.test(line) ||
       /placeholder mesh instead/i.test(line) ||
       /top up api credits/i.test(line),
   );
@@ -663,6 +659,12 @@ export function StudioPage() {
   useEffect(() => {
     jobLoadingRef.current = jobLoading;
   }, [jobLoading]);
+
+  useEffect(() => {
+    if (window.location.hash === "#desktop-setup") {
+      document.getElementById("desktop-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -1284,6 +1286,7 @@ export function StudioPage() {
               Game studio
             </Link>
             <Link to="/docs">Docs</Link>
+            <StudioDesktopDownloadNavLink />
           </nav>
         </header>
 
@@ -1307,50 +1310,7 @@ export function StudioPage() {
             </a>
             : <code>pipx install immersive-studio</code> or <code>pip install immersive-studio</code>.
           </p>
-          {!isTauriRuntime() ? (
-            <div className="studio-desktop-download-cta" id="desktop-setup">
-              <p className="studio-desktop-download-steps">
-                <strong>Windows desktop app</strong> — two steps after download:
-              </p>
-              <ol className="studio-desktop-download-step-list">
-                <li>Install the app (NSIS installer).</li>
-                <li>
-                  Run the one-time worker setup (Python + PyPI <code>immersive-studio</code>, Ollama/Blender config).
-                </li>
-              </ol>
-              <div className="studio-desktop-download-actions">
-                <a
-                  className="btn btn-primary studio-desktop-download-btn"
-                  href={studioDesktopWindowsInstallerUrl()}
-                  download
-                >
-                  1. Download desktop app
-                </a>
-                <a
-                  className="btn btn-secondary studio-desktop-download-btn"
-                  href={studioDesktopSetupScriptUrl()}
-                  download="setup-desktop-studio.ps1"
-                >
-                  2. Download setup script
-                </a>
-                <a
-                  className="btn btn-ghost studio-desktop-download-btn"
-                  href={studioDesktopReleasePageUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  All platforms
-                </a>
-              </div>
-              <p className="studio-desktop-download-note">
-                Or paste in PowerShell (step 2):{" "}
-                <code className="studio-desktop-oneliner">{studioDesktopSetupOneLiner()}</code>
-              </p>
-              <p className="studio-desktop-download-note">
-                Requires Python 3.11+ on PATH, Ollama, and Blender. Optional ComfyUI on :8188 for textures.
-              </p>
-            </div>
-          ) : null}
+          <StudioDesktopDownloadCTA />
 
           {!STUDIO_API_READY ? (
             <div className="studio-health studio-health--error studio-config-banner" role="alert">
@@ -1622,8 +1582,8 @@ export function StudioPage() {
                   }
                 }}
               >
-                <option value="unity">Unity (URP) — UnityImportNotes.md</option>
-                <option value="unreal">Unreal Engine 5 — UnrealImportNotes.md</option>
+                <option value="unity">Unity (URP) — primary target; Unreal notes also in pack</option>
+                <option value="unreal">Unreal Engine 5 — primary target; Unity notes also in pack</option>
               </select>
             </label>
 
@@ -1665,8 +1625,8 @@ export function StudioPage() {
 
             <label className="studio-check">
               <input type="checkbox" checked={exportMesh} onChange={(e) => setExportMesh(e.target.checked)} />
-              Export placeholder mesh (Blender GLB — set{" "}
-              <code>STUDIO_BLENDER_BIN</code> or install Blender on PATH)
+              Generate 3D mesh — GLB in pack.zip for Unity and Unreal (Tripo AI primary, Blender fallback; set{" "}
+              <code>STUDIO_TRIPO_API_KEY</code> on the worker)
             </label>
 
             <div className="studio-actions">
@@ -1735,8 +1695,8 @@ export function StudioPage() {
               </p>
               {meshLogsIndicateTripoFallback(jobResult.mesh_logs) ? (
                 <p className="studio-job-warn" role="status">
-                  <strong>Tripo credits unavailable.</strong> This pack used the free Blender placeholder mesh instead
-                  of prompt-faithful 3D. Top up at{" "}
+                  <strong>Tripo mesh unavailable.</strong> This pack used the Blender placeholder mesh instead of
+                  prompt-faithful 3D. Set <code>STUDIO_TRIPO_API_KEY</code> and keep OpenAPI credits at{" "}
                   <a href="https://platform.tripo3d.ai" target="_blank" rel="noreferrer">
                     platform.tripo3d.ai
                   </a>{" "}
@@ -1830,10 +1790,10 @@ export function StudioPage() {
                   <>
                     . Mesh: <code>{workerHints.mesh_provider}</code>
                     {workerHints.mesh_tripo_fallback_to_blender ? (
-                      <> — tries Tripo first, falls back to Blender if API credits are empty</>
+                      <> — Tripo first, Blender placeholder on failure</>
                     ) : null}
                     {workerHints.tripo_api_key_set === false && workerHints.mesh_provider === "tripo" ? (
-                      <> (<code>STUDIO_TRIPO_API_KEY</code> not set on worker)</>
+                      <> (<code>STUDIO_TRIPO_API_KEY</code> not set — jobs will use Blender fallback)</>
                     ) : null}
                   </>
                 ) : null}

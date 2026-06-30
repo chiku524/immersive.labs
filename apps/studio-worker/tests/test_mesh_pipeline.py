@@ -21,8 +21,14 @@ def test_prompt_from_spec_prefers_source_prompt() -> None:
     assert prompt_from_spec(spec) == "rusty iron crate"
 
 
-def test_resolve_blender_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_tripo_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("STUDIO_MESH_PROVIDER", raising=False)
+    p = resolve_mesh_provider()
+    assert p.pipeline_id == "tripo:text_to_model"
+
+
+def test_resolve_blender_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_MESH_PROVIDER", "blender_placeholder")
     p = resolve_mesh_provider()
     assert p.pipeline_id == "blender:export_mesh.py"
 

@@ -25,7 +25,7 @@ def _unity_import_notes(
         "- `manifest.json` — full job manifest (specs + toolchain metadata).",
         "- `ATTRIBUTION.md` / `licenses.json` — tooling + checkpoint traceability (when written by worker).",
         "- `spec.json` — primary `StudioAssetSpec` for this pack (when written by worker).",
-        "- `Models/` — place exported `.glb` / `.fbx` files per asset (Blender `export_mesh.py`).",
+        "- `Models/` — place exported `.glb` / `.gltf` files per asset (Tripo or Blender `export_mesh.py`).",
         "- `Textures/` — ComfyUI albedo outputs (`*_albedo.png`) per variant + slot.",
         "",
         "## Assets in this job",
@@ -67,7 +67,7 @@ def _unreal_import_notes(
         "## Pack contents",
         "",
         "- `manifest.json` — full job manifest (specs + toolchain metadata).",
-        "- `Models/` — `.glb` / `.gltf` meshes per asset.",
+        "- `Models/` — `.glb` / `.gltf` meshes per asset (Tripo text-to-3D or Blender placeholder fallback).",
         "- `Textures/` — PBR PNGs (`{variant}_{slot}_albedo|normal|orm.png`).",
         "",
         "## Assets in this job",
@@ -96,16 +96,18 @@ def _unreal_import_notes(
 
 
 def _pack_readme(*, job_id: str, engine_target: str) -> str:
-    if engine_target == "unreal":
-        return (
-            f"Immersive Studio pack — job `{job_id}`\n"
-            "Engine target: Unreal Engine 5\n"
-            "Import: UnrealImportNotes.md (Tools → Import Studio Pack… with packages/studio-unreal)\n"
-        )
+    primary = "Unreal Engine 5" if engine_target == "unreal" else "Unity (URP)"
+    primary_notes = (
+        "UnrealImportNotes.md (Tools → Import Studio Pack… with packages/studio-unreal)"
+        if engine_target == "unreal"
+        else "UnityImportNotes.md (Immersive Labs → Import Studio Pack… with packages/studio-unity)"
+    )
     return (
         f"Immersive Studio pack — job `{job_id}`\n"
-        "Engine target: Unity (URP)\n"
-        "Import: UnityImportNotes.md (Immersive Labs → Import Studio Pack… with packages/studio-unity)\n"
+        f"Primary engine target (manifest): {primary}\n"
+        "Meshes: Models/<asset_id>/*.glb — same GLB for Unity and Unreal (Tripo or Blender fallback)\n"
+        f"Primary import guide: {primary_notes}\n"
+        "Also included: UnityImportNotes.md and UnrealImportNotes.md\n"
     )
 
 
@@ -150,23 +152,21 @@ def write_pack(
         encoding="utf-8",
     )
 
-    if target == "unreal":
-        (output_dir / "UnrealImportNotes.md").write_text(
-            _unreal_import_notes(
-                job_id=manifest["job_id"],
-                assets=manifest["assets"],
-            ),
-            encoding="utf-8",
-        )
-    else:
-        (output_dir / "UnityImportNotes.md").write_text(
-            _unity_import_notes(
-                job_id=manifest["job_id"],
-                assets=manifest["assets"],
-                unity_urp_hint=unity_urp_hint,
-            ),
-            encoding="utf-8",
-        )
+    (output_dir / "UnrealImportNotes.md").write_text(
+        _unreal_import_notes(
+            job_id=manifest["job_id"],
+            assets=manifest["assets"],
+        ),
+        encoding="utf-8",
+    )
+    (output_dir / "UnityImportNotes.md").write_text(
+        _unity_import_notes(
+            job_id=manifest["job_id"],
+            assets=manifest["assets"],
+            unity_urp_hint=unity_urp_hint,
+        ),
+        encoding="utf-8",
+    )
 
     for a in manifest["assets"]:
         aid = a["asset_id"]
@@ -174,7 +174,8 @@ def write_pack(
         models.mkdir(parents=True, exist_ok=True)
         readme = models / "README.txt"
         readme.write_text(
-            "Export placeholder: `blender --background --python <site-packages>/studio_worker/blender/export_mesh.py -- "
+            "Engine-agnostic GLB (Unity + Unreal): Tripo text_to_model or Blender placeholder fallback.\n"
+            "Manual export: `blender --background --python <site-packages>/studio_worker/blender/export_mesh.py -- "
             f"--spec ../spec.json --output {aid}.glb`\n",
             encoding="utf-8",
         )

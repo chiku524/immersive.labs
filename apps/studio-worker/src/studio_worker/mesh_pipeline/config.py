@@ -6,8 +6,21 @@ TRIPO_API_BASE = "https://api.tripo3d.ai/v2/openapi"
 
 
 def mesh_provider_name() -> str:
-    raw = os.environ.get("STUDIO_MESH_PROVIDER", "blender_placeholder").strip().lower()
-    return raw or "blender_placeholder"
+    raw = os.environ.get("STUDIO_MESH_PROVIDER", "tripo").strip().lower()
+    return raw or "tripo"
+
+
+def mesh_fallback_enabled() -> bool:
+    """When Tripo is primary, fall back to Blender placeholder on failure (default on)."""
+    return _env_bool("STUDIO_MESH_FALLBACK", True)
+
+
+def export_mesh_default_enabled() -> bool:
+    """Run mesh export on full jobs when the client omits export_mesh."""
+    raw = os.environ.get("STUDIO_EXPORT_MESH_DEFAULT")
+    if raw is not None and str(raw).strip():
+        return str(raw).strip().lower() in ("1", "true", "yes", "on")
+    return mesh_provider_name() in ("tripo", "tripo3d")
 
 
 def tripo_api_key() -> str | None:

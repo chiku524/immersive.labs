@@ -213,22 +213,27 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         )
         print("  See: apps/studio-worker/comfy/README.md")
 
-    from studio_worker.mesh_pipeline.config import mesh_provider_name, tripo_api_key
+    from studio_worker.mesh_pipeline.config import mesh_fallback_enabled, mesh_provider_name, tripo_api_key
 
     mp = mesh_provider_name()
     print(f"Mesh provider (STUDIO_MESH_PROVIDER): {mp}")
     if mp in ("tripo", "tripo3d"):
         print(f"  STUDIO_TRIPO_API_KEY set: {bool(tripo_api_key())}")
+        if mesh_fallback_enabled():
+            print("  Fallback: Blender placeholder when Tripo fails (STUDIO_MESH_FALLBACK=1, default)")
         if not tripo_api_key():
             print(
-                "  Tripo jobs need STUDIO_TRIPO_API_KEY — or use STUDIO_MESH_PROVIDER=blender_placeholder "
-                "for free local placeholder meshes."
+                "  Set STUDIO_TRIPO_API_KEY for prompt-faithful meshes — "
+                "or use STUDIO_MESH_PROVIDER=blender_placeholder for local-only placeholders."
             )
 
     b = resolve_blender_executable()
     print("Blender: ", end="")
     if b:
-        print(f"{b} (mesh export when provider=blender_placeholder)")
+        if mp in ("tripo", "tripo3d") and mesh_fallback_enabled():
+            print(f"{b} (Tripo fallback placeholder mesh)")
+        else:
+            print(f"{b} (mesh export when provider=blender_placeholder)")
     else:
         print("not found on this machine")
         print(
@@ -239,7 +244,9 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     if not c["reachable"]:
         print("\nComfyUI unreachable — texture jobs will fail until the URL above responds.")
         return 1
-    needs_blender = mp in ("blender", "blender_placeholder", "placeholder", "") or mp not in ("tripo", "tripo3d")
+    needs_blender = mp in ("blender", "blender_placeholder", "placeholder") or (
+        mp in ("tripo", "tripo3d") and mesh_fallback_enabled()
+    )
     if args.strict and needs_blender and not b:
         print("\nStrict mode: Blender required for blender_placeholder but not found.")
         return 1

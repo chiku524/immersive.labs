@@ -60,8 +60,8 @@ class TripoMeshProvider:
         if not api_key:
             return [], [
                 "Tripo mesh export requires STUDIO_TRIPO_API_KEY. "
-                "Get a key at https://platform.tripo3d.ai/api-keys — or use "
-                "STUDIO_MESH_PROVIDER=blender_placeholder (free, local Blender) until then."
+                "Get a key at https://platform.tripo3d.ai/api-keys — Blender placeholder "
+                "will be used as fallback when STUDIO_MESH_FALLBACK=1 (default)."
             ]
 
         asset_id = str(spec.get("asset_id") or "asset")

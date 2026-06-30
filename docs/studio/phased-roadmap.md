@@ -46,11 +46,12 @@ Ordered phases with **deliverables** and **risks**. Adjust durations when `apps/
 
 ## Phase 3 — Mesh pipeline v1
 
-**Goal:** Spec + textures → exportable mesh (prefer **procedural/kitbash + Blender** first).
+**Goal:** Spec + textures → exportable mesh (**Tripo text-to-3D primary**, Blender procedural fallback).
 
 **Deliverables:**
 
-- [x] Blender batch script (placeholder mesh from spec: scaled cube → `.glb`): `apps/studio-worker/src/studio_worker/blender/export_mesh.py`.  
+- [x] Blender batch script (fallback placeholder mesh from spec): `apps/studio-worker/src/studio_worker/blender/export_mesh.py`.  
+- [x] **Tripo OpenAPI** text-to-3D provider (`STUDIO_MESH_PROVIDER=tripo`, default) with Blender fallback on failure (`STUDIO_MESH_FALLBACK=1`).  
 - [x] Worker integration: optional `export_mesh` on `run-job` / enqueue / UI; writes `Models/<asset_id>/<asset_id>.glb`, updates `manifest.json` `toolchain.mesh_pipeline`, env `STUDIO_BLENDER_BIN`, `STUDIO_EXPORT_MESH_DEFAULT`, `STUDIO_BLENDER_TIMEOUT_S`.  
 - [x] Unity importer copies `Models/<asset_id>/*.glb` next to imported textures.  
 - [x] Unity importer assigns generated Lit materials to imported glTF mesh renderers (preferred `{variant}_{slot}_Lit`).  

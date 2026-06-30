@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { DigitalProductShowcase } from "../components/DigitalProductShowcase";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
+import { StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import "../App.css";
 
 export function MarketingHome() {
@@ -18,6 +19,7 @@ export function MarketingHome() {
             <a href="#work">Work</a>
             <a href="#capabilities">Capabilities</a>
             <Link to="/studio">Game studio</Link>
+            <StudioDesktopDownloadNavLink />
             <Link to="/docs">Docs</Link>
             <a href="#contact">Contact</a>
           </nav>
@@ -35,12 +37,12 @@ export function MarketingHome() {
               production.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="#contact">
-                Start a project
-              </a>
-              <a className="btn btn-ghost" href="#work">
-                View selected work
-              </a>
+              <Link className="btn btn-primary" to="/studio#desktop-setup">
+                Download Game Studio app
+              </Link>
+              <Link className="btn btn-ghost" to="/studio">
+                Open in browser
+              </Link>
             </div>
           </section>
 

@@ -1,0 +1,13 @@
+.studio-desktop-download-compact {
+  white-space: nowrap;
+}
+
+.nav-download {
+  font-weight: 600;
+  color: var(--accent, #7c9cff);
+  text-decoration: none;
+}
+
+.nav-download:hover {
+  text-decoration: underline;
+}

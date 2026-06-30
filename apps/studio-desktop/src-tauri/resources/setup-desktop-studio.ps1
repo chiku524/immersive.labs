@@ -65,7 +65,9 @@ $blenderUnix = $blenderBin -replace '\\', '/'
 STUDIO_WORKER_DATA_DIR=$dataDirUnix
 STUDIO_OLLAMA_URL=http://127.0.0.1:11434
 STUDIO_OLLAMA_MODEL=llama3.2
-STUDIO_MESH_PROVIDER=blender_placeholder
+STUDIO_MESH_PROVIDER=tripo
+STUDIO_TRIPO_API_KEY=
+STUDIO_EXPORT_MESH_DEFAULT=1
 STUDIO_BLENDER_BIN=$blenderUnix
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 STUDIO_EMBEDDED_QUEUE_WORKER=1
@@ -74,6 +76,7 @@ STUDIO_EMBEDDED_QUEUE_WORKER=1
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "Launch Immersive Studio from the Start menu."
+Write-Host "Optional: set STUDIO_TRIPO_API_KEY in worker.env for Tripo AI meshes (primary)"
 Write-Host "Optional: ollama pull llama3.2  (real specs when Mock is off in Studio)"
 Write-Host "Optional: start ComfyUI on :8188 for textures (see docs on immersivelabs.space)"
 Write-Host ""

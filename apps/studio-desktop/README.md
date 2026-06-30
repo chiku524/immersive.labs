@@ -22,7 +22,7 @@ Optional **launcher** (`npm run dev:launcher` in this package) is only for troub
 
 2. Install [Rust](https://rustup.rs/) (for Tauri).
 
-3. Optional: Ollama, Blender (`STUDIO_BLENDER_BIN` in `apps/studio-worker/.env.local`), ComfyUI sibling folder (`../ComfyUI`) or `COMFYUI_ROOT`.
+3. Optional: Ollama, **Tripo API key** (`STUDIO_TRIPO_API_KEY` in worker env), Blender (`STUDIO_BLENDER_BIN` for fallback meshes), ComfyUI sibling folder (`../ComfyUI`) or `COMFYUI_ROOT`.
 
 ## Development
 
@@ -39,7 +39,7 @@ npm run dev:studio-desktop
 
 1. Tauri waits for Vite, then opens **http://127.0.0.1:5173/studio** (Pipeline page).
 2. Studio API auto-starts on `:8787` (watch the **Desktop** strip — API should turn OK within a few seconds).
-3. Enter a prompt and run a job (enable mesh/textures as needed).
+3. Enter a prompt and run a job (**Generate 3D mesh** is on by default — Tripo primary, Blender fallback).
 4. Close the window — app stays in the tray; API keeps running.
 
 If API stays red, click **Start API** in the Desktop strip or tray menu.
@@ -50,7 +50,9 @@ If API stays red, click **Start API** in the Desktop strip or tray menu.
 npm run build:studio-desktop
 ```
 
-**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive Studio_0.1.0_x64-setup.exe`
+**Windows installer:** `apps/studio-desktop/src-tauri/target/release/bundle/nsis/Immersive.Studio_0.1.0_x64-setup.exe`
+
+GitHub Release assets use `Immersive.Studio_*` (dots, not spaces). The Game Studio site links match those filenames.
 
 Other platforms: `.dmg` (macOS), `.deb` / `.AppImage` (Linux) under the same `bundle/` folder.
 
