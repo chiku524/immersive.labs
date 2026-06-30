@@ -407,6 +407,13 @@ button.studio-table-link:disabled {
   align-items: center;
 }
 
+.studio-pack-save-path {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #a8e6a3;
+}
+
 .studio-jobs {
   margin-top: 2.5rem;
   padding-top: 1.5rem;
