@@ -225,8 +225,12 @@ pub fn apply_env_local(cmd: &mut Command, root: &Path) {
         };
         cmd.env(k.trim(), unquote_env_value(v.trim()));
     }
-    #[cfg(debug_assertions)]
-    cmd.env("STUDIO_REPO_ROOT", root);
+    if read_env_value("STUDIO_WORKER_DATA_DIR").is_some() {
+        cmd.env_remove("STUDIO_REPO_ROOT");
+    } else {
+        #[cfg(debug_assertions)]
+        cmd.env("STUDIO_REPO_ROOT", root);
+    }
 }
 
 pub fn http_check(url: &str) -> ServiceCheck {
@@ -765,4 +769,44 @@ pub fn show_window(app: AppHandle) -> Result<(), String> {
     window.show().map_err(|err| err.to_string())?;
     window.set_focus().map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn save_job_pack_zip(job_id: String) -> Result<String, String> {
+    let url = format!(
+        "http://127.0.0.1:8787/api/studio/jobs/{}/download",
+        job_id.trim()
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|err| err.to_string())?;
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|err| format!("Could not reach Studio API: {err}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Download failed (HTTP {status}): {body}"));
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|err| format!("Reading pack.zip failed: {err}"))?;
+    let default_name = format!("immersive-studio-{}.zip", job_id.trim());
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_file_name(&default_name)
+            .add_filter("Zip archive", &["zip"])
+            .save_file()
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+    let Some(path) = path else {
+        return Err("Save cancelled".into());
+    };
+    std::fs::write(&path, &bytes).map_err(|err| format!("Writing {} failed: {err}", path.display()))?;
+    Ok(path.to_string_lossy().to_string())
 }

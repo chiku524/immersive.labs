@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
 import { StudioDesktopPanel } from "../components/StudioDesktopPanel";
 import { isTauriRuntime } from "../tauriRuntime";
+import { saveJobPackZip } from "../desktop/saveJobPackZip";
 import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
 import "../App.css";
@@ -635,6 +636,7 @@ export function StudioPage() {
   const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
   const [packResult, setPackResult] = useState<{ output_dir: string; job_id: string } | null>(null);
   const [jobResult, setJobResult] = useState<PersistedJobResult | null>(() => readStoredJobResult());
+  const [zipSavePath, setZipSavePath] = useState<string | null>(null);
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
   /** From GET /api/studio/health when present (helps confirm prod worker redeploy). */
   const [workerVersion, setWorkerVersion] = useState<string | null>(null);
@@ -1249,6 +1251,13 @@ export function StudioPage() {
       return;
     }
     try {
+      setZipSavePath(null);
+      let blob: Blob;
+      if (isTauriRuntime()) {
+        const saved = await saveJobPackZip(jobId);
+        setZipSavePath(saved);
+        return;
+      }
       const r = await fetch(`${STUDIO_API_BASE}/api/studio/jobs/${jobId}/download`, {
         headers: authHeaders(),
       });
@@ -1256,17 +1265,13 @@ export function StudioPage() {
         const errBody = (await r.json().catch(() => null)) as { detail?: unknown } | null;
         throw new Error(formatApiDetail(errBody?.detail ?? r.statusText));
       }
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `immersive-studio-${jobId}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      blob = await r.blob();
+      await saveJobPackZip(jobId, blob);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg !== "Save cancelled") {
+        setError(msg);
+      }
     }
   }
 
@@ -1768,8 +1773,13 @@ export function StudioPage() {
                   disabled={!STUDIO_API_READY}
                   onClick={() => void downloadJobZip(jobResult.job_id)}
                 >
-                  Download pack.zip
+                  {isTauriRuntime() ? "Save pack.zip…" : "Download pack.zip"}
                 </button>
+                {zipSavePath ? (
+                  <p className="studio-pack-save-path" role="status">
+                    Saved to <code className="studio-path">{zipSavePath}</code>
+                  </p>
+                ) : null}
                 {billing?.stripe_customer_linked ? (
                   <button type="button" className="btn btn-ghost" onClick={() => void openStripePortal()}>
                     Open Stripe billing
