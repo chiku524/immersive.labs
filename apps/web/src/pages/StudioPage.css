@@ -556,6 +556,25 @@ button.studio-table-link:disabled {
   font-size: 0.72rem;
 }
 
+.studio-ollama-hint-details {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.studio-ollama-hint-summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #c8c2b8;
+  list-style: none;
+}
+
+.studio-ollama-hint-summary::-webkit-details-marker {
+  display: none;
+}
+
+.studio-ollama-hint-details[open] .studio-ollama-hint {
+  margin-top: 0.5rem;
+}
+
 .studio-worker-hints {
   margin: 1.25rem 0 0;
   padding: 0.85rem 1rem;

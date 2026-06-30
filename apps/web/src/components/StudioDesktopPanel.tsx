@@ -61,7 +61,7 @@ export function StudioDesktopPanel() {
   useEffect(() => {
     void refresh();
     void loadSettings();
-    const timer = window.setInterval(() => void refresh(), 15_000);
+    const timer = window.setInterval(() => void refresh(), 30_000);
     return () => window.clearInterval(timer);
   }, [refresh, loadSettings]);
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from studio_worker.paths import blender_export_script_path
+from studio_worker.subprocess_win import run_no_window
 
 
 def resolve_blender_executable() -> str | None:
@@ -97,7 +98,7 @@ def run_blender_placeholder_export(
     ]
 
     try:
-        proc = subprocess.run(
+        proc = run_no_window(
             cmd,
             capture_output=True,
             text=True,

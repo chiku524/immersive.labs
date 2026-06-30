@@ -16,6 +16,18 @@ fn hide_console(cmd: &mut Command) {
     }
 }
 
+/// Prefer pythonw.exe on Windows so background worker/ComfyUI never attach a console.
+fn python_launcher(py: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let pyw = py.with_file_name("pythonw.exe");
+        if pyw.is_file() {
+            return pyw;
+        }
+    }
+    py.to_path_buf()
+}
+
 fn worker_log_path() -> PathBuf {
     desktop_data_dir().join("worker-serve.log")
 }
@@ -305,7 +317,19 @@ pub fn find_blender(root: &Path) -> BlenderCheck {
 }
 
 pub fn docker_check() -> ServiceCheck {
-    match Command::new("docker").args(["info"]).output() {
+    // Desktop installers do not use Docker; skip CLI probes (avoids flashing consoles on Windows).
+    #[cfg(not(debug_assertions))]
+    {
+        return ServiceCheck {
+            ok: false,
+            detail: "Not used (desktop app)".into(),
+        };
+    }
+
+    let mut cmd = Command::new("docker");
+    cmd.args(["info"]);
+    hide_console(&mut cmd);
+    match cmd.output() {
         Ok(output) if output.status.success() => ServiceCheck {
             ok: true,
             detail: "docker info OK".into(),
@@ -447,7 +471,7 @@ pub fn start_worker_internal(state: &AppState) -> Result<String, String> {
     }
 
     let root = repo_root();
-    let python = python_exe(&root);
+    let python = python_launcher(&python_exe(&root));
     let mut cmd = Command::new(&python);
     cmd.args([
         "-m",
@@ -511,7 +535,7 @@ pub fn start_comfy_internal(state: &AppState) -> Result<String, String> {
 
     let repo = repo_root();
     let comfy = comfy_root(&repo)?;
-    let python = comfy_python(&comfy)?;
+    let python = python_launcher(&comfy_python(&comfy)?);
 
     let use_gpu = std::env::var("COMFYUI_USE_GPU")
         .ok()

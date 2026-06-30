@@ -1482,7 +1482,13 @@ export function StudioPage() {
               {!comfy.reachable ? (
                 <span className="studio-comfy-hint">
                   {" "}
-                  {comfyLocalhostRefused(comfy.detail, comfy.url) ? (
+                  {isTauriRuntime() ? (
+                    <>
+                      <strong>ComfyUI is not running</strong> (optional for textures). Use{" "}
+                      <strong>Start Comfy</strong> in the Desktop panel if ComfyUI is installed, or leave{" "}
+                      <strong>Generate albedo textures</strong> unchecked.
+                    </>
+                  ) : comfyLocalhostRefused(comfy.detail, comfy.url) ? (
                     <>
                       <strong>No process on port 8188.</strong> Start ComfyUI in a <em>second</em> terminal (not this
                       repo): <code>python main.py --listen 127.0.0.1 --port 8188</code> from your{" "}
@@ -1496,12 +1502,6 @@ export function StudioPage() {
                       <strong>HTTP probe timed out.</strong> Comfy may be down, overloaded, or the path to it (tunnel,
                       network) too slow. On the worker VM raise <code>STUDIO_COMFY_PROBE_TIMEOUT_S</code>, verify Comfy is
                       listening and <code>cloudflared</code> is healthy, then click Refresh.
-                    </>
-                  ) : isTauriRuntime() ? (
-                    <>
-                      <strong>Textures are optional.</strong> ComfyUI is not installed on this PC — leave{" "}
-                      <strong>Generate albedo textures</strong> unchecked, or install ComfyUI and set{" "}
-                      <code>COMFYUI_ROOT</code> in <code>%LOCALAPPDATA%\Immersive Studio\worker.env</code>.
                     </>
                   ) : (
                     <>
@@ -1607,22 +1607,42 @@ export function StudioPage() {
               Mock mode (no Ollama — deterministic spec for wiring)
             </label>
             {!mock && workerHints ? (
-              <p className="studio-ollama-hint">
-                Full jobs call Ollama at <code>{workerHints.ollama_base_url}</code> (model{" "}
-                <code>{workerHints.ollama_model}</code>, read timeout{" "}
-                <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code>
-                {workerHints.ollama_num_predict != null ? (
-                  <>
-                    , output cap <code>{workerHints.ollama_num_predict}</code> tokens (
-                    <code>STUDIO_OLLAMA_NUM_PREDICT</code>)
-                  </>
-                ) : null}
-                ). Streaming is on by default unless <code>STUDIO_OLLAMA_STREAM=0</code>. The worker preflights Ollama
-                (<code>GET /api/tags</code>) before each LLM call by default (fail fast). For quick UI checks, use mock
-                mode; on the server set <code>STUDIO_OLLAMA_DISABLED=1</code> for mock-only hosts; otherwise tune{" "}
-                <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, <code>STUDIO_OLLAMA_CONNECT_TIMEOUT_S</code>, add RAM/swap, or
-                use a smaller <code>STUDIO_OLLAMA_MODEL</code> if specs time out.
-              </p>
+              isTauriRuntime() ? (
+                <details className="studio-ollama-hint-details">
+                  <summary className="studio-ollama-hint-summary">
+                    Ollama settings (full jobs — use mock mode if Ollama is not installed)
+                  </summary>
+                  <p className="studio-ollama-hint">
+                    Full jobs call Ollama at <code>{workerHints.ollama_base_url}</code> (model{" "}
+                    <code>{workerHints.ollama_model}</code>, read timeout{" "}
+                    <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code>
+                    {workerHints.ollama_num_predict != null ? (
+                      <>
+                        , output cap <code>{workerHints.ollama_num_predict}</code> tokens (
+                        <code>STUDIO_OLLAMA_NUM_PREDICT</code>)
+                      </>
+                    ) : null}
+                    ). Enable <strong>Mock mode</strong> above for quick tests without Ollama.
+                  </p>
+                </details>
+              ) : (
+                <p className="studio-ollama-hint">
+                  Full jobs call Ollama at <code>{workerHints.ollama_base_url}</code> (model{" "}
+                  <code>{workerHints.ollama_model}</code>, read timeout{" "}
+                  <code>{Math.round(workerHints.ollama_read_timeout_s)}s</code>
+                  {workerHints.ollama_num_predict != null ? (
+                    <>
+                      , output cap <code>{workerHints.ollama_num_predict}</code> tokens (
+                      <code>STUDIO_OLLAMA_NUM_PREDICT</code>)
+                    </>
+                  ) : null}
+                  ). Streaming is on by default unless <code>STUDIO_OLLAMA_STREAM=0</code>. The worker preflights Ollama
+                  (<code>GET /api/tags</code>) before each LLM call by default (fail fast). For quick UI checks, use mock
+                  mode; on the server set <code>STUDIO_OLLAMA_DISABLED=1</code> for mock-only hosts; otherwise tune{" "}
+                  <code>STUDIO_OLLAMA_READ_TIMEOUT_S</code>, <code>STUDIO_OLLAMA_CONNECT_TIMEOUT_S</code>, add RAM/swap, or
+                  use a smaller <code>STUDIO_OLLAMA_MODEL</code> if specs time out.
+                </p>
+              )
             ) : null}
 
             <label className="studio-check">
@@ -1759,7 +1779,7 @@ export function StudioPage() {
             </div>
           ) : null}
 
-          {workerHints && STUDIO_API_READY ? (
+          {workerHints && STUDIO_API_READY && !isTauriRuntime() ? (
             <section className="studio-worker-hints" aria-label="Worker LLM and queue settings">
               <h2 className="studio-worker-hints-title">Worker LLM and queue</h2>
               <p className="studio-worker-hints-body">
