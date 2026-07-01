@@ -240,3 +240,34 @@ def test_variants_object_map_coerced_to_list() -> None:
     assert len(spec["variants"]) == 2
     assert spec["variants"][0]["variant_id"] == "0"
     assert spec["variants"][1]["variant_id"] == "1"
+
+
+def test_llm_copied_prompt_template_ids_replaced_for_tower_brief() -> None:
+    """Regression: llama copied prop_crate_wood_01 / Props/Crates from schema examples."""
+    spec: dict[str, Any] = {
+        "spec_version": "0.1",
+        "asset_id": "prop_crate_wood_01",
+        "display_name": "Medieval Tower",
+        "category": "prop",
+        "style_preset": "toon_bold",
+        "poly_budget_tris": 8000,
+        "target_height_m": 3.0,
+        "palette": [],
+        "tags": ["medieval", "tower"],
+        "material_slots": [
+            {"id": "main", "role": "albedo", "resolution_hint": 2048, "notes": ""},
+            {"id": "orm", "role": "orm", "resolution_hint": 1024, "notes": ""},
+        ],
+        "variants": [
+            {"variant_id": "tower_variant_1", "label": "Base Tower"},
+            {"variant_id": "tower_variant_2", "label": "Turret Variant", "seed": 42},
+        ],
+        "generation": {
+            "source_prompt": "Design a medieval tower for a Fortnite Tycoon game.",
+            "negative_prompt": "",
+        },
+        "unity": {"import_subfolder": "Props/Crates", "collider": "mesh_convex"},
+    }
+    validate_asset_spec(spec)
+    assert spec["asset_id"] == "prop_medieval_tower"
+    assert spec["unity"]["import_subfolder"] == "Props/Structures"

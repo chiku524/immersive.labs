@@ -33,6 +33,17 @@ _MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
 _UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
 _POLY_BUDGET_ALIASES = ("poly_budget_tri", "poly_budget_triangle")
 
+# Examples in older prompts; LLMs often copy these verbatim instead of the brief.
+_PROMPT_TEMPLATE_ASSET_IDS = frozenset({"prop_crate_wood_01"})
+_PROMPT_TEMPLATE_SUBFOLDERS = frozenset({"props/crates"})
+
+_CATEGORY_ASSET_PREFIX = {
+    "prop": "prop",
+    "environment_piece": "env",
+    "character_base": "char",
+    "material_library": "mat",
+}
+
 _ALLOWED_TOP_LEVEL = frozenset({
     "spec_version",
     "asset_id",
@@ -608,6 +619,115 @@ def _default_tags_if_missing(spec: dict[str, Any]) -> None:
     spec["tags"] = ["generated"]
 
 
+def _slugify_brief(text: str) -> str:
+    s = text.lower().strip()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return (s[:48] or "asset").strip("_")
+
+
+def _brief_tokens(spec: dict[str, Any]) -> set[str]:
+    chunks: list[str] = []
+    dn = spec.get("display_name")
+    if isinstance(dn, str) and dn.strip():
+        chunks.append(dn)
+    gen = spec.get("generation")
+    if isinstance(gen, dict):
+        sp = gen.get("source_prompt")
+        if isinstance(sp, str) and sp.strip():
+            chunks.append(sp)
+    tags = spec.get("tags")
+    if isinstance(tags, list):
+        chunks.extend(str(t) for t in tags if isinstance(t, str) and t.strip())
+    text = " ".join(chunks).lower()
+    stop = frozenset(
+        {
+            "the",
+            "and",
+            "for",
+            "with",
+            "game",
+            "design",
+            "asset",
+            "prop",
+            "from",
+            "your",
+            "this",
+            "that",
+        }
+    )
+    return {w for w in re.findall(r"[a-z]{3,}", text) if w not in stop}
+
+
+def _asset_id_tokens(asset_id: str) -> set[str]:
+    generic = frozenset({"prop", "env", "char", "mat", "wood", "metal", "stone", "asset", "generated"})
+    return {w for w in asset_id.lower().split("_") if len(w) >= 3 and w not in generic}
+
+
+def _asset_id_matches_brief(asset_id: str, brief_tokens: set[str]) -> bool:
+    id_tokens = _asset_id_tokens(asset_id)
+    if not id_tokens:
+        return True
+    return bool(id_tokens & brief_tokens)
+
+
+def _derive_asset_id(spec: dict[str, Any]) -> str:
+    category = str(spec.get("category") or "prop")
+    prefix = _CATEGORY_ASSET_PREFIX.get(category, "prop")
+    gen = spec.get("generation")
+    source = ""
+    if isinstance(gen, dict):
+        source = str(gen.get("source_prompt") or "")
+    display = str(spec.get("display_name") or "")
+    base = display.strip() or source.strip()
+    slug = _slugify_brief(base)
+    if not slug:
+        tags = spec.get("tags")
+        if isinstance(tags, list):
+            slug = _slugify_brief(" ".join(str(t) for t in tags[:4] if isinstance(t, str)))
+    aid = f"{prefix}_{slug}" if slug else f"{prefix}_asset"
+    aid = aid[:56].rstrip("_")
+    if not ASSET_ID_PATTERN.fullmatch(aid):
+        aid = f"{prefix}_asset"
+    return aid
+
+
+def _derive_import_subfolder(spec: dict[str, Any]) -> str:
+    category = str(spec.get("category") or "prop")
+    brief = _brief_tokens(spec)
+    if category == "environment_piece":
+        if "tower" in brief or "turret" in brief:
+            return "Environment/Towers"
+        return "Environment/Structures"
+    if category == "character_base":
+        return "Characters/Base"
+    if category == "material_library":
+        return "Materials/Library"
+    if "tower" in brief or "building" in brief or "structure" in brief:
+        return "Props/Structures"
+    if "weapon" in brief:
+        return "Props/Weapons"
+    return "Props/Generated"
+
+
+def _fix_prompt_template_copies(spec: dict[str, Any]) -> None:
+    """Replace schema-example asset_id / import paths when the LLM ignored the brief."""
+    brief_tokens = _brief_tokens(spec)
+    asset_id = spec.get("asset_id")
+    if isinstance(asset_id, str):
+        stale = asset_id in _PROMPT_TEMPLATE_ASSET_IDS or not _asset_id_matches_brief(asset_id, brief_tokens)
+        if stale:
+            spec["asset_id"] = _derive_asset_id(spec)
+
+    unity = spec.get("unity")
+    if isinstance(unity, dict):
+        sub = unity.get("import_subfolder")
+        if isinstance(sub, str):
+            sub_norm = sub.strip().replace("\\", "/")
+            if sub_norm.lower() in _PROMPT_TEMPLATE_SUBFOLDERS or sub_norm == "Props/Crates":
+                unity["import_subfolder"] = _derive_import_subfolder(spec)
+
+
 def _default_unity_collider(spec: dict[str, Any]) -> None:
     unity = spec.get("unity")
     if not isinstance(unity, dict):
@@ -636,6 +756,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _coerce_material_slot_resolution_hints(spec)
     _ensure_required_material_roles(spec)
     _default_tags_if_missing(spec)
+    _fix_prompt_template_copies(spec)
     _default_unity_collider(spec)
 
 
