@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> None:
 
     _apply_subprocess_patch()
     os.chdir(comfy_root)
+    sys.path.insert(0, comfy_root)
     sys.argv = [main_py, *argv[1:]]
     runpy.run_path(main_py, run_name="__main__")
 

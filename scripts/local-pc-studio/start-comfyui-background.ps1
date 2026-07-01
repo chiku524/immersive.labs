@@ -69,9 +69,15 @@ $argList = @(
   "--port", "8188"
 ) + $cpuArg
 
+function Format-ProcessArguments([string[]]$CommandArgs) {
+  ($CommandArgs | ForEach-Object {
+    if ($_ -match '\s') { "`"$_`"" } else { $_ }
+  }) -join ' '
+}
+
 Write-Host "Starting ComfyUI ($Launcher) - log: $logFile"
 Start-Process -FilePath $Launcher `
-  -ArgumentList $argList `
+  -ArgumentList (Format-ProcessArguments $argList) `
   -WorkingDirectory $ComfyRoot `
   -WindowStyle Hidden `
   -RedirectStandardError $logFile
