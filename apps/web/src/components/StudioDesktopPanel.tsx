@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchDesktopServiceStatus } from "../desktop/desktopServiceChecks";
 import { isTauriRuntime } from "../tauriRuntime";
 import "./StudioDesktopPanel.css";
 
@@ -24,27 +25,73 @@ type DesktopSettings = {
 
 export { isTauriRuntime };
 
+const HEALTH_POLL_MS = 60_000;
+
 export function StudioDesktopPanel() {
   const [status, setStatus] = useState<PrereqStatus | null>(null);
   const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const staticInfoRef = useRef<Pick<PrereqStatus, "blender" | "docker" | "repo_root" | "comfy_root"> | null>(
+    null,
+  );
 
-  const refresh = useCallback(async () => {
+  const loadStaticInfo = useCallback(async () => {
     if (!isTauriRuntime()) {
       return;
     }
-    setBusy(true);
     try {
       const next = await invoke<PrereqStatus>("check_prerequisites");
-      setStatus(next);
+      staticInfoRef.current = {
+        blender: next.blender,
+        docker: next.docker,
+        repo_root: next.repo_root,
+        comfy_root: next.comfy_root,
+      };
+      setStatus((prev) => ({
+        ...next,
+        ollama: prev?.ollama ?? next.ollama,
+        comfy: prev?.comfy ?? next.comfy,
+        api: prev?.api ?? next.api,
+      }));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const refreshHealth = useCallback(async (showBusy = false) => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    if (showBusy) {
+      setBusy(true);
+    }
+    try {
+      const live = await fetchDesktopServiceStatus();
+      const base = staticInfoRef.current;
+      setStatus((prev) => ({
+        ollama: live.ollama,
+        comfy: live.comfy,
+        api: live.api,
+        blender: base?.blender ?? prev?.blender ?? { ok: false, detail: "…" },
+        docker: base?.docker ?? prev?.docker ?? { ok: false, detail: "…" },
+        repo_root: base?.repo_root ?? prev?.repo_root ?? "",
+        comfy_root: base?.comfy_root ?? prev?.comfy_root,
+      }));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      if (showBusy) {
+        setBusy(false);
+      }
     }
   }, []);
+
+  const refresh = useCallback(async () => {
+    await loadStaticInfo();
+    await refreshHealth(true);
+  }, [loadStaticInfo, refreshHealth]);
 
   const loadSettings = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -59,11 +106,28 @@ export function StudioDesktopPanel() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    void loadStaticInfo();
     void loadSettings();
-    const timer = window.setInterval(() => void refresh(), 30_000);
-    return () => window.clearInterval(timer);
-  }, [refresh, loadSettings]);
+    void refreshHealth(false);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshHealth(false);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshHealth(false);
+      }
+    }, HEALTH_POLL_MS);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [loadStaticInfo, loadSettings, refreshHealth]);
 
   if (!isTauriRuntime()) {
     return null;
@@ -164,7 +228,7 @@ export function StudioDesktopPanel() {
               try {
                 const text = await invoke<string>("start_worker");
                 setMessage(text);
-                await refresh();
+                await refreshHealth(true);
               } catch (err) {
                 setMessage(err instanceof Error ? err.message : String(err));
               } finally {
@@ -191,7 +255,7 @@ export function StudioDesktopPanel() {
               try {
                 const text = await invoke<string>("start_comfy");
                 setMessage(text);
-                await refresh();
+                await refreshHealth(true);
               } catch (err) {
                 setMessage(err instanceof Error ? err.message : String(err));
               } finally {

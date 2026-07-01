@@ -72,10 +72,24 @@ if (-not (Test-HttpOk "http://127.0.0.1:8188/system_stats")) {
     $comfyLog = Join-Path $AppDir "comfyui-serve.log"
     $gpuOn = ($env:COMFYUI_USE_GPU -eq "1")
     Write-Host "Starting ComfyUI hidden. GPU enabled: $gpuOn"
-    if ($gpuOn) {
-      $comfyArgs = @("main.py", "--listen", "127.0.0.1", "--port", "8188")
+    $BundledLauncher = Join-Path $RepoRoot "apps\studio-desktop\src-tauri\resources\comfy_silent_launcher.py"
+    $AppLauncher = Join-Path $AppDir "comfy_silent_launcher.py"
+    if (Test-Path $BundledLauncher) {
+      Copy-Item -Force $BundledLauncher $AppLauncher
+    }
+    if (-not (Test-Path $AppLauncher)) {
+      Write-Warning "comfy_silent_launcher.py missing — Comfy may flash consoles"
+      $comfyArgs = if ($gpuOn) {
+        @("main.py", "--listen", "127.0.0.1", "--port", "8188")
+      } else {
+        @("main.py", "--listen", "127.0.0.1", "--port", "8188", "--cpu")
+      }
     } else {
-      $comfyArgs = @("main.py", "--listen", "127.0.0.1", "--port", "8188", "--cpu")
+      $comfyArgs = if ($gpuOn) {
+        @($AppLauncher, $ComfyRoot, "--listen", "127.0.0.1", "--port", "8188")
+      } else {
+        @($AppLauncher, $ComfyRoot, "--listen", "127.0.0.1", "--port", "8188", "--cpu")
+      }
     }
     $env:TQDM_DISABLE = "1"
     Start-Process -FilePath $comfyLauncher -ArgumentList $comfyArgs -WorkingDirectory $ComfyRoot `

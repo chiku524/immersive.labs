@@ -7,13 +7,53 @@ use tauri::{AppHandle, Manager, State};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x00000008;
 
 fn hide_console(cmd: &mut Command) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
     }
+}
+
+fn comfy_silent_launcher_path() -> PathBuf {
+    desktop_data_dir().join("comfy_silent_launcher.py")
+}
+
+/// Copy bundled launcher into AppData so Comfy's venv pythonw can run it by path.
+pub fn ensure_comfy_silent_launcher(app: &AppHandle) -> Result<PathBuf, String> {
+    let dest = comfy_silent_launcher_path();
+    if dest.is_file() {
+        return Ok(dest);
+    }
+    let bundled = app
+        .path()
+        .resolve(
+            "resources/comfy_silent_launcher.py",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|err| err.to_string())?;
+    if !bundled.is_file() {
+        #[cfg(debug_assertions)]
+        {
+            let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/comfy_silent_launcher.py");
+            if dev.is_file() {
+                if let Some(parent) = dest.parent() {
+                    std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+                }
+                std::fs::copy(&dev, &dest).map_err(|err| err.to_string())?;
+                return Ok(dest);
+            }
+        }
+        return Err("Comfy silent launcher missing from app bundle.".into());
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    std::fs::copy(&bundled, &dest).map_err(|err| err.to_string())?;
+    Ok(dest)
 }
 
 /// Prefer pythonw.exe on Windows so background worker/ComfyUI never attach a console.
@@ -321,31 +361,10 @@ pub fn find_blender(root: &Path) -> BlenderCheck {
 }
 
 pub fn docker_check() -> ServiceCheck {
-    // Desktop installers do not use Docker; skip CLI probes (avoids flashing consoles on Windows).
-    #[cfg(not(debug_assertions))]
-    {
-        return ServiceCheck {
-            ok: false,
-            detail: "Not used (desktop app)".into(),
-        };
-    }
-
-    let mut cmd = Command::new("docker");
-    cmd.args(["info"]);
-    hide_console(&mut cmd);
-    match cmd.output() {
-        Ok(output) if output.status.success() => ServiceCheck {
-            ok: true,
-            detail: "docker info OK".into(),
-        },
-        Ok(output) => ServiceCheck {
-            ok: false,
-            detail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        },
-        Err(err) => ServiceCheck {
-            ok: false,
-            detail: format!("Not available ({err})"),
-        },
+    // Never shell out from the desktop app — docker CLI flashes consoles on Windows.
+    ServiceCheck {
+        ok: false,
+        detail: "Not used (desktop app)".into(),
     }
 }
 
@@ -527,7 +546,7 @@ pub fn stop_worker_internal(state: &AppState) -> Result<(), String> {
     Ok(())
 }
 
-pub fn start_comfy_internal(state: &AppState) -> Result<String, String> {
+pub fn start_comfy_internal(state: &AppState, app: &AppHandle) -> Result<String, String> {
     if http_check("http://127.0.0.1:8188/system_stats").ok {
         return Ok("ComfyUI already running at http://127.0.0.1:8188".into());
     }
@@ -540,23 +559,32 @@ pub fn start_comfy_internal(state: &AppState) -> Result<String, String> {
     let repo = repo_root();
     let comfy = comfy_root(&repo)?;
     let python = python_launcher(&comfy_python(&comfy)?);
+    let launcher = ensure_comfy_silent_launcher(app)?;
 
     let use_gpu = std::env::var("COMFYUI_USE_GPU")
         .ok()
         .or_else(|| read_env_local_value(&repo, "COMFYUI_USE_GPU"))
         .is_some_and(|v| v == "1");
 
+    let mut args = vec![
+        launcher.to_string_lossy().to_string(),
+        comfy.to_string_lossy().to_string(),
+        "--listen".into(),
+        "127.0.0.1".into(),
+        "--port".into(),
+        "8188".into(),
+    ];
+    if !use_gpu {
+        args.push("--cpu".into());
+    }
+
     let mut cmd = Command::new(&python);
-    cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
+    cmd.args(&args)
         .current_dir(&comfy)
         .env("TQDM_DISABLE", "1")
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     hide_console(&mut cmd);
-
-    if !use_gpu {
-        cmd.arg("--cpu");
-    }
 
     let child = cmd.spawn().map_err(|err| {
         format!(
@@ -665,7 +693,7 @@ pub fn run_autostart(app: &AppHandle) {
     }
 
     if settings.auto_start_comfy {
-        let _ = start_comfy_internal(&app.state::<AppState>());
+        let _ = start_comfy_internal(&app.state::<AppState>(), app);
     }
 }
 
@@ -698,8 +726,8 @@ pub fn stop_worker(state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn start_comfy(state: State<AppState>) -> Result<String, String> {
-    start_comfy_internal(&state)
+pub fn start_comfy(app: AppHandle, state: State<AppState>) -> Result<String, String> {
+    start_comfy_internal(&state, &app)
 }
 
 #[tauri::command]

@@ -39,6 +39,9 @@ def _load_env_local_file() -> None:
 
 
 def _cmd_queue_worker(args: argparse.Namespace) -> int:
+    from studio_worker.subprocess_win import apply_silent_subprocess_defaults
+
+    apply_silent_subprocess_defaults()
     from studio_worker.sqlite_queue import run_worker_loop
 
     run_worker_loop(
@@ -261,6 +264,9 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 def _cmd_serve(args: argparse.Namespace) -> int:
     _load_env_local_file()
+    from studio_worker.subprocess_win import apply_silent_subprocess_defaults
+
+    apply_silent_subprocess_defaults()
     import uvicorn
 
     uvicorn.run(

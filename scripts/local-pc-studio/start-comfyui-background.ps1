@@ -53,8 +53,18 @@ $logDir = Join-Path $env:LOCALAPPDATA "Immersive Studio"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir "comfyui-serve.log"
 
+$BundledLauncher = Join-Path $RepoRoot "apps\studio-desktop\src-tauri\resources\comfy_silent_launcher.py"
+$AppLauncher = Join-Path $logDir "comfy_silent_launcher.py"
+if (Test-Path $BundledLauncher) {
+  Copy-Item -Force $BundledLauncher $AppLauncher
+}
+if (-not (Test-Path $AppLauncher)) {
+  Write-Error "comfy_silent_launcher.py missing. Update the immersive.labs repo."
+}
+
 $argList = @(
-  "main.py",
+  $AppLauncher,
+  $ComfyRoot,
   "--listen", "127.0.0.1",
   "--port", "8188"
 ) + $cpuArg

@@ -106,7 +106,7 @@ pub fn run() {
                     }
                     "tray_start_comfy" => {
                         let state = app.state::<AppState>();
-                        let _ = app_state::start_comfy_internal(&state);
+                        let _ = app_state::start_comfy_internal(&state, app);
                     }
                     "tray_jobs" => {
                         let _ = open_jobs_folder();
