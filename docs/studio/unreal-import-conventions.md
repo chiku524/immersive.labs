@@ -27,12 +27,25 @@ StudioPack_<job_id>/
 
 ## Collision
 
-Until the asset spec gains an `unreal` block, the importer reads **`unity.collider`**:
+The asset spec now carries an optional **`unreal`** block. When omitted, the worker derives it from `unity` during validation, so every pack ships engine-appropriate hints:
 
-| Value | Unreal behavior |
-|-------|-----------------|
-| `box` | Simple box collision on the static mesh (bounds-sized) |
-| others | Not automated in v0.1 |
+```json
+"unreal": {
+  "import_subfolder": "Props/Barrels",
+  "collision_complexity": "convex"
+}
+```
+
+`collision_complexity` is derived from `unity.collider` when the block is absent (`box`/`capsule` → `simple`, `mesh_convex` → `convex`, `none` → `none`). The importer prefers `unreal.collision_complexity` and falls back to `unity.collider`:
+
+| `collision_complexity` | Unreal behavior |
+|------------------------|-----------------|
+| `simple` | Bounds-sized box body (`CTF_UseSimpleAsComplex`) |
+| `convex` | Box body from bounds; import the matching `*_collider.glb` convex hull for tighter collision |
+| `complex` | Use the render mesh for collision (`CTF_UseComplexAsSimple`) |
+| `none` | No collision applied |
+
+`*_collider.glb` files are skipped as visible render meshes on import (they are collision sources).
 
 ## Import checklist
 

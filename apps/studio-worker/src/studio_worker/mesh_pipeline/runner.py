@@ -64,6 +64,7 @@ def _try_blender_fallback(
     logs = [notice, *b_logs]
     if b_errs:
         return logs, b_errs, FALLBACK_PIPELINE_ID
+    logs = [*logs, *_postprocess_generated_mesh(pack_root, spec)]
     return logs, [], FALLBACK_PIPELINE_ID
 
 

@@ -31,6 +31,14 @@ _RESOLUTION_HINT_TOKEN = re.compile(r"\b(512|1024|2048|4096)\b")
 
 _MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
 _UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
+_UNREAL_COLLISIONS = frozenset({"simple", "complex", "convex", "none"})
+# Unity collider → Unreal collision complexity when the spec omits an explicit unreal block.
+_UNITY_TO_UNREAL_COLLISION = {
+    "box": "simple",
+    "capsule": "simple",
+    "mesh_convex": "convex",
+    "none": "none",
+}
 _POLY_BUDGET_ALIASES = ("poly_budget_tri", "poly_budget_triangle")
 
 # Examples in older prompts; LLMs often copy these verbatim instead of the brief.
@@ -58,6 +66,7 @@ _ALLOWED_TOP_LEVEL = frozenset({
     "variants",
     "generation",
     "unity",
+    "unreal",
 })
 
 
@@ -737,6 +746,41 @@ def _default_unity_collider(spec: dict[str, Any]) -> None:
         unity["collider"] = "box"
 
 
+def _ensure_unreal_block(spec: dict[str, Any]) -> None:
+    """
+    Derive an ``unreal`` block from ``unity`` when absent/invalid so Unreal jobs get
+    engine-appropriate collision + subfolder hints without changing the LLM contract.
+    """
+    unity = spec.get("unity")
+    unity_sub = ""
+    unity_collision = "simple"
+    if isinstance(unity, dict):
+        sub = unity.get("import_subfolder")
+        if isinstance(sub, str) and sub.strip():
+            unity_sub = sub.strip()
+        collider = unity.get("collider")
+        if isinstance(collider, str):
+            unity_collision = _UNITY_TO_UNREAL_COLLISION.get(collider.strip().lower(), "simple")
+
+    ue = spec.get("unreal")
+    if not isinstance(ue, dict):
+        ue = {}
+
+    sub = ue.get("import_subfolder")
+    if not (isinstance(sub, str) and sub.strip() and ".." not in sub and not sub.startswith(("/", "\\"))):
+        ue["import_subfolder"] = unity_sub or "Props/Generated"
+    else:
+        ue["import_subfolder"] = sub.strip().replace("\\", "/")
+
+    complexity = ue.get("collision_complexity")
+    if not (isinstance(complexity, str) and complexity.strip().lower() in _UNREAL_COLLISIONS):
+        ue["collision_complexity"] = unity_collision
+    else:
+        ue["collision_complexity"] = complexity.strip().lower()
+
+    spec["unreal"] = ue
+
+
 def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     """Normalize common LLM JSON quirks before JSON Schema validation."""
     if not isinstance(spec, dict):
@@ -758,6 +802,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _default_tags_if_missing(spec)
     _fix_prompt_template_copies(spec)
     _default_unity_collider(spec)
+    _ensure_unreal_block(spec)
 
 
 def normalize_asset_spec(spec: dict[str, Any]) -> None:

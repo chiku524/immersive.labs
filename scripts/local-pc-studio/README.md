@@ -234,6 +234,8 @@ If you want **https://immersivelabs.space/studio** (or another public origin) to
 2. Set **Vercel** `VITE_STUDIO_API_URL` to that HTTPS origin at build time.
 3. Set **`STUDIO_CORS_ORIGINS`** on your local `immersive-studio serve` to include `https://www.immersivelabs.space` (and apex) so the browser is allowed to call your tunnel host.
 
+See [docs/studio/local-pc-public-api.md](../../docs/studio/local-pc-public-api.md) for the full PC-as-origin checklist (Worker `ORIGIN_URL`, grey-cloud DNS, retiring GCE).
+
 See `scripts/studio-cloudflare-tunnel/README.md` for tunnel patterns used elsewhere in this repo.
 
 ## Optional: separate queue process

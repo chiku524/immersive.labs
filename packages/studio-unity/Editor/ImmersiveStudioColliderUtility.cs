@@ -57,9 +57,12 @@ namespace ImmersiveLabs.Studio.Editor
 
             if (spec.unity.collider != "box")
             {
+                var hint = spec.unity.collider == "mesh_convex"
+                    ? "mesh_convex is applied on Import Studio Pack when *_collider.glb exists."
+                    : $"Collider type `{spec.unity.collider}` is not automated via this menu.";
                 EditorUtility.DisplayDialog(
                     "Immersive Studio",
-                    $"Collider type `{spec.unity.collider}` is not automated yet. Only `box` is supported.",
+                    hint + " Only `box` can be applied manually here.",
                     "OK");
                 return;
             }

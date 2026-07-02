@@ -219,8 +219,8 @@ namespace ImmersiveLabs.Studio.EditorTools
                 }
 
                 var orderedBases = GetOrderedPbrMaterialBases(asset);
-                ApplyMaterialToImportedGlbMeshes(relFolder, meshMat, litByPbrBase, orderedBases);
-                ApplyBoxCollidersToImportedGlbsIfNeeded(relFolder, asset);
+                ApplyMaterialToImportedGlbMeshes(relFolder, meshMat, litByPbrBase, orderedBases, asset.asset_id);
+                FinalizeMeshCollidersAndLods(relFolder, asset);
             }
 
             AssetDatabase.SaveAssets();
@@ -375,7 +375,8 @@ namespace ImmersiveLabs.Studio.EditorTools
             string relFolder,
             Material fallbackMat,
             Dictionary<string, Material> litByPbrBase,
-            List<string> orderedPbrBases)
+            List<string> orderedPbrBases,
+            string assetId)
         {
             var guids = AssetDatabase.FindAssets(string.Empty, new[] { relFolder });
             var hasMeshAsset = false;
@@ -391,6 +392,11 @@ namespace ImmersiveLabs.Studio.EditorTools
                 if (e.Equals(".glb", System.StringComparison.OrdinalIgnoreCase)
                     || e.Equals(".gltf", System.StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!IsRenderableGlbPath(p, assetId))
+                    {
+                        continue;
+                    }
+
                     hasMeshAsset = true;
                     break;
                 }
@@ -436,6 +442,11 @@ namespace ImmersiveLabs.Studio.EditorTools
                 var ext = Path.GetExtension(path);
                 if (!ext.Equals(".glb", System.StringComparison.OrdinalIgnoreCase)
                     && !ext.Equals(".gltf", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!IsRenderableGlbPath(path, assetId))
                 {
                     continue;
                 }
@@ -517,51 +528,87 @@ namespace ImmersiveLabs.Studio.EditorTools
             }
         }
 
-        private static void ApplyBoxCollidersToImportedGlbsIfNeeded(string relFolder, AssetSpecDto asset)
+        private static bool IsRenderableGlbPath(string assetPath, string assetId)
         {
-            if (asset?.unity == null || !string.Equals(asset.unity.collider, "box", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return false;
+            }
+
+            var stem = Path.GetFileNameWithoutExtension(assetPath);
+            if (stem.EndsWith("_collider", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(assetId))
+            {
+                return true;
+            }
+
+            return string.Equals(stem, assetId, StringComparison.OrdinalIgnoreCase)
+                   || (stem.StartsWith(assetId, StringComparison.OrdinalIgnoreCase)
+                       && stem.IndexOf("_LOD", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static void FinalizeMeshCollidersAndLods(string relFolder, AssetSpecDto asset)
+        {
+            if (asset == null || string.IsNullOrEmpty(asset.asset_id))
             {
                 return;
             }
 
-            var guids = AssetDatabase.FindAssets(string.Empty, new[] { relFolder });
-            foreach (var guid in guids)
+            var entries = ImmersiveStudioGlbUtility.ClassifyGlbs(relFolder, asset.asset_id);
+            StudioGlbEntry mainEntry = null;
+            StudioGlbEntry colliderEntry = null;
+            foreach (var entry in entries)
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.IndexOf("/Materials/", System.StringComparison.Ordinal) >= 0)
+                if (entry.Role == StudioGlbRole.Main)
                 {
-                    continue;
+                    mainEntry = entry;
                 }
+                else if (entry.Role == StudioGlbRole.Collider)
+                {
+                    colliderEntry = entry;
+                }
+            }
 
-                var ext = Path.GetExtension(path);
-                if (!ext.Equals(".glb", System.StringComparison.OrdinalIgnoreCase)
-                    && !ext.Equals(".gltf", System.StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+            if (mainEntry == null)
+            {
+                return;
+            }
 
-                var root = AssetDatabase.LoadMainAssetAtPath(path) as GameObject;
-                if (root == null)
-                {
-                    foreach (var sub in AssetDatabase.LoadAllAssetsAtPath(path))
-                    {
-                        if (sub is GameObject go && go.transform.parent == null)
-                        {
-                            root = go;
-                            break;
-                        }
-                    }
-                }
+            var mainRoot = ImmersiveStudioGlbUtility.LoadImportedRoot(mainEntry.AssetPath);
+            if (mainRoot == null)
+            {
+                return;
+            }
 
-                if (root == null)
+            var collider = asset.unity != null ? asset.unity.collider : null;
+            if (string.Equals(collider, "mesh_convex", StringComparison.OrdinalIgnoreCase))
+            {
+                if (colliderEntry != null
+                    && ImmersiveStudioGlbUtility.TryApplyConvexMeshCollider(mainRoot, colliderEntry.AssetPath))
                 {
-                    continue;
+                    Debug.Log($"[Immersive Studio] Applied convex MeshCollider from `{Path.GetFileName(colliderEntry.AssetPath)}`.");
                 }
+                else
+                {
+                    Debug.LogWarning(
+                        "[Immersive Studio] unity.collider is mesh_convex but no *_collider.glb was found in the pack.");
+                }
+            }
+            else if (string.Equals(collider, "box", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ImmersiveStudioColliderUtility.TryApplyBoxColliderIfConfigured(mainRoot, asset))
+                {
+                    EditorUtility.SetDirty(mainRoot);
+                }
+            }
 
-                if (ImmersiveStudioColliderUtility.TryApplyBoxColliderIfConfigured(root, asset))
-                {
-                    EditorUtility.SetDirty(root);
-                }
+            if (ImmersiveStudioGlbUtility.TryBuildLodGroup(mainRoot, entries))
+            {
+                Debug.Log($"[Immersive Studio] Built LODGroup on `{mainRoot.name}` from worker LOD GLBs.");
             }
         }
 

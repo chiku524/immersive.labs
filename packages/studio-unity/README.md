@@ -30,16 +30,24 @@ For Unreal Engine, see `packages/studio-unreal` (**Tools → Import Studio Pack�
 
 ## Box colliders from `spec.json`
 
-**Automatic:** On **Import Studio Pack**, if the manifest asset has `unity.collider == "box"`, each imported `.glb` / `.gltf` root receives a **BoxCollider** (same rules as below).
+**Automatic:** On **Import Studio Pack**, colliders follow `unity.collider` on each manifest asset:
 
-**Manual:**  
+| `unity.collider` | Behavior |
+|------------------|----------|
+| `box` | **BoxCollider** on the main `.glb` root (renderer bounds or `target_height_m`). |
+| `mesh_convex` | **MeshCollider** (convex) from `{asset_id}_collider.glb` when the worker post-process emitted it. Collider mesh renderers are hidden. |
+| (other) | Manual |
+
+**LODs:** When the worker writes `{asset_id}_LOD1.glb`, `_LOD2.glb`, … (via `STUDIO_MESH_LODS`), the importer builds a **LODGroup** on the main mesh root.
+
+**Manual box collider:**
 1. Select one or more GameObjects in the Hierarchy (typically a mesh root).  
 2. **Immersive Labs → Apply Box Collider From spec.json…**  
 3. Pick the worker’s `spec.json`. When `unity.collider` is `box`, a **BoxCollider** is added or updated:  
    - If a **Renderer** exists, bounds are derived from its world **Bounds** (converted to local space).  
    - Otherwise `target_height_m` (or `1`) drives a simple proportional box.  
 
-Other collider types remain manual for now.
+Other collider types remain manual unless re-importing with `mesh_convex` + `*_collider.glb`.
 
 ## Notes
 

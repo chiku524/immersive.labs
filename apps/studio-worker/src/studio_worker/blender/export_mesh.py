@@ -149,6 +149,102 @@ def _spec_tags_lower(spec: dict) -> set[str]:
     return out
 
 
+def _tags_intersect(tags: set[str], *needles: str) -> bool:
+    return any(n in tags for n in needles)
+
+
+def _build_prop_parts(asset_id: str, height: float, rng: random.Random, tags: set[str]) -> list:
+    """Tag- and seed-driven placeholder props (still lightweight procedural geometry)."""
+    if _tags_intersect(tags, "round", "barrel", "bottle", "cylinder", "orb"):
+        r = height * (0.22 + 0.04 * rng.random())
+        return [
+            _add_cylinder(
+                f"{asset_id}_body",
+                (0.0, 0.0, height * 0.5),
+                (r, r, height * 0.5),
+            ),
+        ]
+
+    if _tags_intersect(tags, "flat", "panel", "plate", "slab"):
+        return [
+            _add_cube(
+                f"{asset_id}_panel",
+                (0.0, 0.0, height * 0.02),
+                (height * 0.9, height * 0.6, height * 0.04),
+            ),
+        ]
+
+    if _tags_intersect(tags, "tall", "pillar", "tower", "column", "spire"):
+        w = height * (0.14 + 0.03 * rng.random())
+        return [
+            _add_cylinder(
+                f"{asset_id}_shaft",
+                (0.0, 0.0, height * 0.5),
+                (w, w, height * 0.5),
+            ),
+        ]
+
+    template = rng.randint(0, 2)
+    base_h = height * (0.48 + 0.04 * rng.random())
+    top_h = max(height - base_h, height * 0.15)
+
+    if template == 1:
+        # Wide low crate
+        return [
+            _add_cube(
+                f"{asset_id}_crate",
+                (0.0, 0.0, height * 0.22),
+                (height * 0.55, height * 0.55, height * 0.44),
+            ),
+        ]
+
+    if template == 2:
+        # Tapered stack (no band)
+        base = _add_cube(
+            f"{asset_id}_base",
+            (0.0, 0.0, base_h * 0.5),
+            (height * 0.46, height * 0.46, base_h),
+        )
+        top = _add_cube(
+            f"{asset_id}_top",
+            (0.0, 0.0, base_h + top_h * 0.5),
+            (height * 0.32, height * 0.32, top_h),
+        )
+        return [base, top]
+
+    base = _add_cube(
+        f"{asset_id}_base",
+        (0.0, 0.0, base_h * 0.5),
+        (
+            height * (0.42 + 0.05 * rng.random()),
+            height * (0.42 + 0.05 * rng.random()),
+            base_h,
+        ),
+    )
+    band_r = height * (0.38 + 0.04 * rng.random())
+    band_t = height * (0.028 + 0.006 * rng.random())
+    band = _add_cylinder(
+        f"{asset_id}_band",
+        (0.0, 0.0, base_h),
+        (band_r, band_r, band_t),
+    )
+    ox = height * (rng.random() - 0.5) * 0.12
+    oy = height * (rng.random() - 0.5) * 0.12
+    top = _add_cube(
+        f"{asset_id}_top",
+        (ox, oy, base_h + top_h * 0.5),
+        (
+            height * (0.36 + 0.06 * rng.random()),
+            height * (0.36 + 0.06 * rng.random()),
+            top_h,
+        ),
+    )
+    parts = [base, band, top]
+    if "minimal_placeholder" in tags or "single_stack" in tags:
+        parts = [base, top]
+    return parts
+
+
 def _finalize_mesh_parts(
     parts: list,
     bases: list[str],
@@ -184,13 +280,29 @@ def build_scene_root(spec: dict, asset_id: str, height: float, rng: random.Rando
         bases = [primary_pbr_material_base(spec)]
 
     if category == "environment_piece":
-        parts = [
-            _add_cube(
-                f"{asset_id}_env",
-                (0.0, 0.0, height * 0.05),
-                (height * 1.2, height * 1.2, height * 0.1),
-            ),
-        ]
+        env_template = rng.randint(0, 1)
+        if env_template == 1:
+            step_h = height * 0.08
+            parts = [
+                _add_cube(
+                    f"{asset_id}_plinth",
+                    (0.0, 0.0, step_h * 0.5),
+                    (height * 1.1, height * 1.1, step_h),
+                ),
+                _add_cube(
+                    f"{asset_id}_env",
+                    (0.0, 0.0, step_h + height * 0.04),
+                    (height * 0.95, height * 0.95, height * 0.08),
+                ),
+            ]
+        else:
+            parts = [
+                _add_cube(
+                    f"{asset_id}_env",
+                    (0.0, 0.0, height * 0.05),
+                    (height * 1.2, height * 1.2, height * 0.1),
+                ),
+            ]
         return _finalize_mesh_parts(
             parts,
             bases,
@@ -241,40 +353,8 @@ def build_scene_root(spec: dict, asset_id: str, height: float, rng: random.Rando
         )
 
     if category == "prop":
-        base_h = height * (0.48 + 0.04 * rng.random())
-        top_h = height - base_h
-        top_h = max(top_h, height * 0.15)
-        base = _add_cube(
-            f"{asset_id}_base",
-            (0.0, 0.0, base_h * 0.5),
-            (
-                height * (0.42 + 0.05 * rng.random()),
-                height * (0.42 + 0.05 * rng.random()),
-                base_h,
-            ),
-        )
         tags = _spec_tags_lower(spec)
-        band_r = height * (0.38 + 0.04 * rng.random())
-        band_t = height * (0.028 + 0.006 * rng.random())
-        band = _add_cylinder(
-            f"{asset_id}_band",
-            (0.0, 0.0, base_h),
-            (band_r, band_r, band_t),
-        )
-        ox = height * (rng.random() - 0.5) * 0.12
-        oy = height * (rng.random() - 0.5) * 0.12
-        top = _add_cube(
-            f"{asset_id}_top",
-            (ox, oy, base_h + top_h * 0.5),
-            (
-                height * (0.36 + 0.06 * rng.random()),
-                height * (0.36 + 0.06 * rng.random()),
-                top_h,
-            ),
-        )
-        parts = [base, band, top]
-        if "minimal_placeholder" in tags or "single_stack" in tags:
-            parts = [base, top]
+        parts = _build_prop_parts(asset_id, height, rng, tags)
         return _finalize_mesh_parts(
             parts,
             bases,

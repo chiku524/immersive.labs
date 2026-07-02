@@ -50,6 +50,11 @@ export interface StudioAssetSpec {
     import_subfolder: string;
     collider: "box" | "capsule" | "mesh_convex" | "none";
   };
+  /** Optional Unreal Engine hints; worker derives these from `unity` when omitted. */
+  unreal?: {
+    import_subfolder: string;
+    collision_complexity: "simple" | "complex" | "convex" | "none";
+  };
 }
 
 export type StudioEngineTarget = "unity" | "unreal";

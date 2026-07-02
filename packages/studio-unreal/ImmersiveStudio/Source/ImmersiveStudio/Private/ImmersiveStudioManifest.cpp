@@ -73,6 +73,18 @@ namespace
 		return true;
 	}
 
+	bool ParseUnrealHints(const TSharedPtr<FJsonObject>& UnrealObj, FImmersiveStudioUnrealHints& OutHints)
+	{
+		if (!UnrealObj.IsValid())
+		{
+			return true;
+		}
+
+		UnrealObj->TryGetStringField(TEXT("import_subfolder"), OutHints.ImportSubfolder);
+		UnrealObj->TryGetStringField(TEXT("collision_complexity"), OutHints.CollisionComplexity);
+		return true;
+	}
+
 	bool ParseAsset(const TSharedPtr<FJsonObject>& AssetObj, FImmersiveStudioAssetSpec& OutAsset)
 	{
 		AssetObj->TryGetStringField(TEXT("asset_id"), OutAsset.AssetId);
@@ -95,6 +107,12 @@ namespace
 		if (AssetObj->TryGetObjectField(TEXT("unity"), UnityObj))
 		{
 			ParseUnityHints(*UnityObj, OutAsset.Unity);
+		}
+
+		const TSharedPtr<FJsonObject>* UnrealObj = nullptr;
+		if (AssetObj->TryGetObjectField(TEXT("unreal"), UnrealObj))
+		{
+			ParseUnrealHints(*UnrealObj, OutAsset.Unreal);
 		}
 
 		return !OutAsset.AssetId.IsEmpty();

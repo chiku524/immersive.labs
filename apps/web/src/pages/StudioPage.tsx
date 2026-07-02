@@ -135,7 +135,7 @@ function meshLogsIndicateTripoFallback(logs: readonly string[]): boolean {
 /** Ages above this (seconds) usually indicate the queue is not draining, not normal backlog. */
 const STALE_QUEUE_AGE_SECONDS = 3600;
 
-type RecentJobDisplay = StudioJobSummary & { queue_id?: string };
+type RecentJobDisplay = StudioJobSummary & { queue_id?: string; live_progress?: string | null };
 
 function queuePromptSummary(payload: StudioQueueJobSummary["payload"]): string {
   const p = typeof payload?.user_prompt === "string" ? payload.user_prompt.trim() : "";
@@ -149,6 +149,7 @@ function queuePromptSummary(payload: StudioQueueJobSummary["payload"]): string {
 function mergeRecentJobRows(
   indexJobs: StudioJobSummary[],
   queueJobs: StudioQueueJobSummary[] | undefined,
+  liveProgress?: Record<string, string>,
 ): RecentJobDisplay[] {
   const indexedIds = new Set(indexJobs.map((j) => j.job_id));
   const queueRows: RecentJobDisplay[] = [];
@@ -168,6 +169,7 @@ function mergeRecentJobRows(
       has_textures: Boolean(q.payload?.generate_textures),
       error: q.last_error ?? null,
       queue_id: q.id,
+      live_progress: liveProgress?.[q.id] ?? null,
     });
   }
   return [...queueRows, ...indexJobs];
@@ -439,6 +441,40 @@ async function consumeQueueJobSse(
   throw new SseTransportError("SSE stream closed before job reached a terminal status");
 }
 
+function formatQueueJobProgress(row: QueueJobRow): string | null {
+  const p = row.progress;
+  if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
+    const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
+    return `Textures ${p.done}/${p.total}${p.label ? ` · ${p.label}` : ""}${w}`;
+  }
+  if (row.status === "running") {
+    return "Running on worker…";
+  }
+  if (row.status === "pending") {
+    return "Queued…";
+  }
+  return null;
+}
+
+/** Background SSE watch for dashboard rows (does not block the active job runner). */
+async function watchQueueJobSse(
+  queueId: string,
+  auth: Record<string, string>,
+  signal: AbortSignal,
+  onUpdate: (row: QueueJobRow) => void,
+): Promise<void> {
+  const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
+  try {
+    const row = await consumeQueueJobSse(eventsUrl, auth, signal, onUpdate);
+    onUpdate(row);
+  } catch (e) {
+    if (signal.aborted || isAbortError(e)) {
+      return;
+    }
+    // Dashboard still polls via refreshDashboard when SSE is unavailable.
+  }
+}
+
 async function pollQueueJobUntilTerminal(
   queueId: string,
   auth: Record<string, string>,
@@ -649,6 +685,8 @@ export function StudioPage() {
   const [comfy, setComfy] = useState<StudioComfyStatusPayload | null>(null);
   const [jobs, setJobs] = useState<StudioJobSummary[]>([]);
   const [queueJobs, setQueueJobs] = useState<StudioQueueJobSummary[]>([]);
+  /** Live sub-step labels for in-flight queue rows (SSE). */
+  const [queueLiveProgress, setQueueLiveProgress] = useState<Record<string, string>>({});
   const [jobsRoot, setJobsRoot] = useState<string | null>(null);
   const [workerHints, setWorkerHints] = useState<StudioWorkerHints | null>(null);
   const [queueSlo, setQueueSlo] = useState<StudioQueueSloSnapshot | null>(null);
@@ -656,6 +694,7 @@ export function StudioPage() {
   const [dashboardPollSlow, setDashboardPollSlow] = useState(false);
   /** Aborts in-flight queue polling when leaving /studio or starting a new run. */
   const jobPollAbortRef = useRef<AbortController | null>(null);
+  const dashboardSseAbortRef = useRef<AbortController | null>(null);
   const jobLoadingRef = useRef(false);
   const resumeQueueRef = useRef(false);
 
@@ -920,7 +959,8 @@ export function StudioPage() {
     [authHeaders, finishJobFromQueueRow],
   );
 
-  const recentJobs = mergeRecentJobRows(jobs, queueJobs);
+  const recentJobs = mergeRecentJobRows(jobs, queueJobs, queueLiveProgress);
+  const hasActiveQueueJobs = queueJobs.some((q) => q.status === "pending" || q.status === "running");
 
   const refreshComfy = useCallback((signal?: AbortSignal) => {
     if (!STUDIO_API_READY) {
@@ -980,14 +1020,61 @@ export function StudioPage() {
     }
     const ac = new AbortController();
     void refreshDashboard(ac.signal);
-    // Full jobs saturate a small VM; background tabs poll less to ease tunnel + origin load.
-    const pollMs = jobLoading ? 30_000 : dashboardPollSlow ? 90_000 : 5000;
+    // Full jobs saturate a small VM; background tabs poll less. Active queue rows also use SSE.
+    const pollMs = jobLoading
+      ? 30_000
+      : hasActiveQueueJobs
+        ? STUDIO_QUEUE_POLL_MS
+        : dashboardPollSlow
+          ? 90_000
+          : 5000;
     const t = window.setInterval(() => void refreshDashboard(ac.signal), pollMs);
     return () => {
       ac.abort();
       window.clearInterval(t);
     };
-  }, [refreshDashboard, jobLoading, dashboardPollSlow]);
+  }, [refreshDashboard, jobLoading, dashboardPollSlow, hasActiveQueueJobs]);
+
+  useEffect(() => {
+    if (!STUDIO_API_READY) {
+      return;
+    }
+    const active = queueJobs.filter((q) => q.status === "pending" || q.status === "running");
+    dashboardSseAbortRef.current?.abort();
+    if (active.length === 0) {
+      setQueueLiveProgress({});
+      return;
+    }
+    const ac = new AbortController();
+    dashboardSseAbortRef.current = ac;
+    let primaryId: string | null = null;
+    try {
+      primaryId = localStorage.getItem(ACTIVE_QUEUE_STORAGE);
+    } catch {
+      primaryId = null;
+    }
+    const auth = authHeaders();
+    for (const q of active) {
+      if (jobLoading && primaryId && q.id === primaryId) {
+        continue;
+      }
+      void watchQueueJobSse(q.id, auth, ac.signal, (row) => {
+        const label = formatQueueJobProgress(row);
+        if (label) {
+          setQueueLiveProgress((prev) => ({ ...prev, [q.id]: label }));
+        }
+        if (row.status === "completed" || row.status === "dead") {
+          setQueueLiveProgress((prev) => {
+            const next = { ...prev };
+            delete next[q.id];
+            return next;
+          });
+          void refreshDashboard();
+        }
+      });
+    }
+    return () => ac.abort();
+  }, [queueJobs, STUDIO_API_READY, jobLoading, authHeaders, refreshDashboard]);
 
   useEffect(() => {
     if (!STUDIO_API_READY || resumeQueueRef.current) {
@@ -1587,25 +1674,43 @@ export function StudioPage() {
               </label>
             </div>
 
-            <label className="studio-label">
-              Import target (pack.zip)
-              <select
-                className="studio-input"
-                value={engineTarget}
-                onChange={(e) => {
-                  const next = e.target.value as StudioEngineTarget;
-                  setEngineTarget(next);
-                  try {
-                    window.localStorage.setItem(ENGINE_TARGET_STORAGE, next);
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-              >
-                <option value="unity">Unity (URP) — primary target; Unreal notes also in pack</option>
-                <option value="unreal">Unreal Engine 5 — primary target; Unity notes also in pack</option>
-              </select>
-            </label>
+            <div className="studio-label" role="group" aria-label="Import target engine">
+              <span>Import target (pack.zip)</span>
+              <div className="studio-engine-toggle">
+                {(
+                  [
+                    { id: "unity", label: "Unity (URP)" },
+                    { id: "unreal", label: "Unreal Engine 5" },
+                  ] as { id: StudioEngineTarget; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={
+                      engineTarget === opt.id
+                        ? "studio-engine-toggle-btn is-active"
+                        : "studio-engine-toggle-btn"
+                    }
+                    aria-pressed={engineTarget === opt.id}
+                    onClick={() => {
+                      setEngineTarget(opt.id);
+                      try {
+                        window.localStorage.setItem(ENGINE_TARGET_STORAGE, opt.id);
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <span className="studio-engine-toggle-note">
+                {engineTarget === "unreal"
+                  ? "Primary: Unreal (Tools → Import Studio Pack…, packages/studio-unreal). Unity notes also included."
+                  : "Primary: Unity URP (Immersive Labs → Import Studio Pack…, packages/studio-unity). Unreal notes also included."}
+              </span>
+            </div>
 
             <label className="studio-check">
               <input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} />
@@ -1956,6 +2061,11 @@ export function StudioPage() {
                           >
                             {j.status}
                           </span>
+                          {j.live_progress ? (
+                            <div className="studio-table-sub" role="status">
+                              {j.live_progress}
+                            </div>
+                          ) : null}
                         </td>
                         <td>{j.has_textures ? "yes" : "no"}</td>
                         <td>

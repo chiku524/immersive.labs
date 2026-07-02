@@ -205,9 +205,16 @@ namespace
 		return nullptr;
 	}
 
-	void ApplyBoxCollisionIfConfigured(UStaticMesh* StaticMesh, const FImmersiveStudioAssetSpec& Asset)
+	void ApplyCollisionIfConfigured(UStaticMesh* StaticMesh, const FImmersiveStudioAssetSpec& Asset)
 	{
-		if (!StaticMesh || !Asset.Unity.Collider.Equals(TEXT("box"), ESearchCase::IgnoreCase))
+		if (!StaticMesh)
+		{
+			return;
+		}
+
+		// Engine target drives this: prefer unreal.collision_complexity, fall back to unity.collider.
+		const FString Complexity = Asset.ResolveCollisionComplexity();
+		if (Complexity == TEXT("none"))
 		{
 			return;
 		}
@@ -224,6 +231,17 @@ namespace
 			return;
 		}
 
+		if (Complexity == TEXT("complex"))
+		{
+			// Use the render mesh directly for collision queries (accurate, heavier).
+			BodySetup->CollisionTraceFlag = CTF_UseComplexAsSimple;
+			StaticMesh->Build();
+			StaticMesh->MarkPackageDirty();
+			return;
+		}
+
+		// simple + convex both get a conservative box primitive from bounds. A dedicated
+		// *_collider.glb convex hull can be imported separately for tighter convex collision.
 		const FBox Bounds = StaticMesh->GetBoundingBox();
 		BodySetup->AggGeom.BoxElems.Reset();
 
@@ -496,11 +514,18 @@ void FImmersiveStudioImporter::ImportPackInteractive()
 					continue;
 				}
 
+				// Collider hull GLBs are collision sources, not render meshes — skip importing them as visible assets.
+				const FString MeshStem = FPaths::GetBaseFilename(MeshFile);
+				if (MeshStem.EndsWith(TEXT("_collider"), ESearchCase::IgnoreCase))
+				{
+					continue;
+				}
+
 				const FString MeshPath = ModelsDir / MeshFile;
 				if (UStaticMesh* StaticMesh = ImportMeshFile(AssetTools, MeshPath, AssetContentPath))
 				{
 					AssignMaterialsToStaticMesh(StaticMesh, PreferredMaterial, MaterialsByBase, OrderedBases);
-					ApplyBoxCollisionIfConfigured(StaticMesh, Asset);
+					ApplyCollisionIfConfigured(StaticMesh, Asset);
 					++ImportedMeshCount;
 				}
 			}

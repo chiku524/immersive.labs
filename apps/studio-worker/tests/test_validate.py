@@ -271,3 +271,41 @@ def test_llm_copied_prompt_template_ids_replaced_for_tower_brief() -> None:
     validate_asset_spec(spec)
     assert spec["asset_id"] == "prop_medieval_tower"
     assert spec["unity"]["import_subfolder"] == "Props/Structures"
+
+
+def test_unreal_block_derived_from_unity_when_missing() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["unity"]["collider"] = "mesh_convex"
+    spec["unity"]["import_subfolder"] = "Props/Barrels"
+    spec.pop("unreal", None)
+    validate_asset_spec(spec)
+    assert spec["unreal"]["collision_complexity"] == "convex"
+    assert spec["unreal"]["import_subfolder"] == spec["unity"]["import_subfolder"]
+
+
+def test_unreal_block_respected_when_present() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["unreal"] = {"import_subfolder": "Environment/Kit", "collision_complexity": "complex"}
+    validate_asset_spec(spec)
+    assert spec["unreal"]["collision_complexity"] == "complex"
+    assert spec["unreal"]["import_subfolder"] == "Environment/Kit"
+
+
+def test_invalid_unreal_collision_falls_back_to_unity_mapping() -> None:
+    spec = build_mock_spec(
+        user_prompt="crate",
+        category="prop",
+        style_preset="toon_bold",
+    )
+    spec["unity"]["collider"] = "none"
+    spec["unreal"] = {"import_subfolder": "Props/Test", "collision_complexity": "bogus"}
+    validate_asset_spec(spec)
+    assert spec["unreal"]["collision_complexity"] == "none"

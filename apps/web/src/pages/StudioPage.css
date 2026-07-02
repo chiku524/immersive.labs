@@ -257,6 +257,44 @@ button.studio-table-link:disabled {
   min-height: 6rem;
 }
 
+.studio-engine-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: fit-content;
+}
+
+.studio-engine-toggle-btn {
+  font: inherit;
+  font-weight: 600;
+  color: #b4bcc9;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.studio-engine-toggle-btn:hover {
+  color: #e8ecf4;
+}
+
+.studio-engine-toggle-btn.is-active {
+  color: #0b0e14;
+  background: linear-gradient(180deg, #7dd3fc, #38bdf8);
+  box-shadow: 0 1px 6px rgba(56, 189, 248, 0.35);
+}
+
+.studio-engine-toggle-note {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #8b93a3;
+}
+
 .studio-row {
   display: grid;
   gap: 1rem;

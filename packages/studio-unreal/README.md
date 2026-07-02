@@ -43,7 +43,7 @@ Content/ImmersiveStudioImports/<job_id>/<asset_id>/
   - `M_StudioPackedORM` when ORM is present
   - `M_StudioBase` for albedo (+ optional normal) only
 - Imports `.glb` / `.gltf` from `Models/<asset_id>/` and assigns materials to mesh slots (name match, then spec order, then preferred variant/slot).
-- When `unity.collider` is `box`, adds a simple **box collision** primitive sized to mesh bounds (same hint field as Unity until a dedicated `unreal` block exists in the spec).
+- Reads the spec's optional **`unreal.collision_complexity`** (falling back to `unity.collider`): `simple` → bounds-sized box body, `convex` → box body plus the matching `*_collider.glb` convex hull, `complex` → use-complex-as-simple on the render mesh, `none` → no collision. `*_collider.glb` files are treated as collision sources and are not imported as visible meshes.
 
 ## Pack layout
 

@@ -104,6 +104,18 @@
           "enum": ["box", "capsule", "mesh_convex", "none"]
         }
       }
+    },
+    "unreal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["import_subfolder", "collision_complexity"],
+      "properties": {
+        "import_subfolder": { "type": "string", "minLength": 1 },
+        "collision_complexity": {
+          "type": "string",
+          "enum": ["simple", "complex", "convex", "none"]
+        }
+      }
     }
   }
 }

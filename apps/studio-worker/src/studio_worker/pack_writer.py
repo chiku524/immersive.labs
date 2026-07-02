@@ -76,9 +76,13 @@ def _unreal_import_notes(
     for a in assets:
         aid = a.get("asset_id", "?")
         st = a.get("style_preset", "?")
+        unreal = a.get("unreal") or {}
         unity = a.get("unity") or {}
-        col = unity.get("collider", "?")
-        lines.append(f"- **{aid}** — style `{st}`, collider hint `{col}` (reads `unity.collider` until spec adds `unreal`).")
+        sub = unreal.get("import_subfolder") or unity.get("import_subfolder", "?")
+        collision = unreal.get("collision_complexity") or _unity_collider_to_unreal(unity.get("collider"))
+        lines.append(
+            f"- **{aid}** — style `{st}`, import under `{sub}`, collision `{collision}` (from `unreal.collision_complexity`)."
+        )
     lines.extend(
         [
             "",
@@ -87,12 +91,20 @@ def _unreal_import_notes(
             "1. Copy `packages/studio-unreal/ImmersiveStudio` into your project's `Plugins/` folder and compile.",
             "2. Enable **Interchange**, **InterchangeImporter**, and **glTFExporter** if prompted.",
             "3. **Tools → Import Studio Pack…** and select this folder (contains `manifest.json`).",
-            "4. Find assets under `Content/ImmersiveStudioImports/<job_id>/`.",
-            "5. Verify glTF scale (meters) vs your project's unit settings; adjust actor scale if needed.",
+            "4. Find assets under `Content/ImmersiveStudioImports/<job_id>/` (spec `unreal.import_subfolder` is the intended in-project layout).",
+            "5. Collision: `simple` → box body; `convex` → convex hull (uses `*_collider.glb` when present); `complex` → use-complex-as-simple; `none` → no collision.",
+            "6. Verify glTF scale (meters) vs your project's unit settings; adjust actor scale if needed.",
             "",
         ]
     )
     return "\n".join(lines) + "\n"
+
+
+def _unity_collider_to_unreal(collider: Any) -> str:
+    mapping = {"box": "simple", "capsule": "simple", "mesh_convex": "convex", "none": "none"}
+    if isinstance(collider, str):
+        return mapping.get(collider.strip().lower(), "simple")
+    return "simple"
 
 
 def _pack_readme(*, job_id: str, engine_target: str) -> str:

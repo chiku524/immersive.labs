@@ -51,3 +51,25 @@ def test_write_pack_unreal_target(tmp_path: Path) -> None:
 def test_write_pack_invalid_engine_target(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="engine_target"):
         write_pack(tmp_path / "bad", _minimal_spec(), engine_target="godot")
+
+
+def test_write_pack_derives_unreal_block_and_notes(tmp_path: Path) -> None:
+    spec = _minimal_spec()
+    spec["unity"]["collider"] = "mesh_convex"
+    out = tmp_path / "ue_pack"
+    write_pack(out, spec, engine_target="unreal", write_spec_json=True)
+    # validate_asset_spec runs inside write_pack and derives the unreal block from unity.
+    assert spec["unreal"]["collision_complexity"] == "convex"
+    assert spec["unreal"]["import_subfolder"] == "Props"
+    notes = (out / "UnrealImportNotes.md").read_text(encoding="utf-8")
+    assert "collision `convex`" in notes
+    assert "import under `Props`" in notes
+
+
+def test_write_pack_honors_explicit_unreal_block(tmp_path: Path) -> None:
+    spec = _minimal_spec()
+    spec["unreal"] = {"import_subfolder": "Environment/Kit", "collision_complexity": "complex"}
+    out = tmp_path / "ue_pack_explicit"
+    write_pack(out, spec, engine_target="unreal")
+    assert spec["unreal"]["collision_complexity"] == "complex"
+    assert spec["unreal"]["import_subfolder"] == "Environment/Kit"

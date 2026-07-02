@@ -178,6 +178,22 @@ Requirements: URP recommended; optional **ImmersiveStudio/Packed ORM Lit** for p
 
 ---
 
+## 6b. Engine target (Unity vs Unreal)
+
+Pick the primary engine in `/studio` (**Import target** toggle) or via the API/CLI `engine_target` (`unity` | `unreal`). Every pack still ships **both** `UnityImportNotes.md` and `UnrealImportNotes.md`; the toggle sets `manifest.engine_target` and which guide the README labels *primary*.
+
+The spec carries an optional **`unreal`** block alongside `unity`; when omitted the worker derives it during validation:
+
+| `unity.collider` | derived `unreal.collision_complexity` |
+|------------------|----------------------------------------|
+| `box`, `capsule` | `simple` |
+| `mesh_convex` | `convex` |
+| `none` | `none` |
+
+Unreal import (`packages/studio-unreal`, **Tools → Import Studio Pack…**) reads `unreal.collision_complexity` (falling back to `unity.collider`) and skips `*_collider.glb` as visible meshes. See [unreal-import-conventions.md](./unreal-import-conventions.md).
+
+---
+
 ## 7. HTTP API (worker)
 
 - Health: `GET /api/studio/health`  
