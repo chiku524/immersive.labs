@@ -697,9 +697,27 @@ pub fn run_autostart(app: &AppHandle) {
     }
 }
 
+#[derive(Serialize)]
+pub struct ServiceStatus {
+    pub ollama: ServiceCheck,
+    pub comfy: ServiceCheck,
+    pub api: ServiceCheck,
+}
+
 #[tauri::command]
 pub fn check_prerequisites() -> PrereqStatus {
     check_prerequisites_snapshot()
+}
+
+/// Lightweight probe for the desktop panel poll: HTTP checks only (no CORS, no console),
+/// so Ollama/ComfyUI report correctly even though they don't send CORS headers to the WebView.
+#[tauri::command]
+pub fn check_services() -> ServiceStatus {
+    ServiceStatus {
+        ollama: http_check("http://127.0.0.1:11434/api/tags"),
+        comfy: http_check("http://127.0.0.1:8188/system_stats"),
+        api: http_check("http://127.0.0.1:8787/api/studio/health"),
+    }
 }
 
 #[tauri::command]

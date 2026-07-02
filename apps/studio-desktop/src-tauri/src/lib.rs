@@ -1,8 +1,8 @@
 mod app_state;
 
 use app_state::{
-    check_prerequisites, get_settings, open_jobs_folder, open_studio, run_autostart, run_worker_setup,
-    save_job_pack_zip, save_settings,
+    check_prerequisites, check_services, get_settings, open_jobs_folder, open_studio, run_autostart,
+    run_worker_setup, save_job_pack_zip, save_settings,
     show_window, start_comfy, start_worker, stop_comfy, stop_worker, AppState, DesktopSettings,
     stop_all_internal,
 };
@@ -58,6 +58,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             check_prerequisites,
+            check_services,
             get_settings,
             save_settings,
             start_worker,
