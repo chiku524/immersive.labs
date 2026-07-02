@@ -56,3 +56,35 @@ def tripo_pbr_enabled() -> bool:
     if not tripo_texture_enabled():
         return False
     return _env_bool("STUDIO_TRIPO_PBR", True)
+
+
+def mesh_postprocess_enabled() -> bool:
+    """Run headless Blender post-processing (decimate to budget + optional collider) on generated meshes.
+
+    Default on: only triggers on provider-generated meshes (e.g. Tripo) when Blender is available.
+    """
+    return _env_bool("STUDIO_MESH_POSTPROCESS", True)
+
+
+def mesh_collider_export_enabled() -> bool:
+    """Emit a separate convex-hull collider GLB when spec.unity.collider == mesh_convex."""
+    return _env_bool("STUDIO_MESH_COLLIDER_EXPORT", True)
+
+
+def mesh_lod_ratios() -> list[float]:
+    """LOD decimation ratios, e.g. STUDIO_MESH_LODS='0.5,0.25'. Empty (default) = no LODs."""
+    raw = os.environ.get("STUDIO_MESH_LODS", "").strip()
+    if not raw:
+        return []
+    ratios: list[float] = []
+    for tok in raw.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        try:
+            v = float(tok)
+        except ValueError:
+            continue
+        if 0.0 < v < 1.0:
+            ratios.append(v)
+    return ratios

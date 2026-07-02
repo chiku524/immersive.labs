@@ -120,6 +120,94 @@ def run_blender_placeholder_export(
     return True, f"Wrote {output_glb_path.name} ({output_glb_path.stat().st_size} bytes)"
 
 
+def run_blender_postprocess(
+    *,
+    input_glb: Path,
+    spec: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """
+    Post-process a provider-generated GLB with headless Blender: decimate to poly budget,
+    optionally emit a convex collider and LODs. Non-fatal: returns ([], []) with a skip note
+    when Blender is unavailable so the pack still ships the original mesh.
+    """
+    from studio_worker.mesh_pipeline.config import (
+        mesh_collider_export_enabled,
+        mesh_lod_ratios,
+        mesh_postprocess_enabled,
+    )
+    from studio_worker.paths import blender_postprocess_script_path
+
+    if not mesh_postprocess_enabled():
+        return [], []
+    if not input_glb.is_file():
+        return [], []
+
+    script = blender_postprocess_script_path()
+    if not script.is_file():
+        return [f"Mesh post-process skipped: script missing ({script.name})"], []
+
+    exe = resolve_blender_executable()
+    if not exe:
+        return [
+            "Mesh post-process skipped: Blender not found (set STUDIO_BLENDER_BIN to decimate to poly budget)."
+        ], []
+
+    target_tris = 0
+    try:
+        target_tris = int(spec.get("poly_budget_tris") or 0)
+    except (TypeError, ValueError):
+        target_tris = 0
+
+    collider = str((spec.get("unity") or {}).get("collider") or "").strip().lower()
+    want_collider = collider == "mesh_convex" and mesh_collider_export_enabled()
+    collider_out = input_glb.with_name(f"{input_glb.stem}_collider.glb") if want_collider else None
+    lods = mesh_lod_ratios()
+
+    cmd = [
+        exe,
+        "--background",
+        "--python",
+        str(script),
+        "--",
+        "--input",
+        str(input_glb),
+        "--output",
+        str(input_glb),
+    ]
+    if target_tris > 0:
+        cmd += ["--target-tris", str(target_tris)]
+    if collider:
+        cmd += ["--collider", collider]
+    if collider_out is not None:
+        cmd += ["--collider-output", str(collider_out)]
+    if lods:
+        cmd += ["--lods", ",".join(str(r) for r in lods)]
+
+    try:
+        proc = run_no_window(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=blender_timeout_s(),
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return [], [f"Mesh post-process timed out after {blender_timeout_s():.0f}s"]
+    except OSError as e:
+        return [], [f"Mesh post-process could not start Blender: {e}"]
+
+    tail = (proc.stdout or proc.stderr or "").strip().splitlines()
+    summary = [ln for ln in tail if ln.startswith("postprocess_mesh:")][-6:]
+    if proc.returncode != 0:
+        detail = summary[-1] if summary else (proc.stderr or "no output").strip()[:200]
+        return [], [f"Mesh post-process failed (exit {proc.returncode}): {detail}"]
+
+    logs = [f"Blender post-process: {ln.split('postprocess_mesh:', 1)[1].strip()}" for ln in summary]
+    if collider_out is not None and collider_out.is_file():
+        logs.append(f"Collider mesh: Models/.../{collider_out.name}")
+    return (logs or ["Blender post-process: done"]), []
+
+
 def try_export_placeholder_for_pack(
     pack_root: Path,
     spec: dict[str, Any],

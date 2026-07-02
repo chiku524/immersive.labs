@@ -34,6 +34,20 @@ def resolve_mesh_provider() -> MeshProvider:
     )
 
 
+def _postprocess_generated_mesh(pack_root: Path, spec: dict[str, Any]) -> list[str]:
+    """Best-effort Blender decimation/collider on a provider-generated GLB. Never raises."""
+    try:
+        from studio_worker.mesh_export import run_blender_postprocess
+
+        asset_id = str(spec.get("asset_id") or "asset")
+        glb = pack_root / "Models" / asset_id / f"{asset_id}.glb"
+        pp_logs, pp_errs = run_blender_postprocess(input_glb=glb, spec=spec)
+        # Post-process errors are non-fatal: the original generated mesh already shipped.
+        return [*pp_logs, *pp_errs]
+    except Exception as e:  # noqa: BLE001
+        return [f"Mesh post-process skipped ({e})"]
+
+
 def _try_blender_fallback(
     pack_root: Path,
     spec: dict[str, Any],
@@ -73,6 +87,7 @@ def try_export_mesh_for_pack(
         tripo = TripoMeshProvider()
         logs, errs = tripo.export_for_pack(pack_root, spec)
         if not errs:
+            logs = [*logs, *_postprocess_generated_mesh(pack_root, spec)]
             return logs, errs, tripo.pipeline_id
         if is_tripo_fallback_eligible_error(errs):
             reason = errs[0][:240]

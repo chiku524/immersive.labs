@@ -47,6 +47,10 @@ def blender_export_script_path() -> Path:
     return studio_worker_package_dir() / "blender" / "export_mesh.py"
 
 
+def blender_postprocess_script_path() -> Path:
+    return studio_worker_package_dir() / "blender" / "postprocess_mesh.py"
+
+
 def comfy_workflows_dir() -> Path:
     return studio_worker_package_dir() / "comfy_workflows"
 
