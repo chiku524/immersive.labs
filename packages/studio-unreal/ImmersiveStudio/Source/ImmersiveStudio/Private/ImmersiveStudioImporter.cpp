@@ -12,6 +12,8 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/FileManager.h"
 #include "Internationalization/Regex.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/Paths.h"
@@ -114,7 +116,9 @@ namespace
 			for (const FImmersiveStudioMaterialSlot& Slot : TextureSlots)
 			{
 				const FString Key = FString::Printf(TEXT("%s_%s"), *Variant.VariantId, *Slot.Id);
-				if (Seen.Add(Key))
+				bool bAlreadyInSet = false;
+				Seen.Add(Key, &bAlreadyInSet);
+				if (!bAlreadyInSet)
 				{
 					Ordered.Add(Key);
 				}
@@ -538,7 +542,7 @@ namespace
 
 void FImmersiveStudioImporter::ImportPackInteractive()
 {
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get().GetDesktopPlatform();
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 	if (!DesktopPlatform)
 	{
 		return;

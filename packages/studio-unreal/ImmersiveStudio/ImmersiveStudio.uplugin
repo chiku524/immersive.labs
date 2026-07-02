@@ -25,11 +25,15 @@
       "Enabled": true
     },
     {
-      "Name": "InterchangeImporter",
+      "Name": "InterchangeEditor",
       "Enabled": true
     },
     {
-      "Name": "glTFExporter",
+      "Name": "InterchangeAssets",
+      "Enabled": true
+    },
+    {
+      "Name": "GLTFExporter",
       "Enabled": true
     }
   ]
