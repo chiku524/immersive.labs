@@ -216,7 +216,14 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         )
         print("  See: apps/studio-worker/comfy/README.md")
 
-    from studio_worker.mesh_pipeline.config import mesh_fallback_enabled, mesh_provider_name, tripo_api_key
+    from studio_worker.mesh_pipeline.config import (
+        mesh_collider_export_enabled,
+        mesh_fallback_enabled,
+        mesh_lod_ratios,
+        mesh_postprocess_enabled,
+        mesh_provider_name,
+        tripo_api_key,
+    )
 
     mp = mesh_provider_name()
     print(f"Mesh provider (STUDIO_MESH_PROVIDER): {mp}")
@@ -224,6 +231,13 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         print(f"  STUDIO_TRIPO_API_KEY set: {bool(tripo_api_key())}")
         if mesh_fallback_enabled():
             print("  Fallback: Blender placeholder when Tripo fails (STUDIO_MESH_FALLBACK=1, default)")
+        if mesh_postprocess_enabled():
+            print("  Post-process: decimate provider GLB to poly_budget_tris (STUDIO_MESH_POSTPROCESS=1, default)")
+            if mesh_collider_export_enabled():
+                print("  Collider export: convex hull when unity.collider=mesh_convex (STUDIO_MESH_COLLIDER_EXPORT=1)")
+            lods = mesh_lod_ratios()
+            if lods:
+                print(f"  LOD ratios: {','.join(str(r) for r in lods)} (STUDIO_MESH_LODS)")
         if not tripo_api_key():
             print(
                 "  Set STUDIO_TRIPO_API_KEY for prompt-faithful meshes — "
@@ -233,7 +247,9 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     b = resolve_blender_executable()
     print("Blender: ", end="")
     if b:
-        if mp in ("tripo", "tripo3d") and mesh_fallback_enabled():
+        if mp in ("tripo", "tripo3d") and mesh_postprocess_enabled():
+            print(f"{b} (Tripo mesh post-process + fallback placeholder)")
+        elif mp in ("tripo", "tripo3d") and mesh_fallback_enabled():
             print(f"{b} (Tripo fallback placeholder mesh)")
         else:
             print(f"{b} (mesh export when provider=blender_placeholder)")

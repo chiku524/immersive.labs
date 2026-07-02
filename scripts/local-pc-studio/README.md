@@ -114,6 +114,9 @@ Set at least:
 | `STUDIO_COMFY_URL` | `http://127.0.0.1:8188` when Comfy runs on the same PC. |
 | `STUDIO_CORS_ORIGINS` | Required if the web app calls `http://127.0.0.1:8787` **directly** (see §4). |
 | `STUDIO_BLENDER_BIN` | Full path to Blender if not on `PATH` (common on Windows). |
+| `STUDIO_MESH_POSTPROCESS` | `1` (default) → after Tripo mesh export, decimate GLB to `poly_budget_tris` via headless Blender. |
+| `STUDIO_MESH_COLLIDER_EXPORT` | `1` (default) → emit `{asset_id}_collider.glb` when `unity.collider == mesh_convex`. |
+| `STUDIO_MESH_LODS` | Optional comma ratios, e.g. `0.5,0.25` → extra `_LOD1.glb`, `_LOD2.glb` files. |
 
 `apps/studio-worker/.env.local` is gitignored (`*.local`). The start scripts load it on Windows (PowerShell) or you can `export` / `set` vars manually.
 
@@ -253,6 +256,8 @@ immersive-studio queue-worker
 | **`OSError: [Errno 22] Invalid argument`** in KSampler / `tqdm` / `stderr.flush` (Windows) | Often a **broken or non-console stderr** (IDE terminal, detached process). The `start-comfyui` scripts set **`TQDM_DISABLE=1`** so Comfy skips tqdm progress bars. Or run Comfy from **cmd.exe** / **PowerShell** in its own window; restart Comfy after changing env. |
 | Textures fail | Comfy URL, checkpoint names, `STUDIO_COMFY_PROFILE` / `STUDIO_COMFY_CHECKPOINT` in `.env.local`. |
 | Mesh / GLB fails | `immersive-studio doctor --strict` and `STUDIO_BLENDER_BIN`. |
+| Tripo mesh too heavy | `STUDIO_MESH_POSTPROCESS=1` (default) + `poly_budget_tris` in spec; needs Blender. |
+| No collider GLB | `unity.collider: mesh_convex` in spec + `STUDIO_MESH_COLLIDER_EXPORT=1`. |
 | CORS errors | Use **Option A** (proxy) or expand `STUDIO_CORS_ORIGINS`. |
 | 502 from Ollama | Start Ollama or turn **Mock** on in `/studio`. |
 | Worker in **WSL**, Comfy on **Windows** | `127.0.0.1` inside WSL is not your Windows host — use the Windows host IP from WSL (`/etc/resolv.conf` nameserver) or run Comfy inside WSL too. |

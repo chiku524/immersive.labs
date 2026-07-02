@@ -8,5 +8,6 @@
 | Unity reference pipeline | **URP** | Default for new Unity projects; documented in pack templates. |
 | Local LLM default | Ollama at `http://127.0.0.1:11434` | No API key; configurable via env / CLI. |
 | Mesh provider (default) | **Tripo OpenAPI** (`STUDIO_MESH_PROVIDER=tripo`) | Prompt-faithful text-to-3D; Blender placeholder fallback when Tripo fails (`STUDIO_MESH_FALLBACK=1`). |
+| Mesh post-process | **Headless Blender** (`STUDIO_MESH_POSTPROCESS=1`) | Decimate provider GLBs to `poly_budget_tris`; optional convex collider + LODs. Non-fatal when Blender is missing. |
 
 Subsequent presets (`anime_stylized`, `realistic_hd_pbr`) reuse the same schema and validator with different limits and prompts.

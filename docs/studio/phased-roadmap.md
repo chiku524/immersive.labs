@@ -53,6 +53,7 @@ Ordered phases with **deliverables** and **risks**. Adjust durations when `apps/
 - [x] Blender batch script (fallback placeholder mesh from spec): `apps/studio-worker/src/studio_worker/blender/export_mesh.py`.  
 - [x] **Tripo OpenAPI** text-to-3D provider (`STUDIO_MESH_PROVIDER=tripo`, default) with Blender fallback on failure (`STUDIO_MESH_FALLBACK=1`).  
 - [x] Worker integration: optional `export_mesh` on `run-job` / enqueue / UI; writes `Models/<asset_id>/<asset_id>.glb`, updates `manifest.json` `toolchain.mesh_pipeline`, env `STUDIO_BLENDER_BIN`, `STUDIO_EXPORT_MESH_DEFAULT`, `STUDIO_BLENDER_TIMEOUT_S`.  
+- [x] **Blender post-process** on provider meshes (`postprocess_mesh.py`): decimate to `poly_budget_tris`, optional convex collider (`STUDIO_MESH_COLLIDER_EXPORT`), optional LODs (`STUDIO_MESH_LODS`).  
 - [x] Unity importer copies `Models/<asset_id>/*.glb` next to imported textures.  
 - [x] Unity importer assigns generated Lit materials to imported glTF mesh renderers (preferred `{variant}_{slot}_Lit`).  
 - [x] Blender placeholder uses category-aware stacked/platform/column meshes + bevel; multi-part meshes assign distinct PBR material names per part when multiple `{variant}_{slot}` bases exist.  

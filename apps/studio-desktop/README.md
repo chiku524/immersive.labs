@@ -24,7 +24,7 @@ Optional **launcher** (`npm run dev:launcher` in this package) is only for troub
 
 2. Install [Rust](https://rustup.rs/) (for Tauri).
 
-3. Optional: Ollama, **Tripo API key** (`STUDIO_TRIPO_API_KEY` in worker env), Blender (`STUDIO_BLENDER_BIN` for fallback meshes), ComfyUI sibling folder (`../ComfyUI`) or `COMFYUI_ROOT`.
+3. Optional: Ollama, **Tripo API key** (`STUDIO_TRIPO_API_KEY` in worker env), Blender (`STUDIO_BLENDER_BIN` for Tripo mesh post-process + fallback placeholders), ComfyUI sibling folder (`../ComfyUI`) or `COMFYUI_ROOT`.
 
 ## Development
 

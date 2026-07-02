@@ -117,6 +117,9 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
 | `STUDIO_BLENDER_BIN` | Blender executable if not on `PATH` |
 | `STUDIO_BLENDER_TIMEOUT_S` | Headless mesh export timeout (seconds) |
 | `STUDIO_EXPORT_MESH_DEFAULT` | `1`/`true` → mesh export on every job unless disabled in request |
+| `STUDIO_MESH_POSTPROCESS` | `1` (default) → after Tripo/provider mesh, decimate GLB to `poly_budget_tris` |
+| `STUDIO_MESH_COLLIDER_EXPORT` | `1` (default) → write `{asset_id}_collider.glb` when `unity.collider == mesh_convex` |
+| `STUDIO_MESH_LODS` | Optional comma ratios (e.g. `0.5,0.25`) for extra `_LODn.glb` files |
 | `DATABASE_URL`, `STUDIO_*_BACKEND`, `STUDIO_REDIS_QUEUE_ENGINE`, `STUDIO_JOB_ARTIFACTS`, S3 / Blob tokens | Optional Postgres / Redis / SQS queue + tenants + remote `pack.zip` — see §1b and worker README |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STUDIO_STRIPE_PRICE_*` | Billing — see [apps/studio-worker/README.md](../../apps/studio-worker/README.md) |
 
@@ -131,7 +134,9 @@ Typical folder (or zip contents):
 - `manifest.json` — job id, toolchain, embedded asset specs  
 - `spec.json` — primary `StudioAssetSpec` (when written)  
 - `Textures/<asset_id>/…` — PNGs  
-- `Models/<asset_id>/<asset_id>.glb` — optional placeholder from Blender  
+- `Models/<asset_id>/<asset_id>.glb` — optional placeholder from Blender or provider (Tripo)  
+- `Models/<asset_id>/<asset_id>_collider.glb` — optional convex hull when `unity.collider == mesh_convex`  
+- `Models/<asset_id>/<asset_id>_LODn.glb` — optional LODs when `STUDIO_MESH_LODS` is set  
 - `UnityImportNotes.md`, `ATTRIBUTION.md` / `licenses.json` when enabled  
 
 ---
@@ -147,6 +152,18 @@ Typical folder (or zip contents):
 - **Export**: Multiple mesh objects are parented under an **Empty** (`{asset_id}_root`); GLB export uses **full scene** export when the root is an Empty so all children are included.
 
 Worker integration: [mesh_export.py](../../apps/studio-worker/src/studio_worker/mesh_export.py), CLI/API `export_mesh`, env vars above.
+
+---
+
+## 5b. Blender mesh post-process (`studio_worker/blender/postprocess_mesh.py`)
+
+After a **provider-generated** mesh (e.g. Tripo), the worker optionally runs headless Blender to make the GLB game-ready:
+
+- **Decimation** to `spec.poly_budget_tris` (Collapse modifier; non-fatal if Blender is missing).
+- **Convex collider** GLB when `unity.collider == mesh_convex` and `STUDIO_MESH_COLLIDER_EXPORT=1`.
+- **LODs** when `STUDIO_MESH_LODS=0.5,0.25` (writes `{asset_id}_LOD1.glb`, etc.).
+
+Toggle with `STUDIO_MESH_POSTPROCESS=0` to ship the raw provider mesh unchanged. Skipped for Blender placeholder fallback meshes.
 
 ---
 

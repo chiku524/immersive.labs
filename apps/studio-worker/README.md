@@ -283,8 +283,11 @@ Remote clients send **`Authorization: Bearer <api_key>`** or **`X-API-Key`**. Th
 | `STUDIO_BILLING_CANCEL_URL` | `/studio?billing=cancel` | Checkout cancel redirect |
 | `STUDIO_BILLING_PORTAL_RETURN_URL` | `/studio` | Customer Portal return URL |
 | `STUDIO_BLENDER_BIN` | — | Path to `blender` executable if not on `PATH` |
-| `STUDIO_BLENDER_TIMEOUT_S` | `180` | Max seconds for headless Blender mesh export |
+| `STUDIO_BLENDER_TIMEOUT_S` | `180` | Max seconds for headless Blender mesh export / post-process |
 | `STUDIO_EXPORT_MESH_DEFAULT` | off | Set to `1` / `true` to run mesh export on every `run-job` when the client does not pass `export_mesh` |
+| `STUDIO_MESH_POSTPROCESS` | on | After Tripo/provider mesh, decimate GLB to `poly_budget_tris` via `postprocess_mesh.py` |
+| `STUDIO_MESH_COLLIDER_EXPORT` | on | Emit `{asset_id}_collider.glb` when `unity.collider == mesh_convex` |
+| `STUDIO_MESH_LODS` | — | Optional comma ratios (e.g. `0.5,0.25`) for `_LODn.glb` files |
 | `DATABASE_URL` | — | Postgres connection string (e.g. Vercel Postgres, Neon). Required when using Postgres backends below. |
 | `STUDIO_QUEUE_BACKEND` | `sqlite` | `postgres` (shared rows in Postgres), `redis` (Redis broker + hashes), or `sqs` (SQS long-poll + Postgres rows — needs `DATABASE_URL`). |
 | `STUDIO_REDIS_URL` / `REDIS_URL` | — | Broker URL when `STUDIO_QUEUE_BACKEND=redis`. |

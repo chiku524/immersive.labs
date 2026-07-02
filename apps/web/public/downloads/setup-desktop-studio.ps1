@@ -69,6 +69,8 @@ STUDIO_MESH_PROVIDER=tripo
 STUDIO_TRIPO_API_KEY=
 STUDIO_EXPORT_MESH_DEFAULT=1
 STUDIO_BLENDER_BIN=$blenderUnix
+STUDIO_MESH_POSTPROCESS=1
+STUDIO_MESH_COLLIDER_EXPORT=1
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 STUDIO_EMBEDDED_QUEUE_WORKER=1
 STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:5173,http://localhost:5173
@@ -78,6 +80,7 @@ Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "Launch Immersive Studio from the Start menu."
 Write-Host "Optional: set STUDIO_TRIPO_API_KEY in worker.env for Tripo AI meshes (primary)"
+Write-Host "Optional: STUDIO_MESH_POSTPROCESS=1 decimates Tripo meshes to poly_budget_tris (needs Blender)"
 Write-Host "Optional: ollama pull llama3.2  (real specs when Mock is off in Studio)"
 Write-Host "Optional: start ComfyUI on :8188 for textures (see docs on immersivelabs.space)"
 Write-Host ""
