@@ -92,7 +92,7 @@ def _unreal_import_notes(
             "2. Enable **Interchange**, **InterchangeImporter**, and **glTFExporter** if prompted.",
             "3. **Tools → Import Studio Pack…** and select this folder (contains `manifest.json`).",
             "4. Find assets under `Content/ImmersiveStudioImports/<job_id>/` (spec `unreal.import_subfolder` is the intended in-project layout).",
-            "5. Collision: `simple` → box body; `convex` → convex hull (uses `*_collider.glb` when present); `complex` → use-complex-as-simple; `none` → no collision.",
+            "5. Collision: `simple` → box body; `convex` → hull from `{asset_id}_collider.glb` baked into the static mesh body (bounds box fallback); `complex` → use-complex-as-simple; `none` → no collision.",
             "6. Verify glTF scale (meters) vs your project's unit settings; adjust actor scale if needed.",
             "",
         ]

@@ -190,7 +190,7 @@ The spec carries an optional **`unreal`** block alongside `unity`; when omitted 
 | `mesh_convex` | `convex` |
 | `none` | `none` |
 
-Unreal import (`packages/studio-unreal`, **Tools → Import Studio Pack…**) reads `unreal.collision_complexity` (falling back to `unity.collider`) and skips `*_collider.glb` as visible meshes. See [unreal-import-conventions.md](./unreal-import-conventions.md).
+Unreal import (`packages/studio-unreal`, **Tools → Import Studio Pack…**) reads `unreal.collision_complexity` (falling back to `unity.collider`). For `convex`, the importer copies `{asset_id}_collider.glb` hull geometry into the main static mesh body setup. See [unreal-import-conventions.md](./unreal-import-conventions.md).
 
 ---
 

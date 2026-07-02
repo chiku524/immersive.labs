@@ -41,11 +41,11 @@ The asset spec now carries an optional **`unreal`** block. When omitted, the wor
 | `collision_complexity` | Unreal behavior |
 |------------------------|-----------------|
 | `simple` | Bounds-sized box body (`CTF_UseSimpleAsComplex`) |
-| `convex` | Box body from bounds; import the matching `*_collider.glb` convex hull for tighter collision |
+| `convex` | Imports `{mesh}_collider.glb` and copies its triangles into the main static mesh `BodySetup` as a convex elem (falls back to bounds box if the hull is missing) |
 | `complex` | Use the render mesh for collision (`CTF_UseComplexAsSimple`) |
 | `none` | No collision applied |
 
-`*_collider.glb` files are skipped as visible render meshes on import (they are collision sources).
+Hull GLBs are imported under `Content/.../<asset_id>/_Collision/` for traceability; collision is baked onto the main static mesh, not left as a separate placed asset.
 
 ## Import checklist
 

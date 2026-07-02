@@ -16,6 +16,8 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/Paths.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/ConvexElem.h"
+#include "StaticMeshResources.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 namespace
@@ -205,7 +207,159 @@ namespace
 		return nullptr;
 	}
 
-	void ApplyCollisionIfConfigured(UStaticMesh* StaticMesh, const FImmersiveStudioAssetSpec& Asset)
+	bool IsColliderMeshStem(const FString& MeshStem)
+	{
+		return MeshStem.EndsWith(TEXT("_collider"), ESearchCase::IgnoreCase);
+	}
+
+	FString ResolveColliderGlbPath(const FString& ModelsDir, const FString& MainMeshStem, const FString& AssetId)
+	{
+		const FString ByStem = ModelsDir / FString::Printf(TEXT("%s_collider.glb"), *MainMeshStem);
+		if (FPaths::FileExists(ByStem))
+		{
+			return ByStem;
+		}
+
+		if (!AssetId.IsEmpty() && !MainMeshStem.Equals(AssetId, ESearchCase::IgnoreCase))
+		{
+			const FString ByAsset = ModelsDir / FString::Printf(TEXT("%s_collider.glb"), *AssetId);
+			if (FPaths::FileExists(ByAsset))
+			{
+				return ByAsset;
+			}
+		}
+
+		return FString();
+	}
+
+	bool BuildConvexElemFromStaticMesh(const UStaticMesh* HullMesh, FKConvexElem& OutElem)
+	{
+		if (!HullMesh)
+		{
+			return false;
+		}
+
+		UStaticMesh* MutableHull = const_cast<UStaticMesh*>(HullMesh);
+		if (!MutableHull->GetRenderData() || MutableHull->GetRenderData()->LODResources.Num() == 0)
+		{
+			MutableHull->Build();
+		}
+
+		const FStaticMeshRenderData* RenderData = HullMesh->GetRenderData();
+		if (!RenderData || RenderData->LODResources.Num() == 0)
+		{
+			return false;
+		}
+
+		const FStaticMeshLODResources& LOD = RenderData->LODResources[0];
+		const FPositionVertexBuffer& VertexBuffer = LOD.VertexBuffers.PositionVertexBuffer;
+		const uint32 NumVertices = VertexBuffer.GetNumVertices();
+		if (NumVertices == 0)
+		{
+			return false;
+		}
+
+		OutElem.VertexData.Reset();
+		OutElem.IndexData.Reset();
+		OutElem.VertexData.Reserve(static_cast<int32>(NumVertices));
+
+		for (uint32 VertIdx = 0; VertIdx < NumVertices; ++VertIdx)
+		{
+			OutElem.VertexData.Add(FVector(VertexBuffer.VertexPosition(VertIdx)));
+		}
+
+		const int32 NumIndices = LOD.IndexBuffer.GetNumIndices();
+		if (NumIndices < 3)
+		{
+			return false;
+		}
+
+		OutElem.IndexData.Reserve(NumIndices);
+		for (int32 Idx = 0; Idx < NumIndices; ++Idx)
+		{
+			OutElem.IndexData.Add(LOD.IndexBuffer.GetIndex(Idx));
+		}
+
+		OutElem.UpdateElemBox();
+		return OutElem.VertexData.Num() >= 4 && OutElem.IndexData.Num() >= 3;
+	}
+
+	bool TryApplyConvexHullCollision(UStaticMesh* TargetMesh, const UStaticMesh* HullMesh)
+	{
+		if (!TargetMesh || !HullMesh)
+		{
+			return false;
+		}
+
+		FKConvexElem ConvexElem;
+		if (!BuildConvexElemFromStaticMesh(HullMesh, ConvexElem))
+		{
+			return false;
+		}
+
+		UBodySetup* BodySetup = TargetMesh->GetBodySetup();
+		if (!BodySetup)
+		{
+			TargetMesh->CreateBodySetup();
+			BodySetup = TargetMesh->GetBodySetup();
+		}
+
+		if (!BodySetup)
+		{
+			return false;
+		}
+
+		BodySetup->AggGeom.BoxElems.Reset();
+		BodySetup->AggGeom.SphereElems.Reset();
+		BodySetup->AggGeom.SphylElems.Reset();
+		BodySetup->AggGeom.ConvexElems.Reset();
+		BodySetup->AggGeom.ConvexElems.Add(MoveTemp(ConvexElem));
+		BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+		BodySetup->CreatePhysicsMeshes();
+		TargetMesh->Build();
+		TargetMesh->MarkPackageDirty();
+		return true;
+	}
+
+	void ApplyBoxCollision(UStaticMesh* StaticMesh)
+	{
+		if (!StaticMesh)
+		{
+			return;
+		}
+
+		UBodySetup* BodySetup = StaticMesh->GetBodySetup();
+		if (!BodySetup)
+		{
+			StaticMesh->CreateBodySetup();
+			BodySetup = StaticMesh->GetBodySetup();
+		}
+
+		if (!BodySetup)
+		{
+			return;
+		}
+
+		const FBox Bounds = StaticMesh->GetBoundingBox();
+		BodySetup->AggGeom.ConvexElems.Reset();
+		BodySetup->AggGeom.BoxElems.Reset();
+
+		FKBoxElem BoxElem;
+		BoxElem.Center = Bounds.GetCenter();
+		BoxElem.X = FMath::Max(Bounds.GetExtent().X * 2.f, KINDA_SMALL_NUMBER);
+		BoxElem.Y = FMath::Max(Bounds.GetExtent().Y * 2.f, KINDA_SMALL_NUMBER);
+		BoxElem.Z = FMath::Max(Bounds.GetExtent().Z * 2.f, KINDA_SMALL_NUMBER);
+		BodySetup->AggGeom.BoxElems.Add(BoxElem);
+		BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+		BodySetup->CreatePhysicsMeshes();
+		StaticMesh->Build();
+		StaticMesh->MarkPackageDirty();
+	}
+
+	void ApplyCollisionIfConfigured(
+		UStaticMesh* StaticMesh,
+		const FImmersiveStudioAssetSpec& Asset,
+		const UStaticMesh* ColliderHullMesh = nullptr)
 	{
 		if (!StaticMesh)
 		{
@@ -234,26 +388,28 @@ namespace
 		if (Complexity == TEXT("complex"))
 		{
 			// Use the render mesh directly for collision queries (accurate, heavier).
+			BodySetup->AggGeom.BoxElems.Reset();
+			BodySetup->AggGeom.ConvexElems.Reset();
 			BodySetup->CollisionTraceFlag = CTF_UseComplexAsSimple;
+			BodySetup->CreatePhysicsMeshes();
 			StaticMesh->Build();
 			StaticMesh->MarkPackageDirty();
 			return;
 		}
 
-		// simple + convex both get a conservative box primitive from bounds. A dedicated
-		// *_collider.glb convex hull can be imported separately for tighter convex collision.
-		const FBox Bounds = StaticMesh->GetBoundingBox();
-		BodySetup->AggGeom.BoxElems.Reset();
+		if (Complexity == TEXT("convex"))
+		{
+			if (ColliderHullMesh && TryApplyConvexHullCollision(StaticMesh, ColliderHullMesh))
+			{
+				return;
+			}
+			// No hull GLB (or import failed) — fall back to bounds box.
+			ApplyBoxCollision(StaticMesh);
+			return;
+		}
 
-		FKBoxElem BoxElem;
-		BoxElem.Center = Bounds.GetCenter();
-		BoxElem.X = FMath::Max(Bounds.GetExtent().X * 2.f, KINDA_SMALL_NUMBER);
-		BoxElem.Y = FMath::Max(Bounds.GetExtent().Y * 2.f, KINDA_SMALL_NUMBER);
-		BoxElem.Z = FMath::Max(Bounds.GetExtent().Z * 2.f, KINDA_SMALL_NUMBER);
-		BodySetup->AggGeom.BoxElems.Add(BoxElem);
-		BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
-		StaticMesh->Build();
-		StaticMesh->MarkPackageDirty();
+		// simple
+		ApplyBoxCollision(StaticMesh);
 	}
 
 	UMaterialInterface* PickSlotMaterial(
@@ -496,6 +652,8 @@ void FImmersiveStudioImporter::ImportPackInteractive()
 		}
 
 		TArray<FString> OrderedBases = GetOrderedPbrMaterialBases(Asset);
+		const FString CollisionContentPath = AssetContentPath / TEXT("_Collision");
+		const bool bNeedsColliderHull = Asset.ResolveCollisionComplexity().Equals(TEXT("convex"), ESearchCase::IgnoreCase);
 
 		if (FPaths::DirectoryExists(ModelsDir))
 		{
@@ -514,9 +672,8 @@ void FImmersiveStudioImporter::ImportPackInteractive()
 					continue;
 				}
 
-				// Collider hull GLBs are collision sources, not render meshes — skip importing them as visible assets.
 				const FString MeshStem = FPaths::GetBaseFilename(MeshFile);
-				if (MeshStem.EndsWith(TEXT("_collider"), ESearchCase::IgnoreCase))
+				if (IsColliderMeshStem(MeshStem))
 				{
 					continue;
 				}
@@ -525,7 +682,21 @@ void FImmersiveStudioImporter::ImportPackInteractive()
 				if (UStaticMesh* StaticMesh = ImportMeshFile(AssetTools, MeshPath, AssetContentPath))
 				{
 					AssignMaterialsToStaticMesh(StaticMesh, PreferredMaterial, MaterialsByBase, OrderedBases);
-					ApplyCollisionIfConfigured(StaticMesh, Asset);
+
+					const UStaticMesh* ColliderHull = nullptr;
+					if (bNeedsColliderHull)
+					{
+						const FString ColliderPath = ResolveColliderGlbPath(ModelsDir, MeshStem, Asset.AssetId);
+						if (!ColliderPath.IsEmpty())
+						{
+							if (UStaticMesh* HullMesh = ImportMeshFile(AssetTools, ColliderPath, CollisionContentPath))
+							{
+								ColliderHull = HullMesh;
+							}
+						}
+					}
+
+					ApplyCollisionIfConfigured(StaticMesh, Asset, ColliderHull);
 					++ImportedMeshCount;
 				}
 			}
