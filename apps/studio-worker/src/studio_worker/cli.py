@@ -155,6 +155,72 @@ def _doctor_comfy_dns_hint(detail: str | None) -> None:
         )
 
 
+def _doctor_recent_collider_report(limit: int = 5) -> None:
+    """
+    Scan the most recent job packs and report whether convex-collision assets actually
+    shipped a ``{asset_id}_collider.glb``. Confirms the Blender collider export path is
+    producing hulls the Unity/Unreal importers can consume, without opening packs by hand.
+    """
+    import json as _json
+
+    from studio_worker.paths import jobs_root
+
+    _convex = {"mesh_convex", "convex"}
+
+    try:
+        root = jobs_root()
+        job_dirs = [p for p in root.iterdir() if p.is_dir()]
+    except OSError:
+        return
+    if not job_dirs:
+        print("Collider export (recent packs): no job packs found yet.")
+        return
+
+    job_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    print(f"Collider export (last {min(limit, len(job_dirs))} packs):")
+
+    for job_dir in job_dirs[:limit]:
+        manifest_path = job_dir / "manifest.json"
+        if not manifest_path.is_file():
+            continue
+        try:
+            manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            print(f"  {job_dir.name}: manifest unreadable")
+            continue
+
+        assets = manifest.get("assets") or []
+        target = manifest.get("engine_target", "unity")
+        convex_assets = 0
+        with_hull = 0
+        for a in assets:
+            if not isinstance(a, dict):
+                continue
+            unity_c = str((a.get("unity") or {}).get("collider", "")).lower()
+            unreal_c = str((a.get("unreal") or {}).get("collision_complexity", "")).lower()
+            if unity_c not in _convex and unreal_c not in _convex:
+                continue
+            convex_assets += 1
+            aid = a.get("asset_id", "?")
+            hull = job_dir / "Models" / str(aid) / f"{aid}_collider.glb"
+            if hull.is_file():
+                with_hull += 1
+
+        if convex_assets == 0:
+            print(f"  {job_dir.name} [{target}]: no convex-collision assets")
+        else:
+            flag = "OK" if with_hull == convex_assets else "MISSING hull(s)"
+            print(
+                f"  {job_dir.name} [{target}]: {with_hull}/{convex_assets} convex assets have "
+                f"_collider.glb — {flag}"
+            )
+
+    print(
+        "  Convex collision needs {asset_id}_collider.glb — ensure STUDIO_MESH_COLLIDER_EXPORT=1, "
+        "STUDIO_MESH_POSTPROCESS=1, and Blender available."
+    )
+
+
 def _cmd_init_db(_args: argparse.Namespace) -> int:
     """Create Postgres/SQLite queue + tenants tables (idempotent)."""
     from studio_worker import tenants_db
@@ -243,6 +309,8 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
                 "  Set STUDIO_TRIPO_API_KEY for prompt-faithful meshes — "
                 "or use STUDIO_MESH_PROVIDER=blender_placeholder for local-only placeholders."
             )
+
+    _doctor_recent_collider_report()
 
     b = resolve_blender_executable()
     print("Blender: ", end="")

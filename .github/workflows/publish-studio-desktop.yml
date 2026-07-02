@@ -31,6 +31,9 @@ jobs:
           name: Immersive Studio ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
+          # Desktop releases own the repo "latest" pointer so the Tauri updater endpoint
+          # (/releases/latest/download/latest.json) never resolves to an assetless PyPI release.
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -127,5 +130,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: latest.json
           fail_on_unmatched_files: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

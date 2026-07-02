@@ -15,9 +15,22 @@ on:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  # PyPI releases must never claim the repo "latest" pointer — the Tauri desktop updater
+  # reads /releases/latest/download/latest.json, and an assetless PyPI release would 404 it.
+  keep-desktop-latest:
+    name: Keep desktop release as latest
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unset latest on this PyPI release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release edit "$TAG" --repo "${{ github.repository }}" --latest=false
+
   pypi:
     name: Build and publish
     runs-on: ubuntu-latest
