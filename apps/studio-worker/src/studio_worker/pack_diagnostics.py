@@ -17,13 +17,17 @@ def build_pack_diagnostics(
     image_pipeline: str,
     texture_bind_logs: list[str],
     texture_bind_errors: list[str],
+    texture_source: str = "tripo",
 ) -> dict[str, Any]:
     pbr = diagnose_sidecar_pbr(spec, pack_root)
-    tripo_textured_mesh = "tripo" in mesh_pipeline and "+ok" in mesh_pipeline
+    tripo_ok = "tripo" in mesh_pipeline and "+ok" in mesh_pipeline
+    tripo_textured = tripo_ok and texture_source == "tripo" and generate_textures
 
     notes: list[str] = []
     if generate_textures and export_mesh:
-        if image_pipeline.endswith("+ok") and mesh_pipeline.endswith("+ok"):
+        if texture_source == "tripo" and tripo_textured:
+            notes.append("Tripo baked mesh + PBR textures in the GLB (STUDIO_TEXTURE_SOURCE=tripo).")
+        elif texture_source == "comfy" and image_pipeline.endswith("+ok") and mesh_pipeline.endswith("+ok"):
             if texture_bind_errors:
                 notes.append(
                     "Mesh and Comfy sidecar textures both succeeded, but GLB was not updated with PNGs. "
@@ -32,7 +36,7 @@ def build_pack_diagnostics(
             elif not texture_bind_logs:
                 notes.append(
                     "Mesh (Tripo) and Comfy sidecar textures are separate outputs. "
-                    "Tripo mesh is untextured unless STUDIO_TRIPO_TEXTURE=1 or Blender texture-bind runs."
+                    "Enable Blender texture-bind or set STUDIO_TEXTURE_SOURCE=tripo for Tripo PBR."
                 )
             else:
                 notes.append("Comfy sidecar textures were embedded into the GLB via Blender bind.")
@@ -44,9 +48,10 @@ def build_pack_diagnostics(
     return {
         "generate_textures": generate_textures,
         "export_mesh": export_mesh,
+        "texture_source": texture_source,
         "image_pipeline": image_pipeline,
         "mesh_pipeline": mesh_pipeline,
-        "tripo_mesh_textured": tripo_textured_mesh and "texture" in mesh_pipeline,
+        "tripo_mesh_textured": tripo_textured,
         "blender_available": resolve_blender_executable() is not None,
         "pbr": pbr,
         "texture_bind_logs": texture_bind_logs,

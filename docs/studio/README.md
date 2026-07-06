@@ -38,7 +38,7 @@ TypeScript mirrors of the asset spec live in `@immersive/studio-types` (`package
 
 ## Status
 
-**Active implementation:** Python worker (`apps/studio-worker`) covers spec generation (Ollama + mock), JSON Schema validation, **ComfyUI albedo** workflows, persisted **jobs + zip downloads**, pack writer, and HTTP API. **`/studio`** in `@immersive/web` runs jobs and lists downloads. **Unity** import lives in `packages/studio-unity`. **Unreal** import lives in `packages/studio-unreal`.
+**Active implementation:** Python worker (`apps/studio-worker`) covers spec generation (Ollama + mock), JSON Schema validation, **ComfyUI albedo** workflows, persisted **jobs + zip downloads**, pack writer, and HTTP API. **`/studio`** in `@immersive/web` runs jobs and lists downloads. **Unity** import lives in `packages/studio-unity`. **Unreal** import lives in `packages/studio-unreal`. **Godot** runtime helpers live in `packages/studio-godot`.
 
 See [phased-roadmap.md](./phased-roadmap.md) and [DECISIONS.md](./DECISIONS.md).
 

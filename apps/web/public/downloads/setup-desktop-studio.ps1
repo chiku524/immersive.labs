@@ -105,6 +105,8 @@ STUDIO_MESH_COLLIDER_EXPORT=1
 STUDIO_MESH_LODS=0.5,0.25
 STUDIO_TRIPO_TEXTURE=1
 STUDIO_TRIPO_PBR=1
+STUDIO_TEXTURE_SOURCE=tripo
+STUDIO_MESH_FALLBACK=1
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 $($comfyLines -join "`n")
 STUDIO_EMBEDDED_QUEUE_WORKER=1
@@ -114,10 +116,11 @@ STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://local
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "Launch Immersive Studio from the Start menu."
-Write-Host "Optional: set STUDIO_TRIPO_API_KEY in worker.env for Tripo AI meshes (primary)"
+Write-Host "Required for 3D artwork: set STUDIO_TRIPO_API_KEY in worker.env (https://platform.tripo3d.ai/api-keys)"
+Write-Host "Tripo bakes mesh + PBR textures when the Studio 'Tripo textures' toggle is on (default)."
 Write-Host "Optional: STUDIO_MESH_POSTPROCESS=1 decimates Tripo meshes to poly_budget_tris (needs Blender)"
 Write-Host "Optional: ollama pull llama3.2  (real specs when Mock is off in Studio)"
-Write-Host "Optional: start ComfyUI on :8188 for textures (see docs on immersivelabs.space)"
+Write-Host "Optional: ComfyUI on :8188 only if STUDIO_TEXTURE_SOURCE=comfy (legacy sidecar textures)"
 if ($comfyGpuFlag -eq "1") {
   Write-Host "NVIDIA GPU detected — COMFYUI_USE_GPU=1. If ComfyUI still uses CPU torch, run once:" -ForegroundColor Yellow
   Write-Host "  .\scripts\local-pc-studio\install-comfyui-windows.ps1" -ForegroundColor Yellow

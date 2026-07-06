@@ -5,6 +5,8 @@ Studio packs ship as a **folder** (or zip):
 ```
 Models/<asset_id>/<asset_id>.glb
 Textures/<asset_id>/{variant}_{slot}_{role}.png
+Godot/pack_registry.gd
+GodotImportNotes.md
 spec.json
 manifest.json
 ```
@@ -21,26 +23,43 @@ The **material base key** is `{variant_id}_{slot_id}` (e.g. `default_main`). All
 
 ## Worker pipeline
 
-1. ComfyUI writes sidecar PNGs under `Textures/<asset_id>/`.
+1. ComfyUI or Tripo writes textures (sidecar PNGs under `Textures/<asset_id>/`, or baked into the GLB when Tripo PBR is enabled).
 2. Tripo or Blender writes `Models/<asset_id>/<asset_id>.glb`.
-3. When both mesh and textures succeed, the worker runs `blender/bind_pbr_textures.py` to **embed** PNGs into the GLB (requires Blender on the worker).
+3. When both mesh and Comfy sidecars succeed, the worker runs `blender/bind_pbr_textures.py` to **embed** PNGs into the GLB (requires Blender on the worker).
 
-If Blender is unavailable, use the Godot helper in your game project or wire materials manually.
+If Blender is unavailable, use the Godot helpers in `packages/studio-godot` or wire materials manually.
 
-## ShipHappens helper
+## Godot helpers (`packages/studio-godot`)
 
-`scripts/assets/immersive_studio_material.gd` maps known assets to sidecar PNG paths and applies `shaders/immersive_studio_orm.gdshader` (packed ORM + albedo).
+Copy `scripts/` and `shaders/` into your project, then register pack assets at startup:
 
 ```gdscript
-var inst := MODEL_WELCOME.instantiate()
-ImmersiveStudioMaterial.apply_to_node(inst, "env_blue_yellow_welcome_sign_01")
+# From the pack's Godot/pack_registry.gd (auto-generated per job)
+ImmersiveStudioPackRegistry.register_all()
+
+var inst := ImmersiveStudioModel.spawn_child(parent, "env_blue_yellow_welcome_sign_01")
 ```
 
-Add new entries to `ASSET_TEXTURES` when importing packs.
+For sidecar-only packs (no embedded GLB materials):
+
+```gdscript
+ImmersiveStudioMaterial.apply_to_node(inst, asset_id, "default", {}, false)
+```
+
+Attach `immersive_studio_prop.gd` to a `Node3D` and set `asset_id` in the inspector for drop-in props.
+
+## Spec block (`godot`)
+
+When omitted, the worker derives:
+
+- `godot.import_subfolder` → `assets/models`
+- `godot.collider` from `unity.collider` (`box`, `capsule`, `convex`, `none`)
+
+Set `engine_target: godot` on jobs to mark Godot as the primary import target in `manifest.json` and `README.txt`.
 
 ## Recommended Godot import settings
 
-- **GLB**: Scene import, generate tangents, no external material override.
+- **GLB**: Scene import, generate tangents, no external material override when embedded PBR succeeded.
 - **PNG**: VRAM Compressed, mipmaps on, sRGB for albedo, **non-sRGB** for ORM/normal.
 
 ## Toon tuning

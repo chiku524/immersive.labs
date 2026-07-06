@@ -5,9 +5,9 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-EngineTarget = Literal["unity", "unreal"]
+EngineTarget = Literal["unity", "unreal", "godot"]
 
-ENGINE_TARGETS: frozenset[str] = frozenset({"unity", "unreal"})
+ENGINE_TARGETS: frozenset[str] = frozenset({"unity", "unreal", "godot"})
 
 
 def normalize_engine_target(value: str | None) -> EngineTarget:

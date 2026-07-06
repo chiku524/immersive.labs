@@ -116,6 +116,18 @@
           "enum": ["simple", "complex", "convex", "none"]
         }
       }
+    },
+    "godot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["import_subfolder", "collider"],
+      "properties": {
+        "import_subfolder": { "type": "string", "minLength": 1 },
+        "collider": {
+          "type": "string",
+          "enum": ["box", "capsule", "convex", "none"]
+        }
+      }
     }
   }
 }

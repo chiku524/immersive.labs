@@ -59,19 +59,26 @@ function readStoredJobResult(): PersistedJobResult | null {
   }
 }
 
+function defaultJobOpts(): { generateTextures: boolean; exportMesh: boolean } {
+  return {
+    generateTextures: isTauriRuntime(),
+    exportMesh: true,
+  };
+}
+
 function readStoredJobOpts(): { generateTextures: boolean; exportMesh: boolean } {
   try {
     const raw = localStorage.getItem(JOB_OPTS_STORAGE);
     if (!raw) {
-      return { generateTextures: false, exportMesh: true };
+      return defaultJobOpts();
     }
     const j = JSON.parse(raw) as { generateTextures?: boolean; exportMesh?: boolean };
     return {
-      generateTextures: Boolean(j.generateTextures),
+      generateTextures: j.generateTextures !== undefined ? Boolean(j.generateTextures) : defaultJobOpts().generateTextures,
       exportMesh: j.exportMesh !== false,
     };
   } catch {
-    return { generateTextures: false, exportMesh: true };
+    return defaultJobOpts();
   }
 }
 
@@ -85,7 +92,7 @@ function isGatewayDetailMessage(msg: string): boolean {
 
 type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
 type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
-type StudioEngineTarget = "unity" | "unreal";
+type StudioEngineTarget = "unity" | "unreal" | "godot";
 
 /** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
 function comfyLocalhostRefused(detail: string | null | undefined, url: string): boolean {
@@ -745,7 +752,7 @@ export function StudioPage() {
         setApiKey(stored);
       }
       const storedEngine = window.localStorage.getItem(ENGINE_TARGET_STORAGE);
-      if (storedEngine === "unity" || storedEngine === "unreal") {
+      if (storedEngine === "unity" || storedEngine === "unreal" || storedEngine === "godot") {
         setEngineTarget(storedEngine);
       }
     } catch {
@@ -1390,8 +1397,9 @@ export function StudioPage() {
           <p className="studio-lede">
             Generate a validated <code>StudioAssetSpec</code>, run a full persisted <strong>job</strong> (pack + zip +
             index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in <strong>Unity</strong>{" "}
-            (<code>packages/studio-unity</code>) or <strong>Unreal Engine 5</strong> (
-            <code>packages/studio-unreal</code>) using the import-target toggle below. Start with the on-site{" "}
+            (<code>packages/studio-unity</code>), <strong>Unreal Engine 5</strong> (
+            <code>packages/studio-unreal</code>), or <strong>Godot 4</strong> (
+            <code>packages/studio-godot</code>) using the import-target toggle below. Start with the on-site{" "}
             <Link to="/docs">documentation hub</Link> (overview, deployment, ComfyUI, Blender, Unity); deep reference:{" "}
             <code className="studio-code-inline">docs/studio/essentials.md</code> and{" "}
             <code className="studio-code-inline">docs/studio/platform-manual.md</code>.
@@ -1681,6 +1689,7 @@ export function StudioPage() {
                   [
                     { id: "unity", label: "Unity (URP)" },
                     { id: "unreal", label: "Unreal Engine 5" },
+                    { id: "godot", label: "Godot 4" },
                   ] as { id: StudioEngineTarget; label: string }[]
                 ).map((opt) => (
                   <button
@@ -1707,8 +1716,10 @@ export function StudioPage() {
               </div>
               <span className="studio-engine-toggle-note">
                 {engineTarget === "unreal"
-                  ? "Primary: Unreal (Tools → Import Studio Pack…, packages/studio-unreal). Unity notes also included."
-                  : "Primary: Unity URP (Immersive Labs → Import Studio Pack…, packages/studio-unity). Unreal notes also included."}
+                  ? "Primary: Unreal (Tools → Import Studio Pack…, packages/studio-unreal). Unity and Godot notes also included."
+                  : engineTarget === "godot"
+                    ? "Primary: Godot 4 (copy Models + Godot/pack_registry.gd, packages/studio-godot). Unity and Unreal notes also included."
+                    : "Primary: Unity URP (Immersive Labs → Import Studio Pack…, packages/studio-unity). Unreal and Godot notes also included."}
               </span>
             </div>
 
@@ -1762,22 +1773,38 @@ export function StudioPage() {
                 disabled={texturesBlocked}
                 onChange={(e) => setGenerateTextures(e.target.checked)}
               />
-              Generate albedo textures via ComfyUI (requires running ComfyUI + checkpoint env — see worker README)
-              {texturesBlocked ? (
-                <span className="studio-check-note"> — not included on your current plan.</span>
-              ) : null}
+              {workerHints?.texture_source === "comfy" ? (
+                <>
+                  Generate albedo textures via ComfyUI (legacy — requires ComfyUI + checkpoint)
+                  {texturesBlocked ? (
+                    <span className="studio-check-note"> — not included on your current plan.</span>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  Tripo baked PBR textures (mesh + materials in one GLB; uses Tripo OpenAPI credits)
+                  {texturesBlocked ? (
+                    <span className="studio-check-note"> — not included on your current plan.</span>
+                  ) : null}
+                </>
+              )}
             </label>
 
             <label className="studio-check">
               <input type="checkbox" checked={exportMesh} onChange={(e) => setExportMesh(e.target.checked)} />
-              Generate 3D mesh — GLB in pack.zip for Unity and Unreal (Tripo AI primary, Blender fallback; set{" "}
+              Generate 3D mesh via Tripo AI (Blender placeholder fallback; set{" "}
               <code>STUDIO_TRIPO_API_KEY</code> on the worker)
             </label>
-            {generateTextures && exportMesh ? (
+            {generateTextures && exportMesh && workerHints?.texture_source === "comfy" ? (
               <p className="studio-check-note">
-                With <strong>both</strong> enabled: ComfyUI writes sidecar PNGs and Tripo writes a separate mesh GLB.
-                The worker merges them with Blender when available (see <code>pack_diagnostics.json</code> in the pack).
-                Tripo-baked mesh textures require <code>STUDIO_TRIPO_TEXTURE=1</code> on the worker.
+                Legacy Comfy mode: ComfyUI writes sidecar PNGs and Tripo writes a separate mesh GLB. The worker
+                merges them with Blender when available (see <code>pack_diagnostics.json</code>).
+              </p>
+            ) : null}
+            {generateTextures && exportMesh && workerHints?.texture_source !== "comfy" ? (
+              <p className="studio-check-note">
+                Tripo mode: one GLB with geometry and baked PBR when both toggles are on. Uncheck textures for
+                geometry-only (cheaper). ComfyUI is not required.
               </p>
             ) : null}
 
@@ -1946,6 +1973,11 @@ export function StudioPage() {
                 {workerHints.mesh_provider ? (
                   <>
                     . Mesh: <code>{workerHints.mesh_provider}</code>
+                    {workerHints.texture_source ? (
+                      <>
+                        ; textures: <code>{workerHints.texture_source}</code>
+                      </>
+                    ) : null}
                     {workerHints.mesh_tripo_fallback_to_blender ? (
                       <> — Tripo first, Blender placeholder on failure</>
                     ) : null}

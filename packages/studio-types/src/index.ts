@@ -55,9 +55,14 @@ export interface StudioAssetSpec {
     import_subfolder: string;
     collision_complexity: "simple" | "complex" | "convex" | "none";
   };
+  /** Optional Godot hints; worker derives these from `unity` when omitted. */
+  godot?: {
+    import_subfolder: string;
+    collider: "box" | "capsule" | "convex" | "none";
+  };
 }
 
-export type StudioEngineTarget = "unity" | "unreal";
+export type StudioEngineTarget = "unity" | "unreal" | "godot";
 
 export interface StudioJobManifest {
   manifest_version: "0.1";
@@ -171,6 +176,8 @@ export interface StudioWorkerHints {
   queue_max_job_age_s?: number | null;
   /** ``STUDIO_MESH_PROVIDER`` — default ``tripo``; falls back to Blender placeholder on failure. */
   mesh_provider?: string;
+  /** ``STUDIO_TEXTURE_SOURCE`` — ``tripo`` (default), ``comfy``, or ``none``. */
+  texture_source?: string;
   tripo_api_key_set?: boolean;
   tripo_texture_enabled?: boolean;
   mesh_tripo_fallback_to_blender?: boolean;

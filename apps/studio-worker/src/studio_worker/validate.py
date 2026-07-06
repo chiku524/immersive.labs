@@ -33,10 +33,18 @@ _RESOLUTION_HINT_TOKEN = re.compile(r"\b(512|1024|2048|4096)\b")
 _MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
 _UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
 _UNREAL_COLLISIONS = frozenset({"simple", "complex", "convex", "none"})
+_GODOT_COLLIDERS = frozenset({"box", "capsule", "convex", "none"})
 # Unity collider → Unreal collision complexity when the spec omits an explicit unreal block.
 _UNITY_TO_UNREAL_COLLISION = {
     "box": "simple",
     "capsule": "simple",
+    "mesh_convex": "convex",
+    "none": "none",
+}
+# Unity collider → Godot collision hint when the spec omits an explicit godot block.
+_UNITY_TO_GODOT_COLLIDER = {
+    "box": "box",
+    "capsule": "capsule",
     "mesh_convex": "convex",
     "none": "none",
 }
@@ -68,6 +76,7 @@ _ALLOWED_TOP_LEVEL = frozenset({
     "generation",
     "unity",
     "unreal",
+    "godot",
 })
 
 
@@ -809,6 +818,37 @@ def _ensure_unreal_block(spec: dict[str, Any]) -> None:
     spec["unreal"] = ue
 
 
+def _ensure_godot_block(spec: dict[str, Any]) -> None:
+    """
+    Derive a ``godot`` block from ``unity`` when absent/invalid so Godot jobs get
+    import subfolder + collision hints without changing the LLM contract.
+    """
+    unity = spec.get("unity")
+    unity_collision = "box"
+    if isinstance(unity, dict):
+        collider = unity.get("collider")
+        if isinstance(collider, str):
+            unity_collision = _UNITY_TO_GODOT_COLLIDER.get(collider.strip().lower(), "box")
+
+    gd = spec.get("godot")
+    if not isinstance(gd, dict):
+        gd = {}
+
+    sub = gd.get("import_subfolder")
+    if not (isinstance(sub, str) and sub.strip() and ".." not in sub and not sub.startswith(("/", "\\"))):
+        gd["import_subfolder"] = "assets/models"
+    else:
+        gd["import_subfolder"] = sub.strip().replace("\\", "/")
+
+    collider = gd.get("collider")
+    if not (isinstance(collider, str) and collider.strip().lower() in _GODOT_COLLIDERS):
+        gd["collider"] = unity_collision
+    else:
+        gd["collider"] = collider.strip().lower()
+
+    spec["godot"] = gd
+
+
 def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     """Normalize common LLM JSON quirks before JSON Schema validation."""
     if not isinstance(spec, dict):
@@ -833,6 +873,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _fix_prompt_template_copies(spec)
     _default_unity_collider(spec)
     _ensure_unreal_block(spec)
+    _ensure_godot_block(spec)
 
 
 def normalize_asset_spec(spec: dict[str, Any]) -> None:

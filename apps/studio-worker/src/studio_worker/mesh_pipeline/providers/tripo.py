@@ -55,6 +55,8 @@ class TripoMeshProvider:
         self,
         pack_root: Path,
         spec: dict[str, Any],
+        *,
+        texture: bool | None = None,
     ) -> tuple[list[str], list[str]]:
         api_key = tripo_api_key()
         if not api_key:
@@ -73,14 +75,14 @@ class TripoMeshProvider:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        texture = tripo_texture_enabled()
+        use_texture = tripo_texture_enabled() if texture is None else texture
         payload: dict[str, Any] = {
             "type": "text_to_model",
             "prompt": prompt,
             "model_version": tripo_model_version(),
             "auto_size": True,
-            "texture": texture,
-            "pbr": tripo_pbr_enabled() if texture else False,
+            "texture": use_texture,
+            "pbr": tripo_pbr_enabled() if use_texture else False,
         }
 
         consumed_credit: int | None = None
@@ -137,7 +139,7 @@ class TripoMeshProvider:
             if consumed_credit is not None
             else ""
         )
-        texture_note = "texture+on" if texture else "texture+off (credit saver)"
+        texture_note = "texture+on" if use_texture else "texture+off (credit saver)"
         return [
             f"Tripo text_to_model → {out_glb.name} ({size} bytes from {host}, "
             f"{texture_note}{credit_note}, prompt={prompt[:80]!r})"

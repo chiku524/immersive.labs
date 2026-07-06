@@ -178,19 +178,21 @@ Requirements: URP recommended; optional **ImmersiveStudio/Packed ORM Lit** for p
 
 ---
 
-## 6b. Engine target (Unity vs Unreal)
+## 6b. Engine target (Unity, Unreal, Godot)
 
-Pick the primary engine in `/studio` (**Import target** toggle) or via the API/CLI `engine_target` (`unity` | `unreal`). Every pack still ships **both** `UnityImportNotes.md` and `UnrealImportNotes.md`; the toggle sets `manifest.engine_target` and which guide the README labels *primary*.
+Pick the primary engine in `/studio` (**Import target** toggle) or via the API/CLI `engine_target` (`unity` | `unreal` | `godot`). Every pack still ships **UnityImportNotes.md**, **UnrealImportNotes.md**, and **GodotImportNotes.md** (plus `Godot/pack_registry.gd`); the toggle sets `manifest.engine_target` and which guide the README labels *primary*.
 
-The spec carries an optional **`unreal`** block alongside `unity`; when omitted the worker derives it during validation:
+The spec carries optional **`unreal`** and **`godot`** blocks alongside `unity`; when omitted the worker derives them during validation:
 
-| `unity.collider` | derived `unreal.collision_complexity` |
-|------------------|----------------------------------------|
-| `box`, `capsule` | `simple` |
-| `mesh_convex` | `convex` |
-| `none` | `none` |
+| `unity.collider` | derived `unreal.collision_complexity` | derived `godot.collider` |
+|------------------|----------------------------------------|---------------------------|
+| `box`, `capsule` | `simple` | `box` / `capsule` |
+| `mesh_convex` | `convex` | `convex` |
+| `none` | `none` | `none` |
 
 Unreal import (`packages/studio-unreal`, **Tools → Import Studio Pack…**) reads `unreal.collision_complexity` (falling back to `unity.collider`). For `convex`, the importer copies `{asset_id}_collider.glb` hull geometry into the main static mesh body setup. See [unreal-import-conventions.md](./unreal-import-conventions.md).
+
+Godot import (`packages/studio-godot`) copies `Models/` into `res://<godot.import_subfolder>/`, registers assets via the pack's `Godot/pack_registry.gd`, and spawns props with `ImmersiveStudioModel`. See [godot-import-conventions.md](./godot-import-conventions.md).
 
 ---
 

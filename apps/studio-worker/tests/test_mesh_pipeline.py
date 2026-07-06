@@ -39,6 +39,20 @@ def test_resolve_tripo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert p.pipeline_id == "tripo:text_to_model"
 
 
+def test_texture_source_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    from studio_worker.mesh_pipeline.config import texture_source
+
+    monkeypatch.delenv("STUDIO_TEXTURE_SOURCE", raising=False)
+    assert texture_source() == "tripo"
+
+
+def test_texture_source_comfy(monkeypatch: pytest.MonkeyPatch) -> None:
+    from studio_worker.mesh_pipeline.config import texture_source
+
+    monkeypatch.setenv("STUDIO_TEXTURE_SOURCE", "comfy")
+    assert texture_source() == "comfy"
+
+
 def test_tripo_missing_api_key_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     root = tmp_path / "pack"
     root.mkdir()

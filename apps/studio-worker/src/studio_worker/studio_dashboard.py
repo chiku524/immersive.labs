@@ -39,6 +39,7 @@ from studio_worker.mesh_pipeline.config import (
     export_mesh_default_enabled,
     mesh_fallback_enabled,
     mesh_provider_name,
+    texture_source,
     tripo_api_key,
     tripo_texture_enabled,
 )
@@ -146,6 +147,7 @@ def worker_hints_dict() -> dict[str, Any]:
         "redis_configured": bool(redis_url()),
         "queue_max_job_age_s": _max_queue_job_age_hint(),
         "mesh_provider": mesh_provider_name(),
+        "texture_source": texture_source(),
         "tripo_api_key_set": bool(tripo_api_key()),
         "tripo_texture_enabled": tripo_texture_enabled(),
         "mesh_tripo_fallback_to_blender": mesh_provider_name() in ("tripo", "tripo3d")

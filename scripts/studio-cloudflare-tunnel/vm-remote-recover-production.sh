@@ -34,7 +34,7 @@ echo "Setting metadata (Tripo mesh, recover-on-boot, updated startup script)..."
 gcloud compute instances add-metadata "$VM" \
   --zone="$ZONE" \
   --project="$PROJECT" \
-  --metadata="STUDIO_MESH_PROVIDER=tripo,STUDIO_TRIPO_TEXTURE=0,STUDIO_TRIPO_PBR=0,STUDIO_OLLAMA_DISABLED=1,STUDIO_RECOVER_ON_BOOT=1,STUDIO_INSTALL_COMFY=1,STUDIO_COMFY_CHECKPOINT=v1-5-pruned-emaonly.safetensors,STUDIO_TRIPO_API_KEY=${STUDIO_TRIPO_API_KEY}" \
+  --metadata="STUDIO_MESH_PROVIDER=tripo,STUDIO_TRIPO_TEXTURE=1,STUDIO_TRIPO_PBR=1,STUDIO_TEXTURE_SOURCE=tripo,STUDIO_OLLAMA_DISABLED=1,STUDIO_RECOVER_ON_BOOT=1,STUDIO_INSTALL_COMFY=1,STUDIO_COMFY_CHECKPOINT=v1-5-pruned-emaonly.safetensors,STUDIO_TRIPO_API_KEY=${STUDIO_TRIPO_API_KEY}" \
   --metadata-from-file="startup-script=${ROOT}/scripts/studio-cloudflare-tunnel/vm-bootstrap-gce-startup.sh"
 
 echo "Resetting VM (runs startup: docker prune, git pull, rebuild, cloudflared restart)..."

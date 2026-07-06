@@ -10,12 +10,13 @@ from studio_worker.job_artifacts import upload_pack_zip_if_configured
 from studio_worker.jobs_store import allocate_job_id, new_job_folder_name, register_job_entry
 from studio_worker.ollama_client import ollama_model
 from studio_worker.pack_diagnostics import build_pack_diagnostics
-from studio_worker.pack_writer import write_pack
+from studio_worker.pack_writer import append_godot_diagnostics_notes, write_pack
 from studio_worker.paths import job_pack_dir
 from studio_worker.quotas import enforce_quota_before_new_job
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker import tenants_db
 from studio_worker.mesh_export import apply_mesh_toolchain_to_manifest, export_mesh_default_from_env, run_blender_bind_pack_textures
+from studio_worker.mesh_pipeline.config import texture_source, tripo_texture_enabled
 from studio_worker.mesh_pipeline.runner import try_export_mesh_for_pack
 from studio_worker.scale_config import job_textures_before_mesh
 from studio_worker.texture_pipeline import comfy_profile, generate_pbr_textures_for_spec
@@ -120,10 +121,18 @@ def run_studio_job(
 
         llm_label = None if use_mock else f"ollama:{ollama_model()}"
         _log.info("job_spec_ok job_id=%s asset_id=%s llm=%s", job_id, spec.get("asset_id"), llm_label)
+        tex_src = texture_source()
         prof = comfy_profile()
-        image_pipeline = f"comfyui:{prof}_pbr_v1"
-        if generate_textures:
-            image_pipeline = f"comfyui:{prof}_pbr_v1+run"
+        if tex_src == "tripo":
+            image_pipeline = "tripo:baked_pbr_v1"
+            if generate_textures:
+                image_pipeline = "tripo:baked_pbr_v1+requested"
+        elif tex_src == "comfy":
+            image_pipeline = f"comfyui:{prof}_pbr_v1"
+            if generate_textures:
+                image_pipeline = f"comfyui:{prof}_pbr_v1+run"
+        else:
+            image_pipeline = "none"
 
         manifest = write_pack(
             out_dir,
@@ -138,10 +147,22 @@ def run_studio_job(
 
         do_mesh = bool(export_mesh) or export_mesh_default_from_env()
         tex_first = job_textures_before_mesh()
+        use_comfy_textures = generate_textures and tex_src == "comfy"
+
+        def _tripo_mesh_textures() -> bool | None:
+            if tex_src == "tripo":
+                return generate_textures
+            if tex_src == "comfy":
+                return False
+            return tripo_texture_enabled() if generate_textures else False
 
         def _mesh_step() -> None:
-            nonlocal mesh_logs, errors, manifest
-            m_ok_logs, m_errs, pipeline_id = try_export_mesh_for_pack(out_dir, spec)
+            nonlocal mesh_logs, errors, manifest, image_pipeline
+            m_ok_logs, m_errs, pipeline_id = try_export_mesh_for_pack(
+                out_dir,
+                spec,
+                mesh_textures=_tripo_mesh_textures(),
+            )
             mesh_logs.extend(m_ok_logs)
             errors.extend(m_errs)
             apply_mesh_toolchain_to_manifest(
@@ -149,6 +170,14 @@ def run_studio_job(
                 ok=len(m_errs) == 0 and len(m_ok_logs) > 0,
                 pipeline_id=pipeline_id,
             )
+            if (
+                tex_src == "tripo"
+                and generate_textures
+                and len(m_errs) == 0
+                and len(m_ok_logs) > 0
+            ):
+                image_pipeline = "tripo:baked_pbr_v1+ok"
+                manifest["toolchain"]["image_pipeline"] = image_pipeline
             (out_dir / "manifest.json").write_text(
                 json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
             )
@@ -176,19 +205,19 @@ def run_studio_job(
                 )
 
         if tex_first:
-            if generate_textures:
+            if use_comfy_textures:
                 _texture_step()
             if do_mesh:
                 _mesh_step()
         else:
             if do_mesh:
                 _mesh_step()
-            if generate_textures:
+            if use_comfy_textures:
                 _texture_step()
 
         texture_bind_logs: list[str] = []
         texture_bind_errors: list[str] = []
-        if do_mesh and generate_textures:
+        if do_mesh and use_comfy_textures:
             bind_logs, bind_errs = run_blender_bind_pack_textures(pack_root=out_dir, spec=spec)
             texture_bind_logs = bind_logs
             texture_bind_errors = bind_errs
@@ -213,15 +242,13 @@ def run_studio_job(
             image_pipeline=str((manifest.get("toolchain") or {}).get("image_pipeline", "")),
             texture_bind_logs=texture_bind_logs,
             texture_bind_errors=texture_bind_errors,
+            texture_source=tex_src,
         )
         (out_dir / "pack_diagnostics.json").write_text(
             json.dumps(diagnostics, indent=2) + "\n", encoding="utf-8"
         )
         if diagnostics.get("notes"):
-            notes_md = "# Pack diagnostics\n\n" + "\n".join(
-                f"- {line}" for line in diagnostics["notes"]
-            )
-            (out_dir / "GodotImportNotes.md").write_text(notes_md + "\n", encoding="utf-8")
+            append_godot_diagnostics_notes(out_dir, diagnostics["notes"])
 
         write_pack_attribution(out_dir, spec=spec, manifest=manifest, meta=meta)
 

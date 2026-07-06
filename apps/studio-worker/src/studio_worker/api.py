@@ -242,7 +242,7 @@ def favicon() -> Response:
 
 Category = Literal["prop", "environment_piece", "character_base", "material_library"]
 StylePreset = Literal["realistic_hd_pbr", "anime_stylized", "toon_bold"]
-EngineTarget = Literal["unity", "unreal"]
+EngineTarget = Literal["unity", "unreal", "godot"]
 
 
 class GenerateSpecRequest(BaseModel):

@@ -288,13 +288,17 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         mesh_lod_ratios,
         mesh_postprocess_enabled,
         mesh_provider_name,
+        texture_source,
         tripo_api_key,
+        tripo_texture_enabled,
     )
 
     mp = mesh_provider_name()
     print(f"Mesh provider (STUDIO_MESH_PROVIDER): {mp}")
+    print(f"Texture source (STUDIO_TEXTURE_SOURCE): {texture_source()}")
     if mp in ("tripo", "tripo3d"):
         print(f"  STUDIO_TRIPO_API_KEY set: {bool(tripo_api_key())}")
+        print(f"  STUDIO_TRIPO_TEXTURE: {tripo_texture_enabled()}")
         if mesh_fallback_enabled():
             print("  Fallback: Blender placeholder when Tripo fails (STUDIO_MESH_FALLBACK=1, default)")
         if mesh_postprocess_enabled():
@@ -429,9 +433,9 @@ def main() -> None:
     p.add_argument(
         "--engine-target",
         default="unity",
-        choices=["unity", "unreal"],
+        choices=["unity", "unreal", "godot"],
         dest="engine_target",
-        help="Import target: Unity URP pack or Unreal Engine 5 pack (default: unity)",
+        help="Import target: Unity URP, Unreal Engine 5, or Godot 4 pack (default: unity)",
     )
     p.add_argument(
         "--unity-urp",
@@ -523,7 +527,7 @@ def main() -> None:
     j.add_argument(
         "--engine-target",
         default="unity",
-        choices=["unity", "unreal"],
+        choices=["unity", "unreal", "godot"],
         dest="engine_target",
         help="Pack import target for manifest + import notes (default: unity)",
     )

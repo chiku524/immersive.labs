@@ -71,6 +71,8 @@ def _try_blender_fallback(
 def try_export_mesh_for_pack(
     pack_root: Path,
     spec: dict[str, Any],
+    *,
+    mesh_textures: bool | None = None,
 ) -> tuple[list[str], list[str], str]:
     """
     Export mesh GLB under Models/<asset_id>/ using the configured provider.
@@ -86,7 +88,7 @@ def try_export_mesh_for_pack(
 
     if name == "tripo":
         tripo = TripoMeshProvider()
-        logs, errs = tripo.export_for_pack(pack_root, spec)
+        logs, errs = tripo.export_for_pack(pack_root, spec, texture=mesh_textures)
         if not errs:
             logs = [*logs, *_postprocess_generated_mesh(pack_root, spec)]
             return logs, errs, tripo.pipeline_id

@@ -53,7 +53,7 @@ See [docs/studio/unreal-import-conventions.md](../../docs/studio/unreal-import-c
 
 - No automated toon/anime shader graphs yet — stylized presets import as default Lit PBR.
 - glTF import depends on Unreal’s Interchange/glTF stack; if import fails, check those plugins and re-import manually from Content Browser.
-- `engine_target` in `manifest.json` is set by the worker (`unity` or `unreal`) when you choose the import target in `/studio` or pass `--engine-target` on the CLI.
+- `engine_target` in `manifest.json` is set by the worker (`unity`, `unreal`, or `godot`) when you choose the import target in `/studio` or pass `--engine-target` on the CLI.
 
 ## Related packages
 

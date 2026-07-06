@@ -47,6 +47,14 @@ def _env_bool(name: str, default: bool) -> bool:
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
+def texture_source() -> str:
+    """Where PBR textures come from: ``tripo`` (default), ``comfy``, or ``none``."""
+    raw = os.environ.get("STUDIO_TEXTURE_SOURCE", "tripo").strip().lower()
+    if raw in ("tripo", "comfy", "none"):
+        return raw
+    return "tripo"
+
+
 def tripo_texture_enabled() -> bool:
     """Tripo-baked textures cost extra credits; default on for full mesh+texture packs."""
     return _env_bool("STUDIO_TRIPO_TEXTURE", True)
