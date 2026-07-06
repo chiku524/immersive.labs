@@ -75,12 +75,20 @@ if (-not $comfyRoot) {
   }
 }
 $comfyLines = @()
+$comfyGpuFlag = "0"
 if ($comfyRoot) {
   $comfyUnix = $comfyRoot -replace '\\', '/'
+  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+    $comfyGpuFlag = "1"
+  }
   $comfyLines = @(
     "COMFYUI_ROOT=$comfyUnix",
     "STUDIO_COMFY_CHECKPOINT=v1-5-pruned-emaonly.safetensors",
-    "COMFYUI_USE_GPU=0"
+    "STUDIO_COMFY_PROFILE=sd15",
+    "COMFYUI_USE_GPU=$comfyGpuFlag",
+    "STUDIO_COMFY_IMAGE_WAIT_S=900",
+    "STUDIO_COMFY_MAX_CONCURRENT=1",
+    "STUDIO_TEXTURE_MAX_SIDE=1024"
   )
 }
 
@@ -95,8 +103,8 @@ STUDIO_BLENDER_BIN=$blenderUnix
 STUDIO_MESH_POSTPROCESS=1
 STUDIO_MESH_COLLIDER_EXPORT=1
 STUDIO_MESH_LODS=0.5,0.25
-STUDIO_TRIPO_TEXTURE=0
-STUDIO_TRIPO_PBR=0
+STUDIO_TRIPO_TEXTURE=1
+STUDIO_TRIPO_PBR=1
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 $($comfyLines -join "`n")
 STUDIO_EMBEDDED_QUEUE_WORKER=1
@@ -110,6 +118,10 @@ Write-Host "Optional: set STUDIO_TRIPO_API_KEY in worker.env for Tripo AI meshes
 Write-Host "Optional: STUDIO_MESH_POSTPROCESS=1 decimates Tripo meshes to poly_budget_tris (needs Blender)"
 Write-Host "Optional: ollama pull llama3.2  (real specs when Mock is off in Studio)"
 Write-Host "Optional: start ComfyUI on :8188 for textures (see docs on immersivelabs.space)"
+if ($comfyGpuFlag -eq "1") {
+  Write-Host "NVIDIA GPU detected — COMFYUI_USE_GPU=1. If ComfyUI still uses CPU torch, run once:" -ForegroundColor Yellow
+  Write-Host "  .\scripts\local-pc-studio\install-comfyui-windows.ps1" -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host "Worker config: $EnvFile"
 Write-Host "Job data:      $DataDir"

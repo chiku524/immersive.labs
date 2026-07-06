@@ -56,8 +56,8 @@ if ($useGpu -and -not ($env:COMFYUI_USE_GPU -eq "0")) {
 }
 
 if ($env:COMFYUI_USE_GPU -eq "1") {
-  Write-Host "Installing PyTorch CUDA cu124 ..."
-  & $VenvPy -m pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+  Write-Host "Installing PyTorch CUDA cu128 (RTX 40/50 / Blackwell need cu128+) ..."
+  & $VenvPy -m pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 } else {
   Write-Host "Installing PyTorch CPU ..."
   & $VenvPy -m pip install -q torch torchvision torchaudio
@@ -84,7 +84,7 @@ if (Test-Path $WorkerEnv) {
   $lines = Get-Content $WorkerEnv | Where-Object {
     $_ -notmatch '^\s*COMFYUI_ROOT=' -and $_ -notmatch '^\s*STUDIO_COMFY_CHECKPOINT='
   }
-  @($lines + "COMFYUI_ROOT=$comfyUnix" + "STUDIO_COMFY_CHECKPOINT=$CkptName") | Set-Content $WorkerEnv -Encoding utf8
+  @($lines + "COMFYUI_ROOT=$comfyUnix" + "STUDIO_COMFY_CHECKPOINT=$CkptName" + "COMFYUI_USE_GPU=1") | Set-Content $WorkerEnv -Encoding utf8
   Write-Host "Updated worker.env"
 }
 

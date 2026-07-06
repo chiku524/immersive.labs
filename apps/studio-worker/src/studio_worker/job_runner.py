@@ -9,12 +9,13 @@ from studio_worker.attribution import write_pack_attribution
 from studio_worker.job_artifacts import upload_pack_zip_if_configured
 from studio_worker.jobs_store import allocate_job_id, new_job_folder_name, register_job_entry
 from studio_worker.ollama_client import ollama_model
+from studio_worker.pack_diagnostics import build_pack_diagnostics
 from studio_worker.pack_writer import write_pack
 from studio_worker.paths import job_pack_dir
 from studio_worker.quotas import enforce_quota_before_new_job
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker import tenants_db
-from studio_worker.mesh_export import apply_mesh_toolchain_to_manifest, export_mesh_default_from_env
+from studio_worker.mesh_export import apply_mesh_toolchain_to_manifest, export_mesh_default_from_env, run_blender_bind_pack_textures
 from studio_worker.mesh_pipeline.runner import try_export_mesh_for_pack
 from studio_worker.scale_config import job_textures_before_mesh
 from studio_worker.texture_pipeline import comfy_profile, generate_pbr_textures_for_spec
@@ -184,6 +185,43 @@ def run_studio_job(
                 _mesh_step()
             if generate_textures:
                 _texture_step()
+
+        texture_bind_logs: list[str] = []
+        texture_bind_errors: list[str] = []
+        if do_mesh and generate_textures:
+            bind_logs, bind_errs = run_blender_bind_pack_textures(pack_root=out_dir, spec=spec)
+            texture_bind_logs = bind_logs
+            texture_bind_errors = bind_errs
+            texture_logs.extend(bind_logs)
+            errors.extend(bind_errs)
+            if bind_logs:
+                manifest["toolchain"]["texture_bind"] = "blender:bind_pbr_textures.py+ok"
+            elif bind_errs:
+                manifest["toolchain"]["texture_bind"] = "blender:bind_pbr_textures.py+skip"
+            else:
+                manifest["toolchain"]["texture_bind"] = "blender:bind_pbr_textures.py+missing"
+            (out_dir / "manifest.json").write_text(
+                json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+            )
+
+        diagnostics = build_pack_diagnostics(
+            spec=spec,
+            pack_root=out_dir,
+            generate_textures=generate_textures,
+            export_mesh=do_mesh,
+            mesh_pipeline=str((manifest.get("toolchain") or {}).get("mesh_pipeline", "")),
+            image_pipeline=str((manifest.get("toolchain") or {}).get("image_pipeline", "")),
+            texture_bind_logs=texture_bind_logs,
+            texture_bind_errors=texture_bind_errors,
+        )
+        (out_dir / "pack_diagnostics.json").write_text(
+            json.dumps(diagnostics, indent=2) + "\n", encoding="utf-8"
+        )
+        if diagnostics.get("notes"):
+            notes_md = "# Pack diagnostics\n\n" + "\n".join(
+                f"- {line}" for line in diagnostics["notes"]
+            )
+            (out_dir / "GodotImportNotes.md").write_text(notes_md + "\n", encoding="utf-8")
 
         write_pack_attribution(out_dir, spec=spec, manifest=manifest, meta=meta)
 

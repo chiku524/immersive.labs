@@ -1773,6 +1773,13 @@ export function StudioPage() {
               Generate 3D mesh — GLB in pack.zip for Unity and Unreal (Tripo AI primary, Blender fallback; set{" "}
               <code>STUDIO_TRIPO_API_KEY</code> on the worker)
             </label>
+            {generateTextures && exportMesh ? (
+              <p className="studio-check-note">
+                With <strong>both</strong> enabled: ComfyUI writes sidecar PNGs and Tripo writes a separate mesh GLB.
+                The worker merges them with Blender when available (see <code>pack_diagnostics.json</code> in the pack).
+                Tripo-baked mesh textures require <code>STUDIO_TRIPO_TEXTURE=1</code> on the worker.
+              </p>
+            ) : null}
 
             <div className="studio-actions">
               <button

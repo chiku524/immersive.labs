@@ -81,7 +81,7 @@ def test_material_slot_numeric_id_coerced_to_string() -> None:
     ]
     validate_asset_spec(spec)
     assert spec["material_slots"][0]["id"] == "main"
-    assert spec["material_slots"][1]["id"] == "orm"
+    assert spec["material_slots"][1]["id"] == "main"
 
 
 def test_material_slot_resolution_hint_string_coerced_to_int() -> None:
@@ -309,3 +309,29 @@ def test_invalid_unreal_collision_falls_back_to_unity_mapping() -> None:
     spec["unreal"] = {"import_subfolder": "Props/Test", "collision_complexity": "bogus"}
     validate_asset_spec(spec)
     assert spec["unreal"]["collision_complexity"] == "none"
+
+
+def test_asset_id_hyphens_normalized_before_validation() -> None:
+    """Regression: LLM emitted sci-fi in asset_id (hyphens invalid for schema)."""
+    spec: dict[str, Any] = {
+        "spec_version": "0.1",
+        "asset_id": "environment_piece_sci-fi_freight_station_floor_panel_01",
+        "display_name": "Sci-Fi Freight Deck Panel",
+        "category": "environment_piece",
+        "style_preset": "toon_bold",
+        "poly_budget_tris": 8000,
+        "target_height_m": 4.0,
+        "tags": ["sci-fi", "freight", "floor"],
+        "material_slots": [
+            {"id": "main", "role": "albedo", "resolution_hint": 1024},
+            {"id": "orm", "role": "orm", "resolution_hint": 1024},
+        ],
+        "variants": [{"variant_id": "default", "label": "Default"}],
+        "generation": {
+            "source_prompt": "Modular sci-fi freight station floor panel, 4 meter square metal deck plate",
+            "negative_prompt": "",
+        },
+        "unity": {"import_subfolder": "Environment/Floors", "collider": "box"},
+    }
+    validate_asset_spec(spec)
+    assert spec["asset_id"] == "environment_piece_sci_fi_freight_station_floor_panel_01"

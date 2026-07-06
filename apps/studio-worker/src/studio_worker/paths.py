@@ -51,6 +51,10 @@ def blender_postprocess_script_path() -> Path:
     return studio_worker_package_dir() / "blender" / "postprocess_mesh.py"
 
 
+def blender_bind_textures_script_path() -> Path:
+    return studio_worker_package_dir() / "blender" / "bind_pbr_textures.py"
+
+
 def comfy_workflows_dir() -> Path:
     return studio_worker_package_dir() / "comfy_workflows"
 

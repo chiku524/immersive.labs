@@ -33,8 +33,8 @@ def build_mock_spec(
 
     slot_id_by_role = {
         "albedo": "main",
-        "normal": "normal",
-        "orm": "orm",
+        "normal": "main",
+        "orm": "main",
         "emissive": "emissive",
         "mask": "mask",
     }

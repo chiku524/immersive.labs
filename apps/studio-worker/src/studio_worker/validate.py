@@ -10,6 +10,7 @@ import jsonschema
 from jsonschema import Draft202012Validator
 
 from studio_worker.paths import asset_spec_schema_path
+from studio_worker.pbr_keys import GENERATED_ROLES
 
 ASSET_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 PALETTE_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -307,6 +308,19 @@ def _coerce_material_slot_resolution_hints(spec: dict[str, Any]) -> None:
         slot["resolution_hint"] = _parse_resolution_hint(slot["resolution_hint"])
 
 
+def _normalize_pbr_slot_ids(spec: dict[str, Any]) -> None:
+    """Group albedo/normal/orm under one slot id so sidecar filenames share a PBR base key."""
+    slots = spec.get("material_slots")
+    if not isinstance(slots, list):
+        return
+    for slot in slots:
+        if not isinstance(slot, dict):
+            continue
+        role = str(slot.get("role") or "").lower()
+        if role in GENERATED_ROLES:
+            slot["id"] = "main"
+
+
 def _ensure_required_material_roles(spec: dict[str, Any]) -> None:
     """Append default slots when the LLM omits roles required for the chosen style_preset."""
     style = spec.get("style_preset")
@@ -327,7 +341,7 @@ def _ensure_required_material_roles(spec: dict[str, Any]) -> None:
     for role in sorted(missing):
         slots.append(
             {
-                "id": f"{role}_slot_{len(slots)}",
+                "id": "main",
                 "role": role,
                 "resolution_hint": base_res,
             }
@@ -680,6 +694,20 @@ def _asset_id_matches_brief(asset_id: str, brief_tokens: set[str]) -> bool:
     return bool(id_tokens & brief_tokens)
 
 
+def _normalize_asset_id(spec: dict[str, Any]) -> None:
+    """Coerce LLM asset_id quirks (hyphens, spaces, mixed case) to ^[a-z0-9_]+$."""
+    raw = spec.get("asset_id")
+    if not isinstance(raw, str) or not raw.strip():
+        return
+    s = raw.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    if not s or not ASSET_ID_PATTERN.fullmatch(s):
+        spec["asset_id"] = _derive_asset_id(spec)
+        return
+    spec["asset_id"] = s[:56].rstrip("_")
+
+
 def _derive_asset_id(spec: dict[str, Any]) -> str:
     category = str(spec.get("category") or "prop")
     prefix = _CATEGORY_ASSET_PREFIX.get(category, "prop")
@@ -798,8 +826,10 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _fix_material_slot_swapped_role_resolution(spec)
     _coerce_material_slot_ids(spec)
     _coerce_material_slot_resolution_hints(spec)
+    _normalize_pbr_slot_ids(spec)
     _ensure_required_material_roles(spec)
     _default_tags_if_missing(spec)
+    _normalize_asset_id(spec)
     _fix_prompt_template_copies(spec)
     _default_unity_collider(spec)
     _ensure_unreal_block(spec)

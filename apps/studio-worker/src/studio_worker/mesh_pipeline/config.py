@@ -48,8 +48,8 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 def tripo_texture_enabled() -> bool:
-    """Tripo-baked textures cost extra credits; default off to stretch free tiers."""
-    return _env_bool("STUDIO_TRIPO_TEXTURE", False)
+    """Tripo-baked textures cost extra credits; default on for full mesh+texture packs."""
+    return _env_bool("STUDIO_TRIPO_TEXTURE", True)
 
 
 def tripo_pbr_enabled() -> bool:

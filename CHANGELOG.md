@@ -6,6 +6,22 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## [0.1.15] — 2026-07-06
+
+### Added
+
+- **Blender texture bind:** `bind_pbr_textures.py` embeds Comfy sidecar PNGs into pack GLBs when mesh + textures both succeed (`texture_bind` in `manifest.toolchain`).
+- **`pack_diagnostics.json`** per job explaining mesh vs sidecar texture status and bind outcome.
+- **`pbr_texture_groups`:** merges split-slot albedo/ORM filenames (`*_main_albedo` + `*_orm_orm`) for bind and engine import.
+- **Godot import guide:** `docs/studio/godot-import-conventions.md`.
+- Desktop setup scripts auto-detect ComfyUI root and write GPU/checkpoint env lines.
+
+### Changed
+
+- **`STUDIO_TRIPO_TEXTURE` default is now `1`** (Tripo baked textures on); desktop `setup-desktop-studio.ps1` and local env template updated.
+- PBR material slots normalize to shared slot id `main` so albedo/normal/ORM group correctly.
+- Studio UI clarifies that mesh + texture toggles produce separate outputs merged by Blender bind.
+
 ## [0.1.9] — 2026-04-16
 
 ### Added

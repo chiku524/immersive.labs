@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import glob
+import json
 import os
 import shutil
 import subprocess
@@ -231,3 +232,81 @@ def apply_mesh_toolchain_to_manifest(
     tc = manifest.setdefault("toolchain", {})
     suffix = "ok" if ok else "error"
     tc["mesh_pipeline"] = f"{pipeline_id}+{suffix}"
+
+
+def run_blender_bind_pack_textures(
+    *,
+    pack_root: Path,
+    spec: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """
+    Embed sidecar Comfy PBR PNGs into the pack GLB when Blender is available.
+  Non-fatal when skipped (Tripo-only packs without sidecars still ship).
+    """
+    from studio_worker.paths import blender_bind_textures_script_path
+
+    asset_id = str(spec.get("asset_id") or "asset")
+    glb_path = pack_root / "Models" / asset_id / f"{asset_id}.glb"
+    tex_dir = pack_root / "Textures" / asset_id
+    if not glb_path.is_file():
+        return [], []
+    if not tex_dir.is_dir() or not any(tex_dir.glob("*.png")):
+        return ["Texture bind skipped: no sidecar PNGs"], []
+
+    from studio_worker.pbr_texture_groups import diagnose_sidecar_pbr
+
+    diag = diagnose_sidecar_pbr(spec, pack_root)
+    if not diag.get("ready_for_texture_bind"):
+        return [], [
+            "Texture bind skipped: sidecar PNGs present but no complete albedo+ORM group after merge."
+        ]
+
+    script = blender_bind_textures_script_path()
+    if not script.is_file():
+        return [], [f"Texture bind skipped: script missing ({script.name})"]
+
+    exe = resolve_blender_executable()
+    if not exe:
+        return [
+            "Texture bind skipped: Blender not found (sidecar PNGs remain external; use engine importer or Godot helper)."
+        ], []
+
+    spec_path = pack_root / "spec.json"
+    if not spec_path.is_file():
+        spec_path.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
+
+    cmd = [
+        exe,
+        "--background",
+        "--python",
+        str(script),
+        "--",
+        "--spec",
+        str(spec_path.resolve()),
+        "--pack",
+        str(pack_root.resolve()),
+        "--glb",
+        str(glb_path.resolve()),
+    ]
+
+    try:
+        proc = run_no_window(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=blender_timeout_s(),
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return [], [f"Texture bind timed out after {blender_timeout_s():.0f}s"]
+    except OSError as e:
+        return [], [f"Texture bind could not start Blender: {e}"]
+
+    tail = (proc.stdout or proc.stderr or "").strip().splitlines()
+    summary = [ln for ln in tail if "bind_pbr_textures:" in ln]
+    if proc.returncode != 0:
+        detail = summary[-1] if summary else (proc.stderr or "no output").strip()[:200]
+        return [], [f"Texture bind failed (exit {proc.returncode}): {detail}"]
+
+    logs = [ln.strip() for ln in summary] or ["bind_pbr_textures: done"]
+    return logs, []

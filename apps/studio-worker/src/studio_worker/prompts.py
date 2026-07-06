@@ -32,7 +32,7 @@ def system_prompt_for_style(style_preset: str) -> str:
 
 Required top-level keys:
 - spec_version: exactly "0.1"
-- asset_id: lowercase snake_case, only [a-z0-9_]; derive from the creative brief (e.g. prop_medieval_tower_01 for a tower prop). Never copy placeholder examples verbatim.
+- asset_id: lowercase snake_case, only [a-z0-9_]; derive from the creative brief (e.g. env_freight_deck_panel_01 for a floor panel). Never copy placeholder examples verbatim. No hyphens or spaces.
 - display_name: short human title
 - category: one of {list(CATEGORIES)}
 - style_preset: must be exactly "{style_preset}" (do not change it)
