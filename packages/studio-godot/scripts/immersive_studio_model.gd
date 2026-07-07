@@ -64,6 +64,33 @@ static func spawn_child(
 	return inst
 
 
+static func spawn_at(
+	parent: Node3D,
+	asset_id: String,
+	pos: Vector3,
+	rotation_y: float = 0.0,
+	target_height: float = -1.0,
+	target_width: float = -1.0,
+	snap_bottom: bool = true,
+	apply_textures: bool = false,
+	material_overrides: Dictionary = {}
+) -> Node3D:
+	var inst := spawn_child(
+		parent,
+		asset_id,
+		"default",
+		target_height,
+		target_width,
+		snap_bottom,
+		rotation_y,
+		apply_textures,
+		material_overrides
+	)
+	if inst:
+		inst.position += pos
+	return inst
+
+
 static func hide_procedural_visuals(root: Node) -> void:
 	for child in root.get_children():
 		if child is MeshInstance3D:
