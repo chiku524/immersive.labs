@@ -6,6 +6,19 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## [0.1.16] — 2026-07-07
+
+### Added
+
+- **`engine_target: godot`** — Godot 4 pack export (`GodotImportNotes.md`, `Godot/pack_registry.gd`, `packages/studio-godot` helpers).
+- **`STUDIO_TEXTURE_SOURCE=tripo`** (default) — Tripo baked PBR in GLB; ComfyUI sidecars when set to `comfy`.
+- **`ImmersiveStudioModel.spawn_at()`** for positioned Godot prop placement.
+
+### Changed
+
+- Studio UI and API accept **Godot 4** as import target alongside Unity and Unreal.
+- Spec validation derives optional **`godot`** block from `unity` import hints.
+
 ## [0.1.15] — 2026-07-06
 
 ### Added
