@@ -210,6 +210,31 @@ button.studio-table-link:disabled {
   color: #c4c8d4;
 }
 
+.studio-tripo-fallback-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 170, 90, 0.55);
+  background: rgba(180, 90, 40, 0.22);
+  color: #f5dcc8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.studio-tripo-fallback-alert-body {
+  flex: 1 1 16rem;
+}
+
+.studio-tripo-fallback-alert-dismiss {
+  flex-shrink: 0;
+}
+
 .studio-retry {
   margin-left: 0.35rem;
   padding: 0.15rem 0.5rem;

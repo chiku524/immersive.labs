@@ -179,6 +179,8 @@ export interface StudioWorkerHints {
   /** ``STUDIO_TEXTURE_SOURCE`` — ``tripo`` (default), ``comfy``, or ``none``. */
   texture_source?: string;
   tripo_api_key_set?: boolean;
+  /** When false, ``STUDIO_TRIPO_API_KEY`` is set but not a ``tsk_`` OpenAPI key (e.g. client ID). */
+  tripo_api_key_format_valid?: boolean;
   tripo_texture_enabled?: boolean;
   mesh_tripo_fallback_to_blender?: boolean;
   /** Worker runs mesh export on full jobs when the client omits ``export_mesh`` (default on for Tripo). */

@@ -22,6 +22,11 @@ _ALIASES = {
 FALLBACK_PIPELINE_ID = "tripo:fallback_blender"
 
 
+def is_tripo_fallback_pipeline(pipeline_id: str) -> bool:
+    """True when mesh export used Blender placeholder instead of Tripo text_to_model."""
+    return pipeline_id.startswith(FALLBACK_PIPELINE_ID)
+
+
 def resolve_mesh_provider() -> MeshProvider:
     name = _ALIASES.get(mesh_provider_name(), mesh_provider_name())
     if name == "blender_placeholder":

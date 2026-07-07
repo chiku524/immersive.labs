@@ -53,6 +53,18 @@ def test_texture_source_comfy(monkeypatch: pytest.MonkeyPatch) -> None:
     assert texture_source() == "comfy"
 
 
+def test_tripo_client_id_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    root = tmp_path / "pack_client"
+    root.mkdir()
+    monkeypatch.setenv("STUDIO_MESH_PROVIDER", "tripo")
+    monkeypatch.setenv("STUDIO_TRIPO_API_KEY", "tcli_not_a_real_key")
+
+    logs, errs = TripoMeshProvider().export_for_pack(root, {"asset_id": "x"})
+    assert not logs
+    assert errs
+    assert any("client id" in e.lower() for e in errs)
+
+
 def test_tripo_missing_api_key_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     root = tmp_path / "pack"
     root.mkdir()

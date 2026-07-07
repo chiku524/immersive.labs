@@ -32,6 +32,7 @@ type PersistedJobResult = {
   errors: string[];
   texture_logs: string[];
   mesh_logs: string[];
+  mesh_pipeline?: string;
   prompt?: string;
 };
 
@@ -135,7 +136,19 @@ function meshLogsIndicateTripoFallback(logs: readonly string[]): boolean {
       /tripo mesh unavailable/i.test(line) ||
       /blender placeholder mesh as fallback/i.test(line) ||
       /placeholder mesh instead/i.test(line) ||
-      /top up api credits/i.test(line),
+      /top up api credits/i.test(line) ||
+      /looks like a tripo client id/i.test(line),
+  );
+}
+
+function meshPipelineIndicatesTripoFallback(meshPipeline: string | null | undefined): boolean {
+  return Boolean(meshPipeline?.includes("fallback_blender"));
+}
+
+function jobResultIndicatesTripoFallback(result: PersistedJobResult): boolean {
+  return (
+    meshLogsIndicateTripoFallback(result.mesh_logs) ||
+    meshPipelineIndicatesTripoFallback(result.mesh_pipeline)
   );
 }
 
@@ -704,6 +717,8 @@ export function StudioPage() {
   const dashboardSseAbortRef = useRef<AbortController | null>(null);
   const jobLoadingRef = useRef(false);
   const resumeQueueRef = useRef(false);
+  const tripoFallbackAlertRef = useRef<HTMLDivElement | null>(null);
+  const [tripoFallbackAlertDismissedFor, setTripoFallbackAlertDismissedFor] = useState<string | null>(null);
 
   useEffect(() => {
     jobLoadingRef.current = jobLoading;
@@ -744,6 +759,18 @@ export function StudioPage() {
       /* ignore */
     }
   }, [jobResult]);
+
+  const showTripoFallbackAlert =
+    jobResult != null &&
+    jobResult.job_id !== tripoFallbackAlertDismissedFor &&
+    jobResultIndicatesTripoFallback(jobResult);
+
+  useEffect(() => {
+    if (!showTripoFallbackAlert) {
+      return;
+    }
+    tripoFallbackAlertRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [showTripoFallbackAlert, jobResult?.job_id]);
 
   useEffect(() => {
     try {
@@ -915,15 +942,18 @@ export function StudioPage() {
         throw new Error("Job completed without result payload");
       }
       setSpec(data.spec ?? null);
+      const toolchain = data.manifest?.toolchain as { mesh_pipeline?: string } | undefined;
       const next: PersistedJobResult = {
         job_id: data.job_id ?? "?",
         zip_path: data.zip_path ?? "",
         errors: data.errors ?? [],
         texture_logs: data.texture_logs ?? [],
         mesh_logs: data.mesh_logs ?? [],
+        mesh_pipeline: toolchain?.mesh_pipeline,
         prompt: promptHint,
       };
       setJobResult(next);
+      setTripoFallbackAlertDismissedFor(null);
       setJobGatewayNotice(null);
       setError(null);
       try {
@@ -1475,6 +1505,33 @@ export function StudioPage() {
             </div>
           )}
 
+          {showTripoFallbackAlert ? (
+            <div
+              ref={tripoFallbackAlertRef}
+              className="studio-tripo-fallback-alert"
+              role="alert"
+              aria-live="assertive"
+            >
+              <div className="studio-tripo-fallback-alert-body">
+                <strong>Tripo mesh was not used.</strong> This job exported the Blender placeholder instead — a small
+                gray untextured mesh, not prompt-faithful 3D. Check{" "}
+                <code>STUDIO_TRIPO_API_KEY</code> on the worker (must be a <code>tsk_…</code> API key, not a{" "}
+                <code>tcli_…</code> client ID), keep OpenAPI credits at{" "}
+                <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">
+                  platform.tripo3d.ai
+                </a>
+                , then re-run the job.
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost studio-tripo-fallback-alert-dismiss"
+                onClick={() => setTripoFallbackAlertDismissedFor(jobResult?.job_id ?? null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+
           <div className="studio-api-key">
             <label className="studio-label">
               API key (shared studio / remote server)
@@ -1872,7 +1929,8 @@ export function StudioPage() {
               <p>
                 Job <code>{jobResult.job_id}</code> — zip: <code className="studio-path">{jobResult.zip_path}</code>
               </p>
-              {meshLogsIndicateTripoFallback(jobResult.mesh_logs) ? (
+              {meshLogsIndicateTripoFallback(jobResult.mesh_logs) ||
+              meshPipelineIndicatesTripoFallback(jobResult.mesh_pipeline) ? (
                 <p className="studio-job-warn" role="status">
                   <strong>Tripo mesh unavailable.</strong> This pack used the Blender placeholder mesh instead of
                   prompt-faithful 3D. Set <code>STUDIO_TRIPO_API_KEY</code> and keep OpenAPI credits at{" "}
@@ -1983,6 +2041,15 @@ export function StudioPage() {
                     ) : null}
                     {workerHints.tripo_api_key_set === false && workerHints.mesh_provider === "tripo" ? (
                       <> (<code>STUDIO_TRIPO_API_KEY</code> not set — jobs will use Blender fallback)</>
+                    ) : null}
+                    {workerHints.tripo_api_key_set === true &&
+                    workerHints.tripo_api_key_format_valid === false &&
+                    workerHints.mesh_provider === "tripo" ? (
+                      <>
+                        {" "}
+                        (<code>STUDIO_TRIPO_API_KEY</code> is not a valid <code>tsk_…</code> OpenAPI key — use API keys,
+                        not client ID)
+                      </>
                     ) : null}
                   </>
                 ) : null}

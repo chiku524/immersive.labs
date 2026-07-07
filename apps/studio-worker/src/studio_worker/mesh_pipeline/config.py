@@ -28,6 +28,12 @@ def tripo_api_key() -> str | None:
     return key or None
 
 
+def tripo_api_key_format_valid() -> bool:
+    """Tripo OpenAPI keys start with ``tsk_``; client IDs (``tcli_``) are not valid here."""
+    key = tripo_api_key()
+    return bool(key) and key.startswith("tsk_")
+
+
 def tripo_model_version() -> str:
     return os.environ.get("STUDIO_TRIPO_MODEL_VERSION", "Turbo-v1.0-20250506").strip()
 

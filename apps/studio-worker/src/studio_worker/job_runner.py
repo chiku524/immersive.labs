@@ -17,7 +17,7 @@ from studio_worker.spec_generate import generate_asset_spec_with_metadata
 from studio_worker import tenants_db
 from studio_worker.mesh_export import apply_mesh_toolchain_to_manifest, export_mesh_default_from_env, run_blender_bind_pack_textures
 from studio_worker.mesh_pipeline.config import texture_source, tripo_texture_enabled
-from studio_worker.mesh_pipeline.runner import try_export_mesh_for_pack
+from studio_worker.mesh_pipeline.runner import FALLBACK_PIPELINE_ID, try_export_mesh_for_pack
 from studio_worker.scale_config import job_textures_before_mesh
 from studio_worker.texture_pipeline import comfy_profile, generate_pbr_textures_for_spec
 from studio_worker.tiers import CREDIT_COST_RUN_JOB, CREDIT_COST_RUN_JOB_TEXTURES
@@ -175,8 +175,15 @@ def run_studio_job(
                 and generate_textures
                 and len(m_errs) == 0
                 and len(m_ok_logs) > 0
+                and pipeline_id != FALLBACK_PIPELINE_ID
             ):
                 image_pipeline = "tripo:baked_pbr_v1+ok"
+            elif tex_src == "tripo" and generate_textures and pipeline_id == FALLBACK_PIPELINE_ID:
+                image_pipeline = "tripo:baked_pbr_v1+fallback_blender"
+            if tex_src == "tripo" and generate_textures and (
+                pipeline_id == FALLBACK_PIPELINE_ID
+                or (len(m_errs) == 0 and len(m_ok_logs) > 0)
+            ):
                 manifest["toolchain"]["image_pipeline"] = image_pipeline
             (out_dir / "manifest.json").write_text(
                 json.dumps(manifest, indent=2) + "\n", encoding="utf-8"

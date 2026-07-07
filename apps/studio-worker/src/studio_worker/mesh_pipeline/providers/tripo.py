@@ -65,6 +65,12 @@ class TripoMeshProvider:
                 "Get a key at https://platform.tripo3d.ai/api-keys — Blender placeholder "
                 "will be used as fallback when STUDIO_MESH_FALLBACK=1 (default)."
             ]
+        if api_key.startswith("tcli_"):
+            return [], [
+                "STUDIO_TRIPO_API_KEY looks like a Tripo client ID (tcli_…), not an API key. "
+                "Create an API key (tsk_…) at https://platform.tripo3d.ai/api-keys — "
+                "Blender placeholder will be used as fallback when STUDIO_MESH_FALLBACK=1 (default)."
+            ]
 
         asset_id = str(spec.get("asset_id") or "asset")
         out_glb = pack_root / "Models" / asset_id / f"{asset_id}.glb"

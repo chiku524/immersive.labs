@@ -41,6 +41,7 @@ from studio_worker.mesh_pipeline.config import (
     mesh_provider_name,
     texture_source,
     tripo_api_key,
+    tripo_api_key_format_valid,
     tripo_texture_enabled,
 )
 from studio_worker.sqlite_queue import count_queue_by_status, list_queue_jobs, queue_slo_hints
@@ -149,6 +150,7 @@ def worker_hints_dict() -> dict[str, Any]:
         "mesh_provider": mesh_provider_name(),
         "texture_source": texture_source(),
         "tripo_api_key_set": bool(tripo_api_key()),
+        "tripo_api_key_format_valid": tripo_api_key_format_valid(),
         "tripo_texture_enabled": tripo_texture_enabled(),
         "mesh_tripo_fallback_to_blender": mesh_provider_name() in ("tripo", "tripo3d")
         and mesh_fallback_enabled(),

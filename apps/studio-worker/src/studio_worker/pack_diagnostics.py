@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from studio_worker.mesh_export import resolve_blender_executable
+from studio_worker.mesh_pipeline.runner import is_tripo_fallback_pipeline
 from studio_worker.pbr_texture_groups import diagnose_sidecar_pbr
 
 
@@ -20,10 +21,22 @@ def build_pack_diagnostics(
     texture_source: str = "tripo",
 ) -> dict[str, Any]:
     pbr = diagnose_sidecar_pbr(spec, pack_root)
-    tripo_ok = "tripo" in mesh_pipeline and "+ok" in mesh_pipeline
+    mesh_tripo_fallback_used = is_tripo_fallback_pipeline(mesh_pipeline)
+    tripo_ok = (
+        "tripo" in mesh_pipeline
+        and "+ok" in mesh_pipeline
+        and not mesh_tripo_fallback_used
+        and "text_to_model" in mesh_pipeline
+    )
     tripo_textured = tripo_ok and texture_source == "tripo" and generate_textures
 
     notes: list[str] = []
+    if mesh_tripo_fallback_used:
+        notes.append(
+            "Tripo mesh was unavailable; this pack used the Blender placeholder mesh "
+            "(low-poly, untextured). Check STUDIO_TRIPO_API_KEY (tsk_…, not client ID tcli_…) "
+            "and OpenAPI credits at https://platform.tripo3d.ai."
+        )
     if generate_textures and export_mesh:
         if texture_source == "tripo" and tripo_textured:
             notes.append("Tripo baked mesh + PBR textures in the GLB (STUDIO_TEXTURE_SOURCE=tripo).")
@@ -51,6 +64,7 @@ def build_pack_diagnostics(
         "texture_source": texture_source,
         "image_pipeline": image_pipeline,
         "mesh_pipeline": mesh_pipeline,
+        "mesh_tripo_fallback_used": mesh_tripo_fallback_used,
         "tripo_mesh_textured": tripo_textured,
         "blender_available": resolve_blender_executable() is not None,
         "pbr": pbr,

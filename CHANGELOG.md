@@ -6,6 +6,19 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## [0.1.18] — 2026-07-07
+
+### Added
+
+- **Tripo fallback UI alert** on `/studio` when a job completes with Blender placeholder mesh instead of Tripo text-to-3D.
+- **`tripo_api_key_format_valid`** worker hint — detects `tcli_…` client IDs mistakenly set as `STUDIO_TRIPO_API_KEY`.
+- **`mesh_tripo_fallback_used`** in `pack_diagnostics.json` with accurate `tripo_mesh_textured` when fallback runs.
+
+### Fixed
+
+- Reject Tripo **client IDs** (`tcli_…`) before OpenAPI calls; require **`tsk_…` API keys**.
+- **`image_pipeline`** no longer reports `tripo:baked_pbr_v1+ok` when mesh export fell back to Blender (`+fallback_blender`).
+
 ## [0.1.17] — 2026-07-07
 
 ### Fixed
