@@ -72,6 +72,56 @@ fn worker_log_path() -> PathBuf {
     desktop_data_dir().join("worker-serve.log")
 }
 
+fn worker_setup_log_path() -> PathBuf {
+    desktop_data_dir().join("worker-setup.log")
+}
+
+fn desktop_worker_python() -> PathBuf {
+    #[cfg(windows)]
+    {
+        return desktop_data_dir().join("worker-venv/Scripts/python.exe");
+    }
+    #[cfg(not(windows))]
+    {
+        return desktop_data_dir().join("worker-venv/bin/python");
+    }
+}
+
+fn desktop_worker_package_version() -> Option<String> {
+    let py = desktop_worker_python();
+    if !py.exists() {
+        return None;
+    }
+    let output = Command::new(&py)
+        .args([
+            "-c",
+            "import importlib.metadata as m; print(m.version('immersive-studio'))",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = String::from_utf8(output.stdout).ok()?;
+    let trimmed = version.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn tail_log_lines(path: &Path, max_lines: usize) -> String {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return String::new();
+    };
+    let lines: Vec<&str> = raw.lines().collect();
+    if lines.len() <= max_lines {
+        return raw.trim().to_string();
+    }
+    lines[lines.len() - max_lines..].join("\n")
+}
+
 fn append_worker_log(line: &str) {
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
@@ -761,7 +811,13 @@ pub fn open_jobs_folder() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn run_worker_setup(app: AppHandle) -> Result<String, String> {
+pub async fn run_worker_setup(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || run_worker_setup_sync(&app))
+        .await
+        .map_err(|err| format!("Setup task failed: {err}"))?
+}
+
+fn run_worker_setup_sync(app: &AppHandle) -> Result<String, String> {
     #[cfg(not(windows))]
     {
         let _ = app;
@@ -784,21 +840,52 @@ pub fn run_worker_setup(app: AppHandle) -> Result<String, String> {
             );
         }
 
+        std::fs::create_dir_all(desktop_data_dir()).map_err(|err| err.to_string())?;
+        let log_path = worker_setup_log_path();
+        let log_file = std::fs::File::create(&log_path).map_err(|err| err.to_string())?;
+        let err_file = log_file.try_clone().map_err(|err| err.to_string())?;
+
         let mut cmd = Command::new("powershell");
         cmd.args([
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
-            "-WindowStyle",
-            "Hidden",
             "-File",
             &script.to_string_lossy(),
         ]);
         hide_console(&mut cmd);
-        cmd.spawn()
-            .map_err(|err| format!("Failed to launch setup: {err}"))?;
+        cmd.stdout(std::process::Stdio::from(log_file));
+        cmd.stderr(std::process::Stdio::from(err_file));
 
-        Ok("Setup running in the background — wait for it to finish, then click Start API.".into())
+        append_worker_log("--- worker setup started ---");
+        let mut child = cmd
+            .spawn()
+            .map_err(|err| format!("Failed to launch setup: {err}"))?;
+        let status = child
+            .wait()
+            .map_err(|err| format!("Setup process failed: {err}"))?;
+
+        if !status.success() {
+            let tail = tail_log_lines(&log_path, 12);
+            append_worker_log(&format!("--- worker setup failed (exit {status}) ---"));
+            let detail = if tail.is_empty() {
+                format!("Setup failed (exit {status}). See {}", log_path.display())
+            } else {
+                format!(
+                    "Setup failed (exit {status}). Last log lines:\n{tail}\n\nFull log: {}",
+                    log_path.display()
+                )
+            };
+            return Err(detail);
+        }
+
+        append_worker_log("--- worker setup finished ---");
+        let version = desktop_worker_package_version().unwrap_or_else(|| "unknown".into());
+        Ok(format!(
+            "Setup complete — immersive-studio {version} installed in the desktop worker venv. \
+             Config: {} — click Start API (add STUDIO_TRIPO_API_KEY to worker.env for Tripo meshes).",
+            worker_env_path().display()
+        ))
     }
 }
 

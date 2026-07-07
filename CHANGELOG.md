@@ -6,6 +6,12 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## Desktop app [0.1.8] — 2026-07-07
+
+### Fixed
+
+- **Run setup** now waits for the worker install to finish, shows progress on the button, and displays a clear success message with the installed `immersive-studio` version (or errors with log path).
+
 ## [0.1.18] — 2026-07-07
 
 ### Added

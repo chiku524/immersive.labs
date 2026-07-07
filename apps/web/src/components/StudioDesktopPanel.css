@@ -83,4 +83,18 @@
   margin: 0.65rem 0 0;
   font-size: 0.85rem;
   color: var(--muted, #9aa8bc);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.studio-desktop-panel-message--ok {
+  color: #3ecf8e;
+}
+
+.studio-desktop-panel-message--error {
+  color: #ff9f9f;
+}
+
+.studio-desktop-panel-message--busy {
+  color: #a8c8ff;
 }

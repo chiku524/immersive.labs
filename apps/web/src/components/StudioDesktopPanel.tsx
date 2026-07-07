@@ -31,7 +31,9 @@ export function StudioDesktopPanel() {
   const [status, setStatus] = useState<PrereqStatus | null>(null);
   const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"ok" | "error" | "busy" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [setupRunning, setSetupRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const staticInfoRef = useRef<Pick<PrereqStatus, "blender" | "docker" | "repo_root" | "comfy_root"> | null>(
     null,
@@ -146,8 +148,30 @@ export function StudioDesktopPanel() {
     try {
       await invoke("save_settings", { settings: next });
       setMessage("Settings saved.");
+      setMessageTone("ok");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
+      setMessageTone("error");
+    }
+  }
+
+  async function runSetup() {
+    setSetupRunning(true);
+    setBusy(true);
+    setMessage("Running setup… installing immersive-studio (may take 1–3 minutes).");
+    setMessageTone("busy");
+    try {
+      const text = await invoke<string>("run_worker_setup");
+      setMessage(text);
+      setMessageTone("ok");
+      await loadStaticInfo();
+      await refreshHealth(false);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+      setMessageTone("error");
+    } finally {
+      setSetupRunning(false);
+      setBusy(false);
     }
   }
 
@@ -206,16 +230,10 @@ export function StudioDesktopPanel() {
         <button
           type="button"
           className="studio-retry"
-          disabled={busy}
-          onClick={() => {
-            void invoke<string>("run_worker_setup")
-              .then((text) => setMessage(text))
-              .catch((err) => {
-                setMessage(err instanceof Error ? err.message : String(err));
-              });
-          }}
+          disabled={busy || setupRunning}
+          onClick={() => void runSetup()}
         >
-          Run setup
+          {setupRunning ? "Running setup…" : "Run setup"}
         </button>
         <button
           type="button"
@@ -279,7 +297,19 @@ export function StudioDesktopPanel() {
         </button>
       </div>
       {message ? (
-        <p className="studio-desktop-panel-message" role="status">
+        <p
+          className={`studio-desktop-panel-message${
+            messageTone === "ok"
+              ? " studio-desktop-panel-message--ok"
+              : messageTone === "error"
+                ? " studio-desktop-panel-message--error"
+                : messageTone === "busy"
+                  ? " studio-desktop-panel-message--busy"
+                  : ""
+          }`}
+          role="status"
+          aria-live="polite"
+        >
           {message}
         </p>
       ) : null}
