@@ -6,6 +6,12 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## [0.1.17] — 2026-07-07
+
+### Fixed
+
+- **`worker_version` in `/api/studio/health`** now reads the installed `immersive-studio` package version instead of a stale hardcoded string in `studio_worker.__init__.py`.
+
 ## [0.1.16] — 2026-07-07
 
 ### Added

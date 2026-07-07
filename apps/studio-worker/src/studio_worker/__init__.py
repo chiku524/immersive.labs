@@ -1,3 +1,13 @@
 """Immersive Labs Video Game Generation Studio worker."""
 
-__version__ = "0.1.14"
+from importlib.metadata import PackageNotFoundError, version
+
+
+def _read_version() -> str:
+    try:
+        return version("immersive-studio")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+__version__ = _read_version()
