@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 /** Keep in sync with `STUDIO_DESKTOP_RELEASE_TAG` in studioDesktopDownload.ts */
-const DESKTOP_RELEASE_TAG = "studio-desktop-v0.1.1";
+const DESKTOP_RELEASE_TAG = "studio-desktop-v0.1.7";
 
 export default defineConfig({
   plugins: [react()],
