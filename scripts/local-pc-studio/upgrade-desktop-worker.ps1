@@ -29,9 +29,9 @@ function Import-DotEnvFile([string]$Path) {
   }
 }
 
-Write-Host "Upgrading immersive-studio in desktop venv ..."
+Write-Host "Upgrading immersive-studio from PyPI ..."
 & $VenvPy -m pip install -q -U pip
-& $VenvPy -m pip install -q -e "$RepoRoot\apps\studio-worker[dev]"
+& $VenvPy -m pip install -q -U "immersive-studio[dev]"
 
 $conn = Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($conn) {

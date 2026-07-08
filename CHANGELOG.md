@@ -6,6 +6,13 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
+## Desktop app [0.1.10] — 2026-07-08
+
+### Added
+
+- **Upgrade worker** button in the Desktop panel — `pip install -U immersive-studio` from PyPI, restarts the local API, and **preserves** `worker.env` (unlike Run setup).
+- Worker version label in the Desktop panel (installed vs running API version).
+
 ## [0.1.19] — 2026-07-07
 
 ### Changed

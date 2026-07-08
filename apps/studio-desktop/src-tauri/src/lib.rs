@@ -1,9 +1,9 @@
 mod app_state;
 
 use app_state::{
-    check_prerequisites, check_services, get_settings, open_jobs_folder, open_studio, run_autostart,
+    check_prerequisites, check_services, get_settings, get_worker_versions, open_jobs_folder, open_studio, run_autostart,
     run_worker_setup, save_job_pack_zip, save_settings,
-    show_window, start_comfy, start_worker, stop_comfy, stop_worker, AppState, DesktopSettings,
+    show_window, start_comfy, start_worker, stop_comfy, stop_worker, upgrade_worker, AppState, DesktopSettings,
     stop_all_internal,
 };
 use tauri::{
@@ -68,8 +68,10 @@ pub fn run() {
             open_jobs_folder,
     open_studio,
     show_window,
-    run_worker_setup,
-    save_job_pack_zip,
+            run_worker_setup,
+            upgrade_worker,
+            get_worker_versions,
+            save_job_pack_zip,
     close_splash_and_show_main,
             get_app_version,
         ])

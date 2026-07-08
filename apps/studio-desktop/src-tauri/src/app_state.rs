@@ -111,6 +111,121 @@ fn desktop_worker_package_version() -> Option<String> {
     }
 }
 
+const WORKER_PYPI_SPEC: &str = "immersive-studio[dev]";
+
+fn fetch_running_worker_version() -> Option<String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .ok()?;
+    let response = client
+        .get("http://127.0.0.1:8787/api/studio/health")
+        .send()
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let text = response.text().ok()?;
+    let body: serde_json::Value = serde_json::from_str(&text).ok()?;
+    body.get("worker_version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+fn stop_listeners_on_port_8787() {
+    #[cfg(windows)]
+    {
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-Command",
+            "Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }",
+        ]);
+        hide_console(&mut cmd);
+        let _ = cmd.status();
+    }
+}
+
+fn pip_upgrade_package(py: &Path, args: &[&str]) -> Result<(), String> {
+    let mut cmd = Command::new(py);
+    cmd.args(args);
+    hide_console(&mut cmd);
+    let output = cmd
+        .output()
+        .map_err(|err| format!("Failed to run {}: {err}", py.display()))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Err(format!(
+        "pip {} failed (exit {}).\n{}\n{}",
+        args.join(" "),
+        output.status,
+        stdout.trim(),
+        stderr.trim()
+    ))
+}
+
+#[derive(Serialize)]
+pub struct WorkerVersionInfo {
+    pub installed_version: Option<String>,
+    pub running_version: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_worker_versions() -> WorkerVersionInfo {
+    WorkerVersionInfo {
+        installed_version: desktop_worker_package_version(),
+        running_version: fetch_running_worker_version(),
+    }
+}
+
+fn upgrade_worker_sync(state: &AppState) -> Result<String, String> {
+    let py = desktop_worker_python();
+    if !py.is_file() {
+        return Err("Desktop worker venv missing. Click Run setup first.".into());
+    }
+
+    let before = desktop_worker_package_version();
+    stop_worker_internal(state)?;
+    stop_listeners_on_port_8787();
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    append_worker_log("--- worker upgrade started (PyPI) ---");
+    pip_upgrade_package(&py, &["-m", "pip", "install", "-q", "-U", "pip"])?;
+    pip_upgrade_package(
+        &py,
+        &["-m", "pip", "install", "-q", "-U", WORKER_PYPI_SPEC],
+    )?;
+
+    let installed = desktop_worker_package_version().unwrap_or_else(|| "unknown".into());
+    append_worker_log(&format!("--- worker upgrade finished ({installed}) ---"));
+
+    start_worker_internal(state)?;
+
+    let mut running: Option<String> = None;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if let Some(version) = fetch_running_worker_version() {
+            running = Some(version);
+            break;
+        }
+    }
+
+    let before_label = before.unwrap_or_else(|| "none".into());
+    let running_label = running.unwrap_or_else(|| "starting…".into());
+    Ok(format!(
+        "Worker upgraded: {before_label} → immersive-studio {installed} (API reports {running_label}). \
+         worker.env was preserved — click Refresh if the API pill is still gray."
+    ))
+}
+
+#[tauri::command]
+pub fn upgrade_worker(state: State<AppState>) -> Result<String, String> {
+    upgrade_worker_sync(&state)
+}
+
 fn tail_log_lines(path: &Path, max_lines: usize) -> String {
     let Ok(raw) = std::fs::read_to_string(path) else {
         return String::new();

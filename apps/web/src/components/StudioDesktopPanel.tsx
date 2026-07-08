@@ -23,6 +23,11 @@ type DesktopSettings = {
   openStudioWhenReady: boolean;
 };
 
+type WorkerVersionInfo = {
+  installed_version: string | null;
+  running_version: string | null;
+};
+
 export { isTauriRuntime };
 
 const HEALTH_POLL_MS = 60_000;
@@ -34,10 +39,24 @@ export function StudioDesktopPanel() {
   const [messageTone, setMessageTone] = useState<"ok" | "error" | "busy" | null>(null);
   const [busy, setBusy] = useState(false);
   const [setupRunning, setSetupRunning] = useState(false);
+  const [upgradeRunning, setUpgradeRunning] = useState(false);
+  const [workerVersions, setWorkerVersions] = useState<WorkerVersionInfo | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const staticInfoRef = useRef<Pick<PrereqStatus, "blender" | "docker" | "repo_root" | "comfy_root"> | null>(
     null,
   );
+
+  const loadWorkerVersions = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    try {
+      const next = await invoke<WorkerVersionInfo>("get_worker_versions");
+      setWorkerVersions(next);
+    } catch {
+      setWorkerVersions(null);
+    }
+  }, []);
 
   const loadStaticInfo = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -87,8 +106,9 @@ export function StudioDesktopPanel() {
       if (showBusy) {
         setBusy(false);
       }
+      void loadWorkerVersions();
     }
-  }, []);
+  }, [loadWorkerVersions]);
 
   const refresh = useCallback(async () => {
     await loadStaticInfo();
@@ -110,6 +130,7 @@ export function StudioDesktopPanel() {
   useEffect(() => {
     void loadStaticInfo();
     void loadSettings();
+    void loadWorkerVersions();
     void refreshHealth(false);
 
     const onVisibility = () => {
@@ -129,7 +150,7 @@ export function StudioDesktopPanel() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(timer);
     };
-  }, [loadStaticInfo, loadSettings, refreshHealth]);
+  }, [loadStaticInfo, loadSettings, loadWorkerVersions, refreshHealth]);
 
   if (!isTauriRuntime()) {
     return null;
@@ -166,6 +187,7 @@ export function StudioDesktopPanel() {
       setMessageTone("ok");
       await loadStaticInfo();
       await refreshHealth(false);
+      await loadWorkerVersions();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
       setMessageTone("error");
@@ -175,11 +197,51 @@ export function StudioDesktopPanel() {
     }
   }
 
+  async function runUpgrade() {
+    setUpgradeRunning(true);
+    setBusy(true);
+    setMessage("Upgrading worker from PyPI… (preserves worker.env; may take 1–2 minutes).");
+    setMessageTone("busy");
+    try {
+      const text = await invoke<string>("upgrade_worker");
+      setMessage(text);
+      setMessageTone("ok");
+      await refreshHealth(false);
+      await loadWorkerVersions();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+      setMessageTone("error");
+    } finally {
+      setUpgradeRunning(false);
+      setBusy(false);
+    }
+  }
+
+  const workerVersionLabel = (() => {
+    const installed = workerVersions?.installed_version;
+    const running = workerVersions?.running_version;
+    if (!installed && !running) {
+      return null;
+    }
+    if (installed && running) {
+      return running === installed
+        ? `Worker v${running}`
+        : `Worker v${installed} installed · API v${running}`;
+    }
+    if (running) {
+      return `API v${running}`;
+    }
+    return installed ? `Worker v${installed} (API stopped)` : null;
+  })();
+
   return (
     <section className="studio-desktop-panel" aria-label="Desktop controls">
       <div className="studio-desktop-panel-head">
         <strong>Desktop</strong>
-        <span className="studio-desktop-panel-sub">Local worker controls</span>
+        <span className="studio-desktop-panel-sub">
+          Local worker controls
+          {workerVersionLabel ? ` · ${workerVersionLabel}` : ""}
+        </span>
         <button
           type="button"
           className="studio-desktop-settings-toggle"
@@ -226,6 +288,15 @@ export function StudioDesktopPanel() {
       <div className="studio-desktop-panel-actions">
         <button type="button" className="studio-retry" disabled={busy} onClick={() => void refresh()}>
           Refresh
+        </button>
+        <button
+          type="button"
+          className="studio-retry"
+          disabled={busy || upgradeRunning}
+          title="Install the latest immersive-studio from PyPI and restart the API. Preserves worker.env (Tripo key, Blender path, etc.)."
+          onClick={() => void runUpgrade()}
+        >
+          {upgradeRunning ? "Upgrading…" : "Upgrade worker"}
         </button>
         <button
           type="button"
