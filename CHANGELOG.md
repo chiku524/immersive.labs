@@ -6,11 +6,18 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 _No changes yet._
 
-## Desktop app [0.1.8] — 2026-07-07
+## [0.1.19] — 2026-07-07
 
-### Fixed
+### Changed
 
-- **Run setup** now waits for the worker install to finish, shows progress on the button, and displays a clear success message with the installed `immersive-studio` version (or errors with log path).
+- **Removed category and style preset from Studio UI and API** — users submit one detailed creative brief; the worker infers category internally and pins `generation.source_prompt` to the exact user text for Tripo text-to-3D.
+- CLI `generate-spec` and `run-job` no longer accept `--category` or `--style-preset`.
+
+## Desktop app [0.1.9] — 2026-07-07
+
+### Changed
+
+- Studio form drops **Category** and **Style preset** dropdowns; prompts go directly to Tripo with full user detail (same web UI embedded in the desktop shell).
 
 ## [0.1.18] — 2026-07-07
 

@@ -28,8 +28,6 @@ def execute_queued_payload(payload: dict[str, Any]) -> dict[str, Any]:
         )
     return run_studio_job(
         user_prompt=str(p["user_prompt"]),
-        category=str(p.get("category", "prop")),
-        style_preset=str(p.get("style_preset", "toon_bold")),
         use_mock=effective_use_mock(bool(p.get("mock", False))),
         generate_textures=bool(p.get("generate_textures", False)),
         unity_urp_hint=str(

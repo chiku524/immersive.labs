@@ -1,5 +1,5 @@
 /** GitHub Release tag for Immersive Studio desktop installers. */
-export const STUDIO_DESKTOP_RELEASE_TAG = "studio-desktop-v0.1.7";
+export const STUDIO_DESKTOP_RELEASE_TAG = "studio-desktop-v0.1.9";
 
 export const STUDIO_DESKTOP_VERSION = "0.1.7";
 

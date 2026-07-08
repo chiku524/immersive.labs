@@ -14,9 +14,7 @@ Example::
     from immersive_studio import run_studio_job, __version__
 
     result = run_studio_job(
-        user_prompt="wooden barrel",
-        category="prop",
-        style_preset="toon_bold",
+        user_prompt="wooden barrel with iron bands, game-ready low poly",
         use_mock=True,
         generate_textures=False,
         unity_urp_hint="6000.0.x LTS (pin when smoke-tested)",

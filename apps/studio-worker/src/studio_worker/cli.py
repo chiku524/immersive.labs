@@ -56,8 +56,6 @@ def _cmd_generate_spec(args: argparse.Namespace) -> int:
     try:
         spec, meta = generate_asset_spec_with_metadata(
             user_prompt=args.prompt,
-            category=args.category,
-            style_preset=args.style_preset,
             use_mock=args.mock,
         )
     except ValueError as e:
@@ -122,8 +120,6 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
     try:
         result = run_studio_job(
             user_prompt=args.prompt,
-            category=args.category,
-            style_preset=args.style_preset,
             use_mock=effective_use_mock(args.mock),
             generate_textures=args.textures,
             unity_urp_hint=args.unity_urp,
@@ -409,16 +405,6 @@ def main() -> None:
 
     g = sub.add_parser("generate-spec", help="Natural language → validated StudioAssetSpec JSON")
     g.add_argument("--prompt", required=True, help="Creative brief")
-    g.add_argument(
-        "--category",
-        default="prop",
-        choices=["prop", "environment_piece", "character_base", "material_library"],
-    )
-    g.add_argument(
-        "--style-preset",
-        default="toon_bold",
-        choices=["realistic_hd_pbr", "anime_stylized", "toon_bold"],
-    )
     g.add_argument("--mock", action="store_true", help="Deterministic spec without Ollama")
     g.add_argument("--out", help="Write JSON file (spec + meta); default: stdout spec only")
     g.set_defaults(func=_cmd_generate_spec)
@@ -502,16 +488,6 @@ def main() -> None:
 
     j = sub.add_parser("run-job", help="Generate spec, write pack under output/jobs, optional ComfyUI textures, zip")
     j.add_argument("--prompt", required=True)
-    j.add_argument(
-        "--category",
-        default="prop",
-        choices=["prop", "environment_piece", "character_base", "material_library"],
-    )
-    j.add_argument(
-        "--style-preset",
-        default="toon_bold",
-        choices=["realistic_hd_pbr", "anime_stylized", "toon_bold"],
-    )
     j.add_argument("--mock", action="store_true")
     j.add_argument("--textures", action="store_true", help="Run ComfyUI albedo passes (requires ComfyUI)")
     j.add_argument(

@@ -240,15 +240,11 @@ def favicon() -> Response:
     return Response(status_code=204)
 
 
-Category = Literal["prop", "environment_piece", "character_base", "material_library"]
-StylePreset = Literal["realistic_hd_pbr", "anime_stylized", "toon_bold"]
 EngineTarget = Literal["unity", "unreal", "godot"]
 
 
 class GenerateSpecRequest(BaseModel):
     prompt: str = Field(min_length=1)
-    category: Category = "prop"
-    style_preset: StylePreset = "toon_bold"
     mock: bool = False
 
 
@@ -367,8 +363,6 @@ def post_generate_spec(
     try:
         spec, meta = generate_asset_spec_with_metadata(
             user_prompt=body.prompt,
-            category=body.category,
-            style_preset=body.style_preset,
             use_mock=body.mock,
         )
     except ValueError as e:
@@ -420,8 +414,6 @@ def post_pack(
 
 class RunJobRequest(BaseModel):
     prompt: str = Field(min_length=1)
-    category: Category = "prop"
-    style_preset: StylePreset = "toon_bold"
     mock: bool = False
     generate_textures: bool = False
     export_mesh: bool = False
@@ -443,8 +435,6 @@ class RunJobResponse(BaseModel):
 
 class EnqueueJobRequest(BaseModel):
     prompt: str = Field(min_length=1)
-    category: Category = "prop"
-    style_preset: StylePreset = "toon_bold"
     mock: bool = False
     generate_textures: bool = False
     export_mesh: bool = False
@@ -502,8 +492,6 @@ def post_enqueue_job(
 
     payload: dict[str, Any] = {
         "user_prompt": body.prompt,
-        "category": body.category,
-        "style_preset": body.style_preset,
         "mock": body.mock,
         "generate_textures": body.generate_textures,
         "export_mesh": body.export_mesh,
@@ -660,8 +648,6 @@ def post_run_job(
     try:
         result = run_studio_job(
             user_prompt=body.prompt,
-            category=body.category,
-            style_preset=body.style_preset,
             use_mock=effective_use_mock(body.mock),
             generate_textures=body.generate_textures,
             unity_urp_hint=body.unity_urp_hint,

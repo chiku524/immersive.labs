@@ -32,8 +32,6 @@ _log = logging.getLogger("studio.job")
 def run_studio_job(
     *,
     user_prompt: str,
-    category: str,
-    style_preset: str,
     use_mock: bool,
     generate_textures: bool,
     unity_urp_hint: str,
@@ -102,8 +100,6 @@ def run_studio_job(
         try:
             spec, meta = generate_asset_spec_with_metadata(
                 user_prompt=user_prompt,
-                category=category,
-                style_preset=style_preset,
                 use_mock=use_mock,
             )
         except Exception as e:

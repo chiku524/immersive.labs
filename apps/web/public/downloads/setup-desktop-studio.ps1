@@ -37,7 +37,7 @@ if (-not (Test-Path $venvPy)) {
 
 Write-Host "Installing immersive-studio from PyPI ..."
 & $venvPy -m pip install -q -U pip
-& $venvPy -m pip install -q -U "immersive-studio[dev]>=0.1.18"
+& $venvPy -m pip install -q -U "immersive-studio[dev]>=0.1.19"
 
 $blenderBin = $env:STUDIO_BLENDER_BIN
 if (-not $blenderBin) {

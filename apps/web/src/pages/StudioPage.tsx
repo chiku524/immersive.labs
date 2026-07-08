@@ -91,8 +91,6 @@ function isGatewayDetailMessage(msg: string): boolean {
   );
 }
 
-type StudioCategory = "prop" | "environment_piece" | "character_base" | "material_library";
-type StudioStyle = "realistic_hd_pbr" | "anime_stylized" | "toon_bold";
 type StudioEngineTarget = "unity" | "unreal" | "godot";
 
 /** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
@@ -674,8 +672,6 @@ export function StudioPage() {
     }
     return readStoredJobResult()?.prompt ?? "";
   });
-  const [category, setCategory] = useState<StudioCategory>("prop");
-  const [stylePreset, setStylePreset] = useState<StudioStyle>("toon_bold");
   const [mock, setMock] = useState(false);
   const [generateTextures, setGenerateTextures] = useState(storedJobOpts.generateTextures);
   const [exportMesh, setExportMesh] = useState(storedJobOpts.exportMesh);
@@ -1180,8 +1176,6 @@ export function StudioPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           prompt,
-          category,
-          style_preset: stylePreset,
           mock,
         }),
       });
@@ -1268,8 +1262,6 @@ export function StudioPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           prompt,
-          category,
-          style_preset: stylePreset,
           mock,
           generate_textures: generateTextures,
           export_mesh: exportMesh,
@@ -1706,38 +1698,10 @@ export function StudioPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={4}
-                placeholder="e.g. Wooden crate with iron bands, slightly worn…"
+                placeholder="Describe the 3D asset in detail — style, materials, scale, and context (sent to Tripo text-to-3D)…"
                 required
               />
             </label>
-
-            <div className="studio-row">
-              <label className="studio-label">
-                Category
-                <select
-                  className="studio-input"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as StudioCategory)}
-                >
-                  <option value="prop">prop</option>
-                  <option value="environment_piece">environment_piece</option>
-                  <option value="character_base">character_base</option>
-                  <option value="material_library">material_library</option>
-                </select>
-              </label>
-              <label className="studio-label">
-                Style preset
-                <select
-                  className="studio-input"
-                  value={stylePreset}
-                  onChange={(e) => setStylePreset(e.target.value as StudioStyle)}
-                >
-                  <option value="toon_bold">toon_bold</option>
-                  <option value="anime_stylized">anime_stylized</option>
-                  <option value="realistic_hd_pbr">realistic_hd_pbr</option>
-                </select>
-              </label>
-            </div>
 
             <div className="studio-label" role="group" aria-label="Import target engine">
               <span>Import target (pack.zip)</span>
