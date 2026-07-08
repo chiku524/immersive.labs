@@ -46,11 +46,19 @@ export function useDesktopUpdater(updateContext: UpdaterContext) {
         const message = err instanceof Error ? err.message : String(err);
         const isReleaseJsonError = /release\s*json|valid\s*release|could\s*not\s*fetch/i.test(message);
         const isAclDenied = /not allowed by ACL|plugin:updater\|check/i.test(message);
+        const isPlatformMissing = /fallback platforms|platforms object/i.test(message);
         if (isReleaseJsonError || isAclDenied) {
           if (import.meta.env.DEV) {
             console.debug("[Immersive Studio updater] Skipping update UI:", message);
           }
           setPhaseFn("idle");
+          return;
+        }
+        if (isPlatformMissing) {
+          setPhaseFn(
+            "error",
+            "Update manifest is not ready yet (missing Windows bundle). Wait a few minutes after a desktop release, or download the installer from GitHub Releases.",
+          );
           return;
         }
         setPhaseFn("error", message);

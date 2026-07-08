@@ -13,6 +13,10 @@ _No changes yet._
 - **Upgrade worker** button in the Desktop panel — `pip install -U immersive-studio` from PyPI, restarts the local API, and **preserves** `worker.env` (unlike Run setup).
 - Worker version label in the Desktop panel (installed vs running API version).
 
+### Fixed
+
+- **Auto-update manifest** — `latest.json` now includes `windows-x86_64-nsis` (Tauri 2 primary key) plus `windows-x86_64`; CI no longer marks a release as GitHub Latest until `latest.json` is uploaded with signed bundles.
+
 ## [0.1.19] — 2026-07-07
 
 ### Changed

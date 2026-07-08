@@ -47,7 +47,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": "v1Compatible",
+    "createUpdaterArtifacts": true,
     "resources": [
       "resources/setup-desktop-studio.ps1",
       "resources/comfy_silent_launcher.py"

@@ -31,9 +31,9 @@ jobs:
           name: Immersive Studio ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
-          # Desktop releases own the repo "latest" pointer so the Tauri updater endpoint
-          # (/releases/latest/download/latest.json) never resolves to an assetless PyPI release.
-          make_latest: true
+          # Do not mark latest here — wait until update-manifest uploads latest.json with
+          # signed platform bundles (avoids updater 404 / empty platforms during CI build).
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -120,9 +120,22 @@ jobs:
 
       - name: Generate latest.json for Tauri updater
         run: |
-          node scripts/studio-desktop/generate-update-manifest.js "${{ github.ref_name }}" "${{ github.repository }}" --out=latest.json
+          node scripts/studio-desktop/generate-update-manifest.js "${{ github.ref_name }}" "${{ github.repository }}" --strict --out=latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Windows updater platform in latest.json
+        run: |
+          node -e "
+          const m = require('./latest.json');
+          const keys = Object.keys(m.platforms || {});
+          const win = keys.some(k => k.startsWith('windows-x86_64'));
+          if (!win) {
+            console.error('latest.json missing windows-x86_64* platform keys:', keys);
+            process.exit(1);
+          }
+          console.log('Updater platforms OK:', keys.join(', '));
+          "
 
       - name: Upload latest.json to release
         uses: softprops/action-gh-release@v2
