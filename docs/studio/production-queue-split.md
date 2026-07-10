@@ -1,6 +1,6 @@
 # Production: split API and queue worker
 
-By default the Docker image sets **`STUDIO_EMBEDDED_QUEUE_WORKER=1`**, so the FastAPI process runs a background thread that executes **`run_worker_loop`** against SQLite. That is simple for a single container but means **long Ollama / Comfy / Blender work shares the same process** that serves **`/api/studio/health`**, **`/dashboard`**, and tunnel keep-alives — a common contributor to **502 HTML** from the origin under load.
+By default the Docker image still *allows* **`STUDIO_EMBEDDED_QUEUE_WORKER=1`**, but **`apps/studio-worker/docker-compose.yml`** and desktop setup now default to **`0`** with a separate **`queue-worker`** process. Embedded mode is simple for a single container but means **long Ollama / Comfy / Blender work shares the same process** that serves **`/api/studio/health`**, **`/dashboard`**, and tunnel keep-alives — a common contributor to **502 HTML** from the origin under load.
 
 ## Recommended split (one VM, two containers)
 

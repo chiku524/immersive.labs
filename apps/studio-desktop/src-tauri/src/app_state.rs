@@ -87,18 +87,42 @@ fn desktop_worker_python() -> PathBuf {
     }
 }
 
-fn desktop_worker_package_version() -> Option<String> {
+fn worker_installed_version_path() -> PathBuf {
+    desktop_data_dir().join("worker-installed-version.txt")
+}
+
+fn write_worker_installed_version(version: &str) {
+    let path = worker_installed_version_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(path, format!("{}\n", version.trim()));
+}
+
+fn read_cached_worker_installed_version() -> Option<String> {
+    let raw = std::fs::read_to_string(worker_installed_version_path()).ok()?;
+    let trimmed = raw.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn probe_worker_package_version() -> Option<String> {
     let py = desktop_worker_python();
     if !py.exists() {
         return None;
     }
-    let output = Command::new(&py)
-        .args([
-            "-c",
-            "import importlib.metadata as m; print(m.version('immersive-studio'))",
-        ])
-        .output()
-        .ok()?;
+    // Must use python.exe (not pythonw) so stdout is captured, but always hide the
+    // console — this used to flash a terminal on Windows when polled from the UI.
+    let mut cmd = Command::new(&py);
+    cmd.args([
+        "-c",
+        "import importlib.metadata as m; print(m.version('immersive-studio'))",
+    ]);
+    hide_console(&mut cmd);
+    let output = cmd.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -108,6 +132,32 @@ fn desktop_worker_package_version() -> Option<String> {
         None
     } else {
         Some(trimmed)
+    }
+}
+
+fn desktop_worker_package_version() -> Option<String> {
+    if let Some(cached) = read_cached_worker_installed_version() {
+        return Some(cached);
+    }
+    let probed = probe_worker_package_version()?;
+    write_worker_installed_version(&probed);
+    Some(probed)
+}
+
+fn refresh_worker_installed_version_cache() -> Option<String> {
+    let probed = probe_worker_package_version()?;
+    write_worker_installed_version(&probed);
+    Some(probed)
+}
+
+fn embedded_queue_worker_enabled() -> bool {
+    match read_env_value("STUDIO_EMBEDDED_QUEUE_WORKER") {
+        Some(v) => {
+            let t = v.trim().to_lowercase();
+            !matches!(t.as_str(), "0" | "false" | "no" | "off")
+        }
+        // Match worker scale_config: unset defaults to embedded for sqlite.
+        None => true,
     }
 }
 
@@ -199,7 +249,7 @@ fn upgrade_worker_sync(state: &AppState) -> Result<String, String> {
         &["-m", "pip", "install", "-q", "-U", WORKER_PYPI_SPEC],
     )?;
 
-    let installed = desktop_worker_package_version().unwrap_or_else(|| "unknown".into());
+    let installed = refresh_worker_installed_version_cache().unwrap_or_else(|| "unknown".into());
     append_worker_log(&format!("--- worker upgrade finished ({installed}) ---"));
 
     start_worker_internal(state)?;
@@ -269,6 +319,8 @@ impl Default for DesktopSettings {
 
 pub struct AppState {
     pub worker: Mutex<Option<Child>>,
+    /// Separate `immersive-studio queue-worker` when `STUDIO_EMBEDDED_QUEUE_WORKER=0`.
+    pub queue_worker: Mutex<Option<Child>>,
     pub comfy: Mutex<Option<Child>>,
     pub settings: Mutex<DesktopSettings>,
 }
@@ -650,7 +702,17 @@ pub fn check_prerequisites_snapshot() -> PrereqStatus {
 
 pub fn start_worker_internal(state: &AppState) -> Result<String, String> {
     if http_check("http://127.0.0.1:8787/api/studio/health").ok {
-        return Ok("Studio API already running at http://127.0.0.1:8787".into());
+        let mut msg = "Studio API already running at http://127.0.0.1:8787".to_string();
+        if !embedded_queue_worker_enabled() {
+            match start_queue_worker_internal(state) {
+                Ok(qmsg) => msg = format!("{msg}. {qmsg}"),
+                Err(err) => {
+                    append_worker_log(&format!("queue-worker spawn failed: {err}"));
+                    msg = format!("{msg}. Warning: queue-worker failed to start ({err}).");
+                }
+            }
+        }
+        return Ok(msg);
     }
 
     let mut guard = state.worker.lock().map_err(|err| err.to_string())?;
@@ -700,10 +762,95 @@ pub fn start_worker_internal(state: &AppState) -> Result<String, String> {
     })?;
 
     *guard = Some(child);
-    Ok("Starting Studio API on http://127.0.0.1:8787 (wait a few seconds, then refresh).".into())
+    drop(guard);
+
+    let mut msg =
+        "Starting Studio API on http://127.0.0.1:8787 (wait a few seconds, then refresh).".to_string();
+    if !embedded_queue_worker_enabled() {
+        match start_queue_worker_internal(state) {
+            Ok(qmsg) => msg = format!("{msg} {qmsg}"),
+            Err(err) => {
+                append_worker_log(&format!("queue-worker spawn failed: {err}"));
+                msg = format!(
+                    "{msg} Warning: queue-worker failed to start ({err}). Jobs may stay pending until you fix worker.env / re-run setup."
+                );
+            }
+        }
+    } else {
+        let _ = stop_queue_worker_internal(state);
+    }
+    Ok(msg)
+}
+
+fn queue_worker_log_path() -> PathBuf {
+    desktop_data_dir().join("queue-worker.log")
+}
+
+fn start_queue_worker_internal(state: &AppState) -> Result<String, String> {
+    let mut guard = state.queue_worker.lock().map_err(|err| err.to_string())?;
+    if let Some(child) = guard.as_mut() {
+        if child.try_wait().ok().flatten().is_none() {
+            return Ok("Queue worker already running.".into());
+        }
+        *guard = None;
+    }
+
+    let root = repo_root();
+    let python = python_launcher(&python_exe(&root));
+    let mut cmd = Command::new(&python);
+    cmd.args([
+        "-m",
+        "studio_worker.cli",
+        "queue-worker",
+        "--worker-id",
+        "desktop-q",
+    ])
+    .current_dir(&root);
+    hide_console(&mut cmd);
+    cmd.stdout(Stdio::null());
+    if let Ok(log) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(queue_worker_log_path())
+    {
+        cmd.stderr(Stdio::from(log));
+    } else {
+        cmd.stderr(Stdio::null());
+    }
+    apply_env_local(&mut cmd, &root);
+    // Ensure the separate process does not also embed a consumer.
+    cmd.env("STUDIO_EMBEDDED_QUEUE_WORKER", "0");
+
+    append_worker_log(&format!(
+        "--- spawn queue-worker via {} (cwd {}) ---",
+        python.display(),
+        root.display()
+    ));
+
+    let child = cmd.spawn().map_err(|err| {
+        let msg = format!(
+            "Failed to start queue-worker with {}: {err}. See {}.",
+            python.display(),
+            queue_worker_log_path().display()
+        );
+        append_worker_log(&msg);
+        msg
+    })?;
+
+    *guard = Some(child);
+    Ok("Queue worker started (STUDIO_EMBEDDED_QUEUE_WORKER=0).".into())
+}
+
+fn stop_queue_worker_internal(state: &AppState) -> Result<(), String> {
+    let mut guard = state.queue_worker.lock().map_err(|err| err.to_string())?;
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+    }
+    Ok(())
 }
 
 pub fn stop_worker_internal(state: &AppState) -> Result<(), String> {
+    let _ = stop_queue_worker_internal(state);
     let mut guard = state.worker.lock().map_err(|err| err.to_string())?;
     if let Some(mut child) = guard.take() {
         child.kill().map_err(|err| err.to_string())?;
@@ -995,7 +1142,7 @@ fn run_worker_setup_sync(app: &AppHandle) -> Result<String, String> {
         }
 
         append_worker_log("--- worker setup finished ---");
-        let version = desktop_worker_package_version().unwrap_or_else(|| "unknown".into());
+        let version = refresh_worker_installed_version_cache().unwrap_or_else(|| "unknown".into());
         Ok(format!(
             "Setup complete — immersive-studio {version} installed in the desktop worker venv. \
              Config: {} — click Start API (add STUDIO_TRIPO_API_KEY to worker.env for Tripo meshes).",

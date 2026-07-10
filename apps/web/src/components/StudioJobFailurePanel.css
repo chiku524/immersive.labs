@@ -1,0 +1,75 @@
+.studio-job-failure {
+  margin: 1.25rem 0 0;
+  padding: 1rem 1.1rem 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--studio-danger, #b42318) 55%, transparent);
+  background: color-mix(in srgb, var(--studio-danger, #b42318) 8%, transparent);
+  border-radius: 2px;
+}
+
+.studio-job-failure--gateway {
+  border-color: color-mix(in srgb, #b54708 50%, transparent);
+  background: color-mix(in srgb, #b54708 8%, transparent);
+}
+
+.studio-job-failure--json,
+.studio-job-failure--tripo,
+.studio-job-failure--timeout,
+.studio-job-failure--auth {
+  border-color: color-mix(in srgb, var(--studio-danger, #b42318) 55%, transparent);
+}
+
+.studio-job-failure-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.studio-job-failure-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.studio-job-failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.studio-job-failure-btn {
+  min-height: 2rem;
+  padding-inline: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.studio-job-failure-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.studio-job-failure-label {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.studio-job-failure-text {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: color-mix(in srgb, #000 6%, transparent);
+  border-radius: 2px;
+}

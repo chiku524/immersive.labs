@@ -176,11 +176,17 @@ async function proxyToOrigin(request: Request, env: Env): Promise<Response> {
 }
 
 /** Transient tunnel / origin errors often return 5xx HTML; retry idempotent studio GETs briefly. */
+function isQueueJobEventsPath(pathname: string): boolean {
+  return /^\/api\/studio\/queue\/jobs\/[^/]+\/events\/?$/.test(pathname);
+}
+
 async function proxyToOriginWithRetry(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  // Do not retry SSE streams — reconnecting mid-body confuses clients; UI reconnects once then polls.
   const canRetry =
     (request.method === "GET" || request.method === "HEAD") &&
-    url.pathname.startsWith("/api/studio/");
+    url.pathname.startsWith("/api/studio/") &&
+    !isQueueJobEventsPath(url.pathname);
   // Under load (LLM + Comfy on one VM), tunnel/origin often returns transient 5xx; a few more
   // attempts with slightly longer gaps helps /studio polling (usage, jobs, billing) recover.
   const maxAttempts = canRetry ? 5 : 1;
@@ -202,6 +208,7 @@ async function proxyToOriginWithRetry(request: Request, env: Env): Promise<Respo
 /**
  * Cloudflare / tunnel often answer 5xx with an HTML error page. The /studio UI expects JSON;
  * rewrite so readApiJson shows a structured detail instead of "Unexpected token '<'".
+ * Skip SSE event streams — coercing would destroy text/event-stream bodies.
  */
 async function coerceJsonForStudioApiHtmlErrors(
   request: Request,
@@ -211,6 +218,16 @@ async function coerceJsonForStudioApiHtmlErrors(
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/studio/")) {
     return proxied;
+  }
+  if (isQueueJobEventsPath(url.pathname)) {
+    const headers = new Headers(proxied.headers);
+    headers.set("Cache-Control", "no-cache");
+    headers.set("X-Accel-Buffering", "no");
+    return new Response(proxied.body, {
+      status: proxied.status,
+      statusText: proxied.statusText,
+      headers,
+    });
   }
   if (proxied.status < 500 || proxied.status > 599) {
     return proxied;

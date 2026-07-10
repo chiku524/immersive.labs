@@ -2,6 +2,8 @@
 
 Cloudflare **Worker** that **reverse-proxies** to the Python **studio worker** (`apps/studio-worker`) and optionally caches **`GET /api/studio/health`** in **KV**.
 
+Queue job **SSE** (`GET /api/studio/queue/jobs/{id}/events`) is passed through without GET retries or HTML→JSON coercion so `text/event-stream` bodies stay intact. The Studio UI reconnects once, then falls back to polling.
+
 This does **not** replace the Python API — it sits in front of it when you wire DNS/routes in Cloudflare.
 
 ## Prerequisites

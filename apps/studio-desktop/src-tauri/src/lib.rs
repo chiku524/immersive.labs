@@ -53,6 +53,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(AppState {
             worker: std::sync::Mutex::new(None),
+            queue_worker: std::sync::Mutex::new(None),
             comfy: std::sync::Mutex::new(None),
             settings: std::sync::Mutex::new(DesktopSettings::default()),
         })

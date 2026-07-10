@@ -563,11 +563,12 @@ def _queue_job_sse_max_duration_s() -> float:
     """Wall-clock cap for one SSE connection (avoids unbounded origin streams). Configurable via env."""
     raw = os.environ.get("STUDIO_QUEUE_SSE_MAX_DURATION_S", "").strip()
     if not raw:
-        return float(46 * 60)
+        # Align with Studio UI STUDIO_QUEUE_MAX_WAIT_MS (2h) so long jobs stay on SSE longer.
+        return float(120 * 60)
     try:
         v = float(raw)
     except ValueError:
-        return float(46 * 60)
+        return float(120 * 60)
     return max(60.0, min(v, float(48 * 3600)))
 
 

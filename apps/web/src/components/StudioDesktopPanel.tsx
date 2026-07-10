@@ -106,14 +106,15 @@ export function StudioDesktopPanel() {
       if (showBusy) {
         setBusy(false);
       }
-      void loadWorkerVersions();
     }
-  }, [loadWorkerVersions]);
+  }, []);
 
   const refresh = useCallback(async () => {
     await loadStaticInfo();
     await refreshHealth(true);
-  }, [loadStaticInfo, refreshHealth]);
+    // Version check spawns python.exe — only on manual refresh / setup / upgrade, not the health poll.
+    await loadWorkerVersions();
+  }, [loadStaticInfo, refreshHealth, loadWorkerVersions]);
 
   const loadSettings = useCallback(async () => {
     if (!isTauriRuntime()) {

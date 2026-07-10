@@ -2,9 +2,37 @@
 
 All notable changes to the **`immersive-studio`** PyPI package and the studio worker in this monorepo are documented here. Versions follow the Python package version in `apps/studio-worker/pyproject.toml`.
 
-## [Unreleased]
+## [0.1.20] — 2026-07-10
 
-_No changes yet._
+### Added
+
+- **Studio job failure panel** — classifies `last_error` (JSON / gateway / Tripo / timeout / auth) with retry + dismiss.
+- **Queue transport module** — SSE with one reconnect, then polling; UI shows live stream vs polling.
+- **Desktop queue-worker split** — new setups use `STUDIO_EMBEDDED_QUEUE_WORKER=0` and spawn a separate queue-worker with the API.
+- **Worker version cache** — `worker-installed-version.txt` avoids spawning Python on every version read.
+- **Vitest** smoke tests for failure classification helpers.
+
+### Changed
+
+- Stronger JSON repair (two repair rounds + non-`format:json` fallback); default SSE max duration **2h**.
+- **Docker compose** defaults to split API + queue-worker (`STUDIO_EMBEDDED_QUEUE_WORKER=0`).
+- **studio-edge** — no GET retries / HTML→JSON coercion on `/queue/jobs/*/events` streams.
+- Desktop Vite build omits marketing/docs routes from the shell router.
+
+### Fixed
+
+- Windows desktop terminal flash from `python.exe -c` version checks on the health poll.
+
+## Desktop app [0.1.11] — 2026-07-10
+
+### Added
+
+- Separate **queue-worker** process when `STUDIO_EMBEDDED_QUEUE_WORKER=0` (default for new setups).
+- Cached installed worker version file for the Desktop panel.
+
+### Fixed
+
+- Flashing Windows console from periodic worker version probes.
 
 ## Desktop app [0.1.10] — 2026-07-08
 

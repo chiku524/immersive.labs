@@ -19,6 +19,11 @@ from studio_worker.prompts import (
 )
 from studio_worker.validate import apply_llm_json_coercions, validate_asset_spec
 
+_REPAIR_SUFFIX = (
+    "Your previous reply was not valid JSON. Return ONLY one compact JSON object "
+    "matching the schema (no markdown fences, no comments, no trailing commas, no prose)."
+)
+
 
 def _pin_generation_source_prompt(spec: dict[str, Any], user_prompt: str) -> None:
     """Tripo text-to-3D reads ``generation.source_prompt`` — always use the user's exact brief."""
@@ -27,6 +32,41 @@ def _pin_generation_source_prompt(spec: dict[str, Any], user_prompt: str) -> Non
         gen = {}
         spec["generation"] = gen
     gen["source_prompt"] = user_prompt.strip()
+
+
+def _extract_with_repairs(system: str, user: str, raw: str) -> dict[str, Any]:
+    """Parse model output; up to two repair rounds, then one attempt without Ollama JSON format."""
+    try:
+        return extract_json_object(raw)
+    except ValueError:
+        pass
+
+    last_err: Exception | None = None
+    for attempt in range(2):
+        snippet = (raw or "").strip().replace("\n", " ")[:400]
+        repair_user = (
+            f"{user}\n\n{_REPAIR_SUFFIX}\n"
+            f"Previous output (truncated): {snippet or '(empty)'}"
+        )
+        try:
+            raw = chat_completion(system, repair_user, format_json=True)
+            return extract_json_object(raw)
+        except ValueError as exc:
+            last_err = exc
+
+    # Some models emit better objects when format:json is off after failed constrained attempts.
+    try:
+        raw = chat_completion(
+            system,
+            f"{user}\n\n{_REPAIR_SUFFIX}",
+            format_json=False,
+        )
+        return extract_json_object(raw)
+    except ValueError as exc:
+        last_err = exc
+
+    assert last_err is not None
+    raise last_err
 
 
 def generate_asset_spec(
@@ -49,16 +89,7 @@ def generate_asset_spec(
     system = system_prompt()
     user = user_prompt_block(user_prompt)
     raw = chat_completion(system, user)
-    try:
-        spec = extract_json_object(raw)
-    except ValueError:
-        repair_user = (
-            f"{user}\n\n"
-            "Your previous reply was not valid JSON. Return ONLY one compact JSON object "
-            "matching the schema (no markdown fences, no comments, no trailing commas)."
-        )
-        raw = chat_completion(system, repair_user)
-        spec = extract_json_object(raw)
+    spec = _extract_with_repairs(system, user, raw)
     apply_llm_json_coercions(spec)
     spec["style_preset"] = DEFAULT_STYLE_PRESET
     if spec.get("category") not in CATEGORIES:

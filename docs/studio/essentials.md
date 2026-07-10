@@ -9,7 +9,9 @@ Single reference for **operators and integrators**: how the worker, packs, Blend
 | Path | Role |
 |------|------|
 | `apps/web` | Vite + React — marketing site and **`/studio`** UI |
+| `apps/studio-desktop` | Tauri desktop shell — local worker + Studio UI |
 | `apps/studio-worker` | Python: spec, ComfyUI textures, jobs, queue, HTTP API, Stripe billing |
+| `apps/studio-edge` | Cloudflare Worker proxy to the Python API |
 | `packages/studio-types` | JSON Schema + shared TS types for `StudioAssetSpec` |
 | `packages/studio-unity` | Unity Editor package: import packs, PBR materials, optional box colliders |
 | `docs/studio/` | Planning + this file |
@@ -81,6 +83,7 @@ When **`https://api.…`** is fronted by **Cloudflare Worker → `ORIGIN_URL` (t
 
 3. **Capacity**  
    - **Ollama + ComfyUI + Blender** on one **e2-micro**-class host routinely causes **read timeouts** and **HTTP 502** bursts. Upgrade the VM, run **`STUDIO_EMBEDDED_QUEUE_WORKER=0`** with a **separate** `immersive-studio queue-worker` process, or offload Comfy to another machine (`STUDIO_COMFY_URL`).  
+   - **Preferred topology (cloud):** keep the **HTTP API + Cloudflare tunnel** on a light VM; run **Ollama / ComfyUI / Blender** (or the queue-worker that calls them) on a **GPU or larger RAM** host. Point **`STUDIO_OLLAMA_URL`** / **`STUDIO_COMFY_URL`** at that GPU host. Locally, prefer Comfy on the host via **`host.docker.internal:8188`**. See [production-queue-split.md](./production-queue-split.md) and [scripts/studio-cloudflare-tunnel/](../../scripts/studio-cloudflare-tunnel/).  
    - **Embedded consumer lifecycle:** with **`STUDIO_EMBEDDED_QUEUE_WORKER=1`**, the API starts a background queue poller. On **process shutdown** (SIGTERM, container stop, or FastAPI **`TestClient`** teardown), the worker signals that loop to exit and **joins** the thread briefly so a stray consumer does not keep running after the app context or patched DB paths change (important for tests and rolling deploys). If a deploy **kills the process while a job is mid-flight**, the queue row can remain **`running`** forever (dashboard “running for hours”). From **0.1.8**, the API runs **`reclaim_stale_running_jobs()`** on startup (SQLite): rows **`running`** longer than **`STUDIO_QUEUE_STALE_RUNNING_RECLAIM_S`** seconds since **`updated_at`** revert to **`pending`** for retry (default **43200** = 12h; set **0** to disable). **`STUDIO_QUEUE_MAX_JOB_AGE_S`** (SQLite, default **14400** = 4h) marks stuck rows **`dead`** on API startup and in the queue worker idle loop (not on every dashboard poll): **`pending`** uses **`created_at`** (never claimed — check embedded/`queue-worker` consumer); **`running`** uses **`updated_at`** (last claim or progress). A failed row is added to the jobs index. Raise the cap for long texture batches.
 
 4. **Fewer round-trips**  

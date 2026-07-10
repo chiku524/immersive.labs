@@ -12,10 +12,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EngravedBackdrop } from "../components/EngravedBackdrop";
 import { StudioDesktopPanel } from "../components/StudioDesktopPanel";
+import { StudioJobFailurePanel } from "../components/StudioJobFailurePanel";
 import { isTauriRuntime } from "../tauriRuntime";
 import { saveJobPackZip } from "../desktop/saveJobPackZip";
 import { StudioDesktopDownloadCTA, StudioDesktopDownloadNavLink } from "../components/StudioDesktopDownloadCTA";
 import { STUDIO_API_BASE, STUDIO_API_READY, studioWorkerDisplayOrigin } from "../studioApiConfig";
+import {
+  fetchWithTransientRetry,
+  formatApiDetail,
+  isAbortError,
+  isGatewayDetailMessage,
+  readApiJson,
+  RETRYABLE_HTTP,
+} from "../studio/studioApiHelpers";
+import {
+  formatQueueJobProgress,
+  STUDIO_QUEUE_POLL_MS,
+  type QueueJobRow,
+  type QueueTransportMode,
+  waitForQueueJobCompletion,
+  watchQueueJobSse,
+} from "../studio/studioQueueTransport";
 import "../App.css";
 import "./StudioPage.css";
 
@@ -81,14 +98,6 @@ function readStoredJobOpts(): { generateTextures: boolean; exportMesh: boolean }
   } catch {
     return defaultJobOpts();
   }
-}
-
-function isGatewayDetailMessage(msg: string): boolean {
-  return (
-    /Gateway or tunnel returned HTTP/i.test(msg) ||
-    /gateway_status/i.test(msg) ||
-    /invalid JSON.*502/i.test(msg)
-  );
 }
 
 type StudioEngineTarget = "unity" | "unreal" | "godot";
@@ -238,35 +247,6 @@ function comfyReachabilityLabel(reachable: boolean, detail: string | null): stri
   return comfyFailureLooksLikeTimeout(detail) ? "probe timed out" : "not running";
 }
 
-function formatApiDetail(detail: unknown): string {
-  if (typeof detail === "string") {
-    return detail;
-  }
-  if (Array.isArray(detail)) {
-    return detail.map((d) => JSON.stringify(d)).join("; ");
-  }
-  if (detail && typeof detail === "object") {
-    return JSON.stringify(detail);
-  }
-  return "Request failed";
-}
-
-/** Parse JSON bodies; proxies often return HTML 502 pages which break `response.json()`. */
-async function readApiJson<T>(r: Response): Promise<T> {
-  const text = await r.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    const t = text.trim();
-    const snippet = t.slice(0, 220).replace(/\s+/g, " ");
-    const html =
-      t.startsWith("<!") || t.toLowerCase().startsWith("<html")
-        ? " The response was HTML (typical of a gateway 502/504 or CDN timeout), not JSON."
-        : "";
-    throw new Error(`HTTP ${r.status}: invalid JSON.${html}${snippet ? ` Body: ${snippet}` : ""}`);
-  }
-}
-
 /** Matches worker default `STUDIO_COMFY_URL` when unset; used only for display when the API body is not a full Comfy payload. */
 const DEFAULT_COMFY_DISPLAY_URL = "https://comfy.immersivelabs.space";
 
@@ -340,329 +320,6 @@ function parseComfyStatusResponse(r: Response, text: string): StudioComfyStatusP
   };
 }
 
-const STUDIO_QUEUE_POLL_MS = 2000;
-/** Must cover long Comfy + LLM runs after SSE closes (see STUDIO_QUEUE_SSE_MAX_DURATION_S on the worker). */
-const STUDIO_QUEUE_MAX_WAIT_MS = 120 * 60 * 1000;
-
-class SseTransportError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SseTransportError";
-  }
-}
-
-/**
- * ``GET …/queue/jobs/{id}/events`` (``text/event-stream``) with ``Authorization`` — EventSource cannot set headers.
- * Throws {@link SseTransportError} for proxy/stream issues so the caller can fall back to GET polling.
- */
-async function consumeQueueJobSse(
-  eventsUrl: string,
-  auth: Record<string, string>,
-  signal: AbortSignal,
-  onProgress?: (row: QueueJobRow) => void,
-): Promise<QueueJobRow> {
-  let res: Response;
-  try {
-    res = await fetch(eventsUrl, {
-      method: "GET",
-      headers: { Accept: "text/event-stream", ...auth },
-      signal,
-      cache: "no-store",
-    });
-  } catch (e) {
-    if (signal.aborted || isAbortError(e)) {
-      throw e;
-    }
-    throw new SseTransportError(e instanceof Error ? e.message : "fetch failed");
-  }
-  if (res.status === 401 || res.status === 403) {
-    const t = await res.text();
-    throw new Error(
-      res.status === 401
-        ? "Unauthorized (check Studio API key)."
-        : `Forbidden: ${t.slice(0, 200)}`,
-    );
-  }
-  if (!res.ok) {
-    throw new SseTransportError(`SSE endpoint HTTP ${res.status}`);
-  }
-  const ct = (res.headers.get("content-type") || "").toLowerCase();
-  if (!ct.includes("text/event-stream")) {
-    throw new SseTransportError(`Expected text/event-stream, got ${ct || "(empty)"}`);
-  }
-  if (!res.body) {
-    throw new SseTransportError("SSE response has no body");
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    let sep: number;
-    while ((sep = buffer.indexOf("\n\n")) >= 0) {
-      const block = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-      let eventName = "message";
-      const dataLines: string[] = [];
-      for (const line of block.split("\n")) {
-        if (line.startsWith(":")) {
-          continue;
-        }
-        if (line.startsWith("event:")) {
-          eventName = line.slice(6).trim();
-        } else if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).trimStart());
-        }
-      }
-      const dataStr = dataLines.join("\n");
-      if (!dataStr) {
-        continue;
-      }
-      if (eventName === "error") {
-        let detail = dataStr;
-        try {
-          const j = JSON.parse(dataStr) as { detail?: unknown };
-          if (typeof j.detail === "string") {
-            detail = j.detail;
-          }
-        } catch {
-          /* use raw */
-        }
-        if (isGatewayDetailMessage(detail)) {
-          throw new SseTransportError(detail);
-        }
-        throw new Error(detail);
-      }
-      if (eventName === "job") {
-        let row: QueueJobRow;
-        try {
-          row = JSON.parse(dataStr) as QueueJobRow;
-        } catch {
-          throw new SseTransportError("Invalid job JSON in SSE payload");
-        }
-        if (row.status === "completed") {
-          return row;
-        }
-        if (row.status === "dead") {
-          throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
-        }
-        if (onProgress && (row.status === "running" || row.status === "pending")) {
-          onProgress(row);
-        }
-      }
-    }
-  }
-  throw new SseTransportError("SSE stream closed before job reached a terminal status");
-}
-
-function formatQueueJobProgress(row: QueueJobRow): string | null {
-  const p = row.progress;
-  if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
-    const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
-    return `Textures ${p.done}/${p.total}${p.label ? ` · ${p.label}` : ""}${w}`;
-  }
-  if (row.status === "running") {
-    return "Running on worker…";
-  }
-  if (row.status === "pending") {
-    return "Queued…";
-  }
-  return null;
-}
-
-/** Background SSE watch for dashboard rows (does not block the active job runner). */
-async function watchQueueJobSse(
-  queueId: string,
-  auth: Record<string, string>,
-  signal: AbortSignal,
-  onUpdate: (row: QueueJobRow) => void,
-): Promise<void> {
-  const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
-  try {
-    const row = await consumeQueueJobSse(eventsUrl, auth, signal, onUpdate);
-    onUpdate(row);
-  } catch (e) {
-    if (signal.aborted || isAbortError(e)) {
-      return;
-    }
-    // Dashboard still polls via refreshDashboard when SSE is unavailable.
-  }
-}
-
-async function pollQueueJobUntilTerminal(
-  queueId: string,
-  auth: Record<string, string>,
-  signal: AbortSignal,
-  onProgress?: (row: QueueJobRow) => void,
-  onGatewayBlip?: () => void,
-): Promise<QueueJobRow> {
-  const deadline = Date.now() + STUDIO_QUEUE_MAX_WAIT_MS;
-  let lastStatus = "unknown";
-  let gatewayBlips = 0;
-  while (Date.now() < deadline) {
-    if (signal.aborted) {
-      throw new DOMException("Aborted", "AbortError");
-    }
-    let pr: Response;
-    try {
-      pr = await fetchWithTransientRetry(
-        `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}`,
-        { headers: auth, signal },
-        8,
-      );
-    } catch (e) {
-      if (signal.aborted || isAbortError(e)) {
-        throw e;
-      }
-      gatewayBlips++;
-      onGatewayBlip?.();
-      await delay(Math.min(STUDIO_QUEUE_POLL_MS * 2, 8000), signal);
-      continue;
-    }
-    if (RETRYABLE_HTTP.has(pr.status)) {
-      gatewayBlips++;
-      onGatewayBlip?.();
-      await delay(Math.min(STUDIO_QUEUE_POLL_MS * 2, 8000), signal);
-      continue;
-    }
-    let row: QueueJobRow & { detail?: unknown };
-    try {
-      row = await readApiJson<QueueJobRow & { detail?: unknown }>(pr);
-    } catch {
-      gatewayBlips++;
-      onGatewayBlip?.();
-      await delay(STUDIO_QUEUE_POLL_MS, signal);
-      continue;
-    }
-    if (signal.aborted) {
-      throw new DOMException("Aborted", "AbortError");
-    }
-    if (!pr.ok) {
-      if (RETRYABLE_HTTP.has(pr.status)) {
-        gatewayBlips++;
-        onGatewayBlip?.();
-        await delay(STUDIO_QUEUE_POLL_MS * 2, signal);
-        continue;
-      }
-      throw new Error(formatApiDetail(row.detail));
-    }
-    gatewayBlips = 0;
-    lastStatus = row.status;
-    if (row.status === "completed") {
-      return row;
-    }
-    if (row.status === "dead") {
-      throw new Error(row.last_error?.trim() || "Job failed (dead letter)");
-    }
-    if (onProgress && (row.status === "running" || row.status === "pending")) {
-      onProgress(row);
-    }
-    await delay(STUDIO_QUEUE_POLL_MS, signal);
-  }
-  throw new Error(
-    `Timed out after ${STUDIO_QUEUE_MAX_WAIT_MS / 60000} minutes waiting for job ${queueId} (last status: ${lastStatus}${gatewayBlips > 0 ? `; ${gatewayBlips} gateway blips` : ""})`,
-  );
-}
-
-/** Try queue SSE first; fall back to 2s GET polling if the edge or browser does not keep the stream open. */
-async function waitForQueueJobCompletion(
-  queueId: string,
-  auth: Record<string, string>,
-  signal: AbortSignal,
-  onProgress?: (row: QueueJobRow) => void,
-  onGatewayBlip?: () => void,
-): Promise<QueueJobRow> {
-  const eventsUrl = `${STUDIO_API_BASE}/api/studio/queue/jobs/${encodeURIComponent(queueId)}/events`;
-  try {
-    return await consumeQueueJobSse(eventsUrl, auth, signal, onProgress);
-  } catch (e) {
-    if (signal.aborted || isAbortError(e)) {
-      throw e;
-    }
-    if (e instanceof SseTransportError) {
-      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress, onGatewayBlip);
-    }
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("queue SSE max duration exceeded") || isGatewayDetailMessage(msg)) {
-      return await pollQueueJobUntilTerminal(queueId, auth, signal, onProgress, onGatewayBlip);
-    }
-    throw e;
-  }
-}
-
-/** Tunnel / origin often returns transient 5xx when the VM is busy (e.g. Ollama + Comfy). */
-const RETRYABLE_HTTP = new Set([502, 503, 504, 524, 530]);
-
-function isAbortError(e: unknown): boolean {
-  return e instanceof DOMException && e.name === "AbortError";
-}
-
-function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Aborted", "AbortError"));
-      return;
-    }
-    const t = window.setTimeout(() => resolve(), ms);
-    const onAbort = () => {
-      window.clearTimeout(t);
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-async function fetchWithTransientRetry(
-  url: string,
-  init: RequestInit,
-  maxAttempts = 3,
-): Promise<Response> {
-  const signal = init.signal ?? undefined;
-  let last: Response | undefined;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (signal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
-    }
-    if (attempt > 0) {
-      await delay(400 * attempt, signal);
-    }
-    last = await fetch(url, init);
-    if (last.ok || !RETRYABLE_HTTP.has(last.status)) {
-      break;
-    }
-  }
-  return last as Response;
-}
-
-type QueueJobRow = {
-  status: string;
-  last_error?: string | null;
-  /** In-flight pipeline step (e.g. Comfy textures) while status is running. */
-  progress?: {
-    phase?: string;
-    done?: number;
-    total?: number;
-    label?: string;
-    width?: number;
-    height?: number;
-  } | null;
-  result?: {
-    job_id?: string;
-    folder?: string;
-    manifest?: Record<string, unknown>;
-    spec?: Record<string, unknown>;
-    output_dir?: string;
-    zip_path?: string;
-    texture_logs?: string[];
-    mesh_logs?: string[];
-    errors?: string[];
-  } | null;
-};
-
 export function StudioPage() {
   const storedJobOpts = readStoredJobOpts();
   const [prompt, setPrompt] = useState(() => {
@@ -683,6 +340,8 @@ export function StudioPage() {
   const [jobRunProgress, setJobRunProgress] = useState<string | null>(null);
   /** Transient tunnel blip while polling — job may still be running on the server. */
   const [jobGatewayNotice, setJobGatewayNotice] = useState<string | null>(null);
+  /** Whether the active job is followed via SSE or GET polling. */
+  const [jobTransportMode, setJobTransportMode] = useState<QueueTransportMode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spec, setSpec] = useState<Record<string, unknown> | null>(null);
   const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
@@ -951,6 +610,7 @@ export function StudioPage() {
       setJobResult(next);
       setTripoFallbackAlertDismissedFor(null);
       setJobGatewayNotice(null);
+      setJobTransportMode(null);
       setError(null);
       try {
         localStorage.removeItem(ACTIVE_QUEUE_STORAGE);
@@ -964,11 +624,8 @@ export function StudioPage() {
 
   const followQueueJob = useCallback(
     async (queueId: string, promptHint: string, signal: AbortSignal) => {
-      const row = await waitForQueueJobCompletion(
-        queueId,
-        authHeaders(),
-        signal,
-        (r) => {
+      const row = await waitForQueueJobCompletion(queueId, authHeaders(), signal, {
+        onProgress: (r) => {
           const p = r.progress;
           if (p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0) {
             const w = p.width && p.height ? ` · ${p.width}×${p.height}` : "";
@@ -981,12 +638,20 @@ export function StudioPage() {
             setJobRunProgress(null);
           }
         },
-        () => {
+        onGatewayBlip: () => {
           setJobGatewayNotice(
             "Tunnel returned a brief HTTP 502/504 while checking job status — the job may still be running on the VM. Waiting…",
           );
         },
-      );
+        onTransportMode: (mode) => {
+          setJobTransportMode(mode);
+          if (mode === "polling") {
+            setJobGatewayNotice(
+              "Live job stream unavailable — falling back to status polling. The job may still be running.",
+            );
+          }
+        },
+      });
       finishJobFromQueueRow(row, promptHint);
     },
     [authHeaders, finishJobFromQueueRow],
@@ -1124,6 +789,7 @@ export function StudioPage() {
     }
     resumeQueueRef.current = true;
     setJobLoading(true);
+    setJobTransportMode(null);
     setJobGatewayNotice("Resuming in-flight job after page reload…");
     setError(null);
     jobPollAbortRef.current?.abort();
@@ -1246,6 +912,7 @@ export function StudioPage() {
     setError(null);
     setJobRunProgress(null);
     setJobGatewayNotice(null);
+    setJobTransportMode(null);
     setPackResult(null);
     jobPollAbortRef.current?.abort();
     const runAc = new AbortController();
@@ -1857,6 +1524,9 @@ export function StudioPage() {
             {jobLoading && jobRunProgress ? (
               <p className="studio-job-run-progress" role="status" aria-live="polite">
                 {jobRunProgress}
+                {jobTransportMode ? (
+                  <span className="studio-job-transport"> · via {jobTransportMode === "sse" ? "live stream" : "polling"}</span>
+                ) : null}
               </p>
             ) : null}
             {jobGatewayNotice ? (
@@ -1866,7 +1536,16 @@ export function StudioPage() {
             ) : null}
           </form>
 
-          {error ? <pre className="studio-error studio-error--prominent">{error}</pre> : null}
+          {error ? (
+            <StudioJobFailurePanel
+              message={error}
+              onDismiss={() => setError(null)}
+              onRetry={() => {
+                setError(null);
+                void onRunJob();
+              }}
+            />
+          ) : null}
 
           {meta ? (
             <p className="studio-meta">
@@ -2156,7 +1835,7 @@ export function StudioPage() {
                       {j.error ? (
                         <tr className="studio-job-error-row">
                           <td colSpan={5}>
-                            <div className="studio-job-error-label">Error detail</div>
+                            <div className="studio-job-error-label">last_error</div>
                             <pre className="studio-job-error-text">{j.error}</pre>
                           </td>
                         </tr>

@@ -378,6 +378,11 @@ button.studio-table-link:disabled {
   color: #a8c8ff;
 }
 
+.studio-job-transport {
+  opacity: 0.75;
+  font-size: 0.75rem;
+}
+
 .studio-jobs-tbody-issue > tr:first-child > td {
   box-shadow: inset 3px 0 0 rgba(255, 160, 120, 0.55);
 }

@@ -109,7 +109,7 @@ STUDIO_TEXTURE_SOURCE=tripo
 STUDIO_MESH_FALLBACK=1
 STUDIO_COMFY_URL=http://127.0.0.1:8188
 $($comfyLines -join "`n")
-STUDIO_EMBEDDED_QUEUE_WORKER=1
+STUDIO_EMBEDDED_QUEUE_WORKER=0
 STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:5173,http://localhost:5173
 "@ | Set-Content -Path $EnvFile -Encoding utf8
 
@@ -118,6 +118,7 @@ Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "Launch Immersive Studio from the Start menu."
 Write-Host "Required for 3D artwork: set STUDIO_TRIPO_API_KEY in worker.env (https://platform.tripo3d.ai/api-keys)"
 Write-Host "Tripo bakes mesh + PBR textures when the Studio 'Tripo textures' toggle is on (default)."
+Write-Host "Queue: STUDIO_EMBEDDED_QUEUE_WORKER=0 — desktop app starts a separate queue-worker with the API."
 Write-Host "Optional: STUDIO_MESH_POSTPROCESS=1 decimates Tripo meshes to poly_budget_tris (needs Blender)"
 Write-Host "Optional: ollama pull llama3.2  (real specs when Mock is off in Studio)"
 Write-Host "Optional: ComfyUI on :8188 only if STUDIO_TEXTURE_SOURCE=comfy (legacy sidecar textures)"
