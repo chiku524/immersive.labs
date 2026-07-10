@@ -106,6 +106,25 @@ async function main() {
 
   await Promise.all(tasks);
 
+  // Newer Tauri CLI signs the installers directly (no *.nsis.zip / *.msi.zip on disk).
+  if (!platforms["windows-x86_64"]) {
+    const winExe = findAsset(
+      (n) => /x64-setup\.exe$/i.test(n) && !n.endsWith(".sig") && !n.includes(".nsis.zip"),
+    );
+    const winExeSig = findAsset((n) => /x64-setup\.exe\.sig$/i.test(n));
+    await addPlatform("windows-x86_64-nsis", winExe, winExeSig);
+    if (platforms["windows-x86_64-nsis"]) {
+      platforms["windows-x86_64"] = { ...platforms["windows-x86_64-nsis"] };
+    }
+  }
+  if (!platforms["windows-x86_64-msi"]) {
+    const winMsi = findAsset(
+      (n) => /\.msi$/i.test(n) && !n.endsWith(".sig") && !n.endsWith(".zip"),
+    );
+    const winMsiInstallerSig = findAsset((n) => /\.msi\.sig$/i.test(n) && !n.includes(".zip"));
+    await addPlatform("windows-x86_64-msi", winMsi, winMsiInstallerSig);
+  }
+
   const macTgzAssets = assets.filter((a) => a.name.includes(".app.tar.gz") && !a.name.endsWith(".sig"));
   for (const macTgz of macTgzAssets) {
     const sigAsset = assets.find((a) => a.name === `${macTgz.name}.sig`);
