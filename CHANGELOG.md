@@ -23,6 +23,12 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 - Windows desktop terminal flash from `python.exe -c` version checks on the health poll.
 
+## Desktop app [0.1.12] — 2026-07-10
+
+### Fixed
+
+- CI explicitly uploads Windows `*.nsis.zip` / `*.msi.zip` updater artifacts so `latest.json` includes Windows platforms (regression in v0.1.11 upload).
+
 ## Desktop app [0.1.11] — 2026-07-10
 
 ### Added

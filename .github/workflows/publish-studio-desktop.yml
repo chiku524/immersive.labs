@@ -106,6 +106,41 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      # tauri-action sometimes skips *.nsis.zip / *.msi.zip even when the CLI produced them
+      # (seen on studio-desktop-v0.1.11). Upload explicitly so latest.json can include Windows.
+      - name: Upload Windows updater zip artifacts
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundle="apps/studio-desktop/src-tauri/target/release/bundle"
+          files=(
+            "$bundle"/nsis/*.nsis.zip
+            "$bundle"/nsis/*.nsis.zip.sig
+            "$bundle"/msi/*.msi.zip
+            "$bundle"/msi/*.msi.zip.sig
+          )
+          if ((${#files[@]} == 0)); then
+            echo "::error::No Windows updater zip artifacts under $bundle"
+            find "$bundle" -type f | head -80 || true
+            exit 1
+          fi
+          mkdir -p /tmp/updater-upload
+          upload=()
+          for f in "${files[@]}"; do
+            base=$(basename "$f")
+            # Match historical GitHub asset naming (spaces → dots).
+            dest="/tmp/updater-upload/${base// /.}"
+            cp "$f" "$dest"
+            upload+=("$dest")
+            echo "Will upload $(basename "$dest")"
+          done
+          gh release upload "$TAG" "${upload[@]}" --clobber --repo "${{ github.repository }}"
+
   update-manifest:
     needs: release
     if: github.event_name == 'push'
