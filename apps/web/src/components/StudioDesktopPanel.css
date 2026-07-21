@@ -39,6 +39,61 @@
   color: var(--muted, #9aa8bc);
 }
 
+.studio-desktop-tripo {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(110, 168, 255, 0.2);
+}
+
+.studio-desktop-tripo-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.studio-desktop-tripo-hint {
+  color: var(--muted, #9aa8bc);
+  font-size: 0.8rem;
+}
+
+.studio-desktop-tripo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.studio-desktop-tripo-input {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.studio-desktop-tripo-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted, #9aa8bc);
+  line-height: 1.4;
+}
+
+.studio-desktop-tripo-note a {
+  color: #7dd3fc;
+}
+
+.studio-desktop-tripo-note code {
+  font-size: 0.72rem;
+}
+
 .studio-desktop-panel-sub {
   color: var(--muted, #9aa8bc);
   font-size: 0.85rem;

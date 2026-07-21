@@ -464,6 +464,138 @@ fn unquote_env_value(raw: &str) -> String {
     }
 }
 
+/// Upsert `KEY=value` in worker.env (or `.env.local` in dev) without clobbering other keys.
+pub fn upsert_env_value(key: &str, value: &str) -> Result<(), String> {
+    let path = worker_env_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut found = false;
+    let mut out: Vec<String> = Vec::new();
+    for line in existing.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            out.push(line.to_string());
+            continue;
+        }
+        if let Some((k, _)) = trimmed.split_once('=') {
+            if k.trim() == key {
+                out.push(format!("{key}={value}"));
+                found = true;
+                continue;
+            }
+        }
+        out.push(line.to_string());
+    }
+    if !found {
+        if !out.is_empty() && !out.last().map(|l| l.is_empty()).unwrap_or(true) {
+            // keep a blank line only if file already had content
+        }
+        out.push(format!("{key}={value}"));
+    }
+    let mut body = out.join("\n");
+    if !body.ends_with('\n') {
+        body.push('\n');
+    }
+    std::fs::write(&path, body).map_err(|err| err.to_string())
+}
+
+fn mask_secret(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 8 {
+        return "••••".into();
+    }
+    let head: String = chars.iter().take(4).collect();
+    let tail: String = chars.iter().rev().take(4).rev().collect();
+    format!("{head}…{tail}")
+}
+
+fn tripo_key_format_valid(key: &str) -> bool {
+    !key.is_empty() && key.starts_with("tsk_")
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripoKeyStatus {
+    pub configured: bool,
+    pub format_valid: bool,
+    pub masked: Option<String>,
+    pub env_path: String,
+}
+
+#[tauri::command]
+pub fn get_tripo_key_status() -> TripoKeyStatus {
+    let env_path = worker_env_path().display().to_string();
+    let key = read_env_value("STUDIO_TRIPO_API_KEY").unwrap_or_default();
+    let configured = !key.is_empty();
+    TripoKeyStatus {
+        configured,
+        format_valid: tripo_key_format_valid(&key),
+        masked: if configured {
+            Some(mask_secret(&key))
+        } else {
+            None
+        },
+        env_path,
+    }
+}
+
+#[tauri::command]
+pub fn set_tripo_api_key(state: State<AppState>, key: String) -> Result<String, String> {
+    let trimmed = key.trim().to_string();
+    if trimmed.contains('\n') || trimmed.contains('\r') || trimmed.contains('=') {
+        return Err("Tripo API key contains invalid characters.".into());
+    }
+    upsert_env_value("STUDIO_TRIPO_API_KEY", &trimmed)?;
+    if !trimmed.is_empty() {
+        // Ensure the Tripo mesh/texture path is active when a key is saved.
+        upsert_env_value("STUDIO_MESH_PROVIDER", "tripo")?;
+        let tex_src = read_env_value("STUDIO_TEXTURE_SOURCE").unwrap_or_default();
+        if tex_src.is_empty() || tex_src == "none" {
+            upsert_env_value("STUDIO_TEXTURE_SOURCE", "tripo")?;
+        }
+        upsert_env_value("STUDIO_TRIPO_TEXTURE", "1")?;
+        upsert_env_value("STUDIO_EXPORT_MESH_DEFAULT", "1")?;
+    }
+
+    // Reload env into API + queue-worker processes.
+    let _ = stop_worker_internal(&state);
+    std::thread::sleep(std::time::Duration::from_millis(800));
+    start_worker_internal(&state)?;
+
+    if trimmed.is_empty() {
+        return Ok(format!(
+            "Cleared STUDIO_TRIPO_API_KEY in {}. API restarted — Tripo meshes will fall back to Blender until a tsk_… key is set.",
+            worker_env_path().display()
+        ));
+    }
+    if !tripo_key_format_valid(&trimmed) {
+        return Ok(format!(
+            "Saved key to {} (masked {}), but it does not look like a Tripo OpenAPI key (must start with tsk_…, not tcli_…). API restarted.",
+            worker_env_path().display(),
+            mask_secret(&trimmed)
+        ));
+    }
+    Ok(format!(
+        "Tripo API key saved to {} ({}). Mesh provider=tripo. API restarted so the key is in effect.",
+        worker_env_path().display(),
+        mask_secret(&trimmed)
+    ))
+}
+
+#[tauri::command]
+pub fn open_worker_env() -> Result<(), String> {
+    let path = worker_env_path();
+    if !path.is_file() {
+        return Err(format!(
+            "Config file not found at {}. Click Run setup first.",
+            path.display()
+        ));
+    }
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|err| err.to_string())
+}
+
 pub fn apply_env_local(cmd: &mut Command, root: &Path) {
     let path = worker_env_path();
     let Ok(file) = std::fs::File::open(&path) else {

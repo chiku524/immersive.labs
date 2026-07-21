@@ -28,6 +28,13 @@ type WorkerVersionInfo = {
   running_version: string | null;
 };
 
+type TripoKeyStatus = {
+  configured: boolean;
+  formatValid: boolean;
+  masked: string | null;
+  envPath: string;
+};
+
 export { isTauriRuntime };
 
 const HEALTH_POLL_MS = 60_000;
@@ -41,6 +48,9 @@ export function StudioDesktopPanel() {
   const [setupRunning, setSetupRunning] = useState(false);
   const [upgradeRunning, setUpgradeRunning] = useState(false);
   const [workerVersions, setWorkerVersions] = useState<WorkerVersionInfo | null>(null);
+  const [tripoStatus, setTripoStatus] = useState<TripoKeyStatus | null>(null);
+  const [tripoKeyDraft, setTripoKeyDraft] = useState("");
+  const [tripoSaving, setTripoSaving] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const staticInfoRef = useRef<Pick<PrereqStatus, "blender" | "docker" | "repo_root" | "comfy_root"> | null>(
     null,
@@ -55,6 +65,18 @@ export function StudioDesktopPanel() {
       setWorkerVersions(next);
     } catch {
       setWorkerVersions(null);
+    }
+  }, []);
+
+  const loadTripoStatus = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    try {
+      const next = await invoke<TripoKeyStatus>("get_tripo_key_status");
+      setTripoStatus(next);
+    } catch {
+      setTripoStatus(null);
     }
   }, []);
 
@@ -114,7 +136,8 @@ export function StudioDesktopPanel() {
     await refreshHealth(true);
     // Version check spawns python.exe — only on manual refresh / setup / upgrade, not the health poll.
     await loadWorkerVersions();
-  }, [loadStaticInfo, refreshHealth, loadWorkerVersions]);
+    await loadTripoStatus();
+  }, [loadStaticInfo, refreshHealth, loadWorkerVersions, loadTripoStatus]);
 
   const loadSettings = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -132,11 +155,13 @@ export function StudioDesktopPanel() {
     void loadStaticInfo();
     void loadSettings();
     void loadWorkerVersions();
+    void loadTripoStatus();
     void refreshHealth(false);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         void refreshHealth(false);
+        void loadTripoStatus();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -151,7 +176,7 @@ export function StudioDesktopPanel() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(timer);
     };
-  }, [loadStaticInfo, loadSettings, loadWorkerVersions, refreshHealth]);
+  }, [loadStaticInfo, loadSettings, loadWorkerVersions, loadTripoStatus, refreshHealth]);
 
   if (!isTauriRuntime()) {
     return null;
@@ -189,6 +214,7 @@ export function StudioDesktopPanel() {
       await loadStaticInfo();
       await refreshHealth(false);
       await loadWorkerVersions();
+      await loadTripoStatus();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
       setMessageTone("error");
@@ -209,11 +235,33 @@ export function StudioDesktopPanel() {
       setMessageTone("ok");
       await refreshHealth(false);
       await loadWorkerVersions();
+      await loadTripoStatus();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
       setMessageTone("error");
     } finally {
       setUpgradeRunning(false);
+      setBusy(false);
+    }
+  }
+
+  async function saveTripoKey() {
+    setTripoSaving(true);
+    setBusy(true);
+    setMessage("Saving Tripo API key and restarting API…");
+    setMessageTone("busy");
+    try {
+      const text = await invoke<string>("set_tripo_api_key", { key: tripoKeyDraft });
+      setMessage(text);
+      setMessageTone(text.includes("does not look like") ? "error" : "ok");
+      setTripoKeyDraft("");
+      await loadTripoStatus();
+      await refreshHealth(false);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+      setMessageTone("error");
+    } finally {
+      setTripoSaving(false);
       setBusy(false);
     }
   }
@@ -257,6 +305,25 @@ export function StudioDesktopPanel() {
         <StatusPill label="Ollama" ok={status?.ollama.ok} detail={status?.ollama.detail} />
         <StatusPill label="Blender" ok={status?.blender.ok} detail={status?.blender.detail} />
         <StatusPill label="Comfy" ok={status?.comfy.ok} detail={status?.comfy.detail} />
+        <StatusPill
+          label="Tripo"
+          ok={
+            tripoStatus == null
+              ? undefined
+              : tripoStatus.configured && tripoStatus.formatValid
+                ? true
+                : false
+          }
+          detail={
+            tripoStatus == null
+              ? "…"
+              : tripoStatus.configured && tripoStatus.formatValid
+                ? `OpenAPI key set (${tripoStatus.masked})`
+                : tripoStatus.configured
+                  ? `Key set (${tripoStatus.masked}) but not a tsk_… OpenAPI key`
+                  : `Not set — paste key in Settings (${tripoStatus.envPath})`
+          }
+        />
       </div>
       {showSettings && settings ? (
         <div className="studio-desktop-settings">
@@ -284,6 +351,57 @@ export function StudioDesktopPanel() {
             />
             <span>Close to system tray</span>
           </label>
+          <div className="studio-desktop-tripo">
+            <div className="studio-desktop-tripo-label">
+              <span>Tripo API key</span>
+              <span className="studio-desktop-tripo-hint">
+                {tripoStatus?.configured
+                  ? `Saved: ${tripoStatus.masked}${tripoStatus.formatValid ? "" : " (invalid — use tsk_…)"}`
+                  : "Required for prompt-faithful 3D meshes"}
+              </span>
+            </div>
+            <div className="studio-desktop-tripo-row">
+              <input
+                type="password"
+                className="studio-desktop-tripo-input"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="tsk_…"
+                value={tripoKeyDraft}
+                onChange={(e) => setTripoKeyDraft(e.target.value)}
+                disabled={busy || tripoSaving}
+              />
+              <button
+                type="button"
+                className="studio-retry"
+                disabled={busy || tripoSaving || !tripoKeyDraft.trim()}
+                onClick={() => void saveTripoKey()}
+              >
+                {tripoSaving ? "Saving…" : "Save & restart API"}
+              </button>
+              <button
+                type="button"
+                className="studio-retry"
+                disabled={busy}
+                title={tripoStatus?.envPath ?? "Open worker.env"}
+                onClick={() => {
+                  void invoke("open_worker_env").catch((err) => {
+                    setMessage(err instanceof Error ? err.message : String(err));
+                    setMessageTone("error");
+                  });
+                }}
+              >
+                Open env
+              </button>
+            </div>
+            <p className="studio-desktop-tripo-note">
+              Get a key at{" "}
+              <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noopener noreferrer">
+                platform.tripo3d.ai/api-keys
+              </a>{" "}
+              (must start with <code>tsk_</code>). Saved to <code>STUDIO_TRIPO_API_KEY</code> and applied on API restart.
+            </p>
+          </div>
         </div>
       ) : null}
       <div className="studio-desktop-panel-actions">

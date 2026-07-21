@@ -92,12 +92,23 @@ if ($comfyRoot) {
   )
 }
 
+# Preserve an existing Tripo key so re-running setup does not wipe it.
+$existingTripoKey = ""
+if (Test-Path $EnvFile) {
+  foreach ($line in Get-Content -Path $EnvFile -ErrorAction SilentlyContinue) {
+    if ($line -match '^\s*STUDIO_TRIPO_API_KEY\s*=\s*(.*)$') {
+      $existingTripoKey = $Matches[1].Trim().Trim('"').Trim("'")
+      break
+    }
+  }
+}
+
 @"
 STUDIO_WORKER_DATA_DIR=$dataDirUnix
 STUDIO_OLLAMA_URL=http://127.0.0.1:11434
 STUDIO_OLLAMA_MODEL=llama3.2
 STUDIO_MESH_PROVIDER=tripo
-STUDIO_TRIPO_API_KEY=
+STUDIO_TRIPO_API_KEY=$existingTripoKey
 STUDIO_EXPORT_MESH_DEFAULT=1
 STUDIO_BLENDER_BIN=$blenderUnix
 STUDIO_MESH_POSTPROCESS=1
@@ -116,7 +127,11 @@ STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://local
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "Launch Immersive Studio from the Start menu."
-Write-Host "Required for 3D artwork: set STUDIO_TRIPO_API_KEY in worker.env (https://platform.tripo3d.ai/api-keys)"
+if ($existingTripoKey) {
+  Write-Host "Preserved existing STUDIO_TRIPO_API_KEY in worker.env."
+} else {
+  Write-Host "Required for 3D artwork: set STUDIO_TRIPO_API_KEY in Desktop Settings (or worker.env) — https://platform.tripo3d.ai/api-keys"
+}
 Write-Host "Tripo bakes mesh + PBR textures when the Studio 'Tripo textures' toggle is on (default)."
 Write-Host "Queue: STUDIO_EMBEDDED_QUEUE_WORKER=0 — desktop app starts a separate queue-worker with the API."
 Write-Host "Optional: STUDIO_MESH_POSTPROCESS=1 decimates Tripo meshes to poly_budget_tris (needs Blender)"

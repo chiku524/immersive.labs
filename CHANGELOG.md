@@ -37,6 +37,19 @@ All notable changes to the **`immersive-studio`** PyPI package and the studio wo
 
 - Windows desktop terminal flash from `python.exe -c` version checks on the health poll.
 
+## Desktop app [0.1.13] — 2026-07-21
+
+### Added
+
+- **Tripo API key in Desktop Settings** — paste a `tsk_…` OpenAPI key, save to `worker.env`, and restart the API so Tripo meshes take effect immediately.
+- **Tripo status pill** on the Desktop panel (configured / invalid format / missing).
+- **Open env** button to edit `worker.env` (or `.env.local` in dev).
+
+### Changed
+
+- **Run setup** preserves an existing `STUDIO_TRIPO_API_KEY` instead of wiping it.
+- Saving a Tripo key also ensures `STUDIO_MESH_PROVIDER=tripo` and related Tripo texture defaults.
+
 ## Desktop app [0.1.12] — 2026-07-10
 
 ### Fixed
