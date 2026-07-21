@@ -1,6 +1,8 @@
 node_modules
 dist
 **/target/
+# Library crate lockfiles (apps like studio-desktop keep their Cargo.lock)
+packages/studio-bevy/Cargo.lock
 apps/studio-desktop/dist/
 .env
 apps/studio-worker/.env.scale
