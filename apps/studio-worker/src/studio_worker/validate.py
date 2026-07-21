@@ -34,6 +34,7 @@ _MATERIAL_ROLE_SET = frozenset({"albedo", "normal", "orm", "emissive", "mask"})
 _UNITY_COLLIDERS = frozenset({"box", "capsule", "mesh_convex", "none"})
 _UNREAL_COLLISIONS = frozenset({"simple", "complex", "convex", "none"})
 _GODOT_COLLIDERS = frozenset({"box", "capsule", "convex", "none"})
+_BEVY_COLLIDERS = frozenset({"box", "capsule", "convex", "none"})
 # Unity collider → Unreal collision complexity when the spec omits an explicit unreal block.
 _UNITY_TO_UNREAL_COLLISION = {
     "box": "simple",
@@ -43,6 +44,13 @@ _UNITY_TO_UNREAL_COLLISION = {
 }
 # Unity collider → Godot collision hint when the spec omits an explicit godot block.
 _UNITY_TO_GODOT_COLLIDER = {
+    "box": "box",
+    "capsule": "capsule",
+    "mesh_convex": "convex",
+    "none": "none",
+}
+# Unity collider → Bevy collision hint when the spec omits an explicit bevy block.
+_UNITY_TO_BEVY_COLLIDER = {
     "box": "box",
     "capsule": "capsule",
     "mesh_convex": "convex",
@@ -77,6 +85,7 @@ _ALLOWED_TOP_LEVEL = frozenset({
     "unity",
     "unreal",
     "godot",
+    "bevy",
 })
 
 
@@ -849,6 +858,37 @@ def _ensure_godot_block(spec: dict[str, Any]) -> None:
     spec["godot"] = gd
 
 
+def _ensure_bevy_block(spec: dict[str, Any]) -> None:
+    """
+    Derive a ``bevy`` block from ``unity`` when absent/invalid so Bevy jobs get
+    import subfolder + collision hints without changing the LLM contract.
+    """
+    unity = spec.get("unity")
+    unity_collision = "box"
+    if isinstance(unity, dict):
+        collider = unity.get("collider")
+        if isinstance(collider, str):
+            unity_collision = _UNITY_TO_BEVY_COLLIDER.get(collider.strip().lower(), "box")
+
+    bv = spec.get("bevy")
+    if not isinstance(bv, dict):
+        bv = {}
+
+    sub = bv.get("import_subfolder")
+    if not (isinstance(sub, str) and sub.strip() and ".." not in sub and not sub.startswith(("/", "\\"))):
+        bv["import_subfolder"] = "models"
+    else:
+        bv["import_subfolder"] = sub.strip().replace("\\", "/")
+
+    collider = bv.get("collider")
+    if not (isinstance(collider, str) and collider.strip().lower() in _BEVY_COLLIDERS):
+        bv["collider"] = unity_collision
+    else:
+        bv["collider"] = collider.strip().lower()
+
+    spec["bevy"] = bv
+
+
 def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     """Normalize common LLM JSON quirks before JSON Schema validation."""
     if not isinstance(spec, dict):
@@ -874,6 +914,7 @@ def apply_llm_json_coercions(spec: dict[str, Any]) -> None:
     _default_unity_collider(spec)
     _ensure_unreal_block(spec)
     _ensure_godot_block(spec)
+    _ensure_bevy_block(spec)
 
 
 def normalize_asset_spec(spec: dict[str, Any]) -> None:

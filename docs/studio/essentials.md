@@ -181,21 +181,23 @@ Requirements: URP recommended; optional **ImmersiveStudio/Packed ORM Lit** for p
 
 ---
 
-## 6b. Engine target (Unity, Unreal, Godot)
+## 6b. Engine target (Unity, Unreal, Godot, Bevy)
 
-Pick the primary engine in `/studio` (**Import target** toggle) or via the API/CLI `engine_target` (`unity` | `unreal` | `godot`). Every pack still ships **UnityImportNotes.md**, **UnrealImportNotes.md**, and **GodotImportNotes.md** (plus `Godot/pack_registry.gd`); the toggle sets `manifest.engine_target` and which guide the README labels *primary*.
+Pick the primary engine in `/studio` (**Import target** toggle) or via the API/CLI `engine_target` (`unity` | `unreal` | `godot` | `bevy`). Every pack still ships **UnityImportNotes.md**, **UnrealImportNotes.md**, **GodotImportNotes.md** (plus `Godot/pack_registry.gd`), and **BevyImportNotes.md** (plus `Bevy/pack_registry.rs`); the toggle sets `manifest.engine_target` and which guide the README labels *primary*.
 
-The spec carries optional **`unreal`** and **`godot`** blocks alongside `unity`; when omitted the worker derives them during validation:
+The spec carries optional **`unreal`**, **`godot`**, and **`bevy`** blocks alongside `unity`; when omitted the worker derives them during validation:
 
-| `unity.collider` | derived `unreal.collision_complexity` | derived `godot.collider` |
-|------------------|----------------------------------------|---------------------------|
-| `box`, `capsule` | `simple` | `box` / `capsule` |
-| `mesh_convex` | `convex` | `convex` |
-| `none` | `none` | `none` |
+| `unity.collider` | derived `unreal.collision_complexity` | derived `godot.collider` | derived `bevy.collider` |
+|------------------|----------------------------------------|---------------------------|--------------------------|
+| `box`, `capsule` | `simple` | `box` / `capsule` | `box` / `capsule` |
+| `mesh_convex` | `convex` | `convex` | `convex` |
+| `none` | `none` | `none` | `none` |
 
 Unreal import (`packages/studio-unreal`, **Tools → Import Studio Pack…**) reads `unreal.collision_complexity` (falling back to `unity.collider`). For `convex`, the importer copies `{asset_id}_collider.glb` hull geometry into the main static mesh body setup. See [unreal-import-conventions.md](./unreal-import-conventions.md).
 
 Godot import (`packages/studio-godot`) copies `Models/` into `res://<godot.import_subfolder>/`, registers assets via the pack's `Godot/pack_registry.gd`, and spawns props with `ImmersiveStudioModel`. See [godot-import-conventions.md](./godot-import-conventions.md).
+
+Bevy import (`packages/studio-bevy`, **Bevy 0.19**) copies `Models/` into `assets/<bevy.import_subfolder>/`, registers assets via the pack's `Bevy/pack_registry.rs`, and spawns props with `spawn_prop` (`WorldAssetRoot`). See [bevy-import-conventions.md](./bevy-import-conventions.md).
 
 ---
 

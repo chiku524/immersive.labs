@@ -1,0 +1,12 @@
+[package]
+name = "immersive-studio-bevy"
+version = "0.1.0"
+edition = "2021"
+description = "Bevy 0.19 helpers for Immersive Labs studio packs (GLB spawn + ORM sidecar PBR)."
+license = "MIT"
+readme = "README.md"
+keywords = ["bevy", "gltf", "pbr", "game-dev"]
+categories = ["game-development"]
+
+[dependencies]
+bevy = { version = "0.19", default-features = true }

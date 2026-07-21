@@ -29,6 +29,9 @@ Canonical field meanings for tooling and LLM output. TypeScript mirrors live in 
 | `godot` | object | no | Derived when omitted: `import_subfolder` (`assets/models`), `collider` from `unity.collider`. |
 | `godot.import_subfolder` | string | yes* | Project path under `res://`, e.g. `assets/models`. |
 | `godot.collider` | enum | yes* | `box` \| `capsule` \| `convex` \| `none`. |
+| `bevy` | object | no | Derived when omitted: `import_subfolder` (`models`), `collider` from `unity.collider`. |
+| `bevy.import_subfolder` | string | yes* | Path under Bevy `assets/`, e.g. `models`. |
+| `bevy.collider` | enum | yes* | `box` \| `capsule` \| `convex` \| `none`. |
 
 ### `StudioMaterialSlot`
 
@@ -54,7 +57,7 @@ Canonical field meanings for tooling and LLM output. TypeScript mirrors live in 
 | `manifest_version` | string | yes | `"0.1"`. |
 | `job_id` | string | yes | UUID or ULID. |
 | `created_at` | string | yes | ISO-8601 UTC. |
-| `engine_target` | enum | yes | `unity`, `unreal`, or `godot` — selects import notes and manifest target for the pack. |
+| `engine_target` | enum | yes | `unity`, `unreal`, `godot`, or `bevy` — selects import notes and manifest target for the pack. |
 | `assets` | object[] | yes | List of `StudioAssetSpec`. |
 | `toolchain` | object | yes | Audit trail. |
 | `toolchain.llm_model` | string | no | e.g. `ollama:modelname`. |

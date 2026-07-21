@@ -240,7 +240,7 @@ def favicon() -> Response:
     return Response(status_code=204)
 
 
-EngineTarget = Literal["unity", "unreal", "godot"]
+EngineTarget = Literal["unity", "unreal", "godot", "bevy"]
 
 
 class GenerateSpecRequest(BaseModel):

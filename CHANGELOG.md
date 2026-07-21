@@ -2,6 +2,20 @@
 
 All notable changes to the **`immersive-studio`** PyPI package and the studio worker in this monorepo are documented here. Versions follow the Python package version in `apps/studio-worker/pyproject.toml`.
 
+## [0.1.21] — 2026-07-21
+
+### Added
+
+- **`engine_target: bevy`** — Bevy **0.19** pack export (`BevyImportNotes.md`, `Bevy/pack_registry.rs`, `packages/studio-bevy` helpers).
+- Spec validation derives optional **`bevy`** block from `unity` import hints (`import_subfolder` default `models`, collider mapping).
+- Studio UI **Import target** toggle option for Bevy 0.19.
+- Bevy import guide: `docs/studio/bevy-import-conventions.md`.
+
+### Changed
+
+- Packs always include Bevy notes/registry alongside Unity, Unreal, and Godot.
+- CLI/API `engine_target` choices: `unity` \| `unreal` \| `godot` \| `bevy`.
+
 ## [0.1.20] — 2026-07-10
 
 ### Added

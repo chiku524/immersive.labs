@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from studio_worker.pack_writer import append_godot_diagnostics_notes, write_pack
+from studio_worker.pack_writer import (
+    append_bevy_diagnostics_notes,
+    append_godot_diagnostics_notes,
+    write_pack,
+)
 
 
 def _minimal_spec() -> dict:
@@ -34,10 +38,13 @@ def test_write_pack_unity_target(tmp_path: Path) -> None:
     assert (out / "UnrealImportNotes.md").is_file()
     assert (out / "GodotImportNotes.md").is_file()
     assert (out / "Godot" / "pack_registry.gd").is_file()
+    assert (out / "BevyImportNotes.md").is_file()
+    assert (out / "Bevy" / "pack_registry.rs").is_file()
     readme = (out / "README.txt").read_text(encoding="utf-8")
     assert "Unity" in readme
     assert "Unreal" in readme
     assert "Godot" in readme
+    assert "Bevy" in readme
 
 
 def test_write_pack_unreal_target(tmp_path: Path) -> None:
@@ -47,10 +54,12 @@ def test_write_pack_unreal_target(tmp_path: Path) -> None:
     assert (out / "UnrealImportNotes.md").is_file()
     assert (out / "UnityImportNotes.md").is_file()
     assert (out / "GodotImportNotes.md").is_file()
+    assert (out / "BevyImportNotes.md").is_file()
     readme = (out / "README.txt").read_text(encoding="utf-8")
     assert "Unreal" in readme
     assert "Unity" in readme
     assert "Godot" in readme
+    assert "Bevy" in readme
 
 
 def test_write_pack_godot_target(tmp_path: Path) -> None:
@@ -65,6 +74,22 @@ def test_write_pack_godot_target(tmp_path: Path) -> None:
     assert 'register_asset(' in registry
     readme = (out / "README.txt").read_text(encoding="utf-8")
     assert "Godot 4" in readme
+
+
+def test_write_pack_bevy_target(tmp_path: Path) -> None:
+    out = tmp_path / "bevy_pack"
+    manifest = write_pack(out, _minimal_spec(), engine_target="bevy")
+    assert manifest["engine_target"] == "bevy"
+    notes = (out / "BevyImportNotes.md").read_text(encoding="utf-8")
+    assert "Bevy" in notes
+    assert "0.19" in notes
+    assert "test_prop" in notes
+    registry = (out / "Bevy" / "pack_registry.rs").read_text(encoding="utf-8")
+    assert "AssetRegistry" in registry
+    assert "register_all" in registry
+    assert "test_prop" in registry
+    readme = (out / "README.txt").read_text(encoding="utf-8")
+    assert "Bevy 0.19" in readme
 
 
 def test_write_pack_invalid_engine_target(tmp_path: Path) -> None:
@@ -97,6 +122,18 @@ def test_write_pack_derives_godot_block_and_notes(tmp_path: Path) -> None:
     assert "assets/models" in notes
 
 
+def test_write_pack_derives_bevy_block_and_notes(tmp_path: Path) -> None:
+    spec = _minimal_spec()
+    spec["unity"]["collider"] = "mesh_convex"
+    out = tmp_path / "bv_pack"
+    write_pack(out, spec, engine_target="bevy", write_spec_json=True)
+    assert spec["bevy"]["collider"] == "convex"
+    assert spec["bevy"]["import_subfolder"] == "models"
+    notes = (out / "BevyImportNotes.md").read_text(encoding="utf-8")
+    assert "collider `convex`" in notes
+    assert "models" in notes
+
+
 def test_write_pack_honors_explicit_unreal_block(tmp_path: Path) -> None:
     spec = _minimal_spec()
     spec["unreal"] = {"import_subfolder": "Environment/Kit", "collision_complexity": "complex"}
@@ -106,6 +143,15 @@ def test_write_pack_honors_explicit_unreal_block(tmp_path: Path) -> None:
     assert spec["unreal"]["import_subfolder"] == "Environment/Kit"
 
 
+def test_write_pack_honors_explicit_bevy_block(tmp_path: Path) -> None:
+    spec = _minimal_spec()
+    spec["bevy"] = {"import_subfolder": "props/kit", "collider": "capsule"}
+    out = tmp_path / "bv_pack_explicit"
+    write_pack(out, spec, engine_target="bevy")
+    assert spec["bevy"]["collider"] == "capsule"
+    assert spec["bevy"]["import_subfolder"] == "props/kit"
+
+
 def test_append_godot_diagnostics_preserves_import_notes(tmp_path: Path) -> None:
     out = tmp_path / "diag_pack"
     write_pack(out, _minimal_spec(), engine_target="godot")
@@ -113,6 +159,18 @@ def test_append_godot_diagnostics_preserves_import_notes(tmp_path: Path) -> None
     assert "Import checklist" in before
     append_godot_diagnostics_notes(out, ["tripo_mesh_textured: true", "texture_bind: skipped"])
     after = (out / "GodotImportNotes.md").read_text(encoding="utf-8")
+    assert "Import checklist" in after
+    assert "Pack diagnostics" in after
+    assert "tripo_mesh_textured" in after
+
+
+def test_append_bevy_diagnostics_preserves_import_notes(tmp_path: Path) -> None:
+    out = tmp_path / "diag_bevy_pack"
+    write_pack(out, _minimal_spec(), engine_target="bevy")
+    before = (out / "BevyImportNotes.md").read_text(encoding="utf-8")
+    assert "Import checklist" in before
+    append_bevy_diagnostics_notes(out, ["tripo_mesh_textured: true", "texture_bind: skipped"])
+    after = (out / "BevyImportNotes.md").read_text(encoding="utf-8")
     assert "Import checklist" in after
     assert "Pack diagnostics" in after
     assert "tripo_mesh_textured" in after

@@ -100,7 +100,7 @@ function readStoredJobOpts(): { generateTextures: boolean; exportMesh: boolean }
   }
 }
 
-type StudioEngineTarget = "unity" | "unreal" | "godot";
+type StudioEngineTarget = "unity" | "unreal" | "godot" | "bevy";
 
 /** True when the worker probed local Comfy but nothing accepted the TCP connection (Comfy not started). */
 function comfyLocalhostRefused(detail: string | null | undefined, url: string): boolean {
@@ -434,7 +434,12 @@ export function StudioPage() {
         setApiKey(stored);
       }
       const storedEngine = window.localStorage.getItem(ENGINE_TARGET_STORAGE);
-      if (storedEngine === "unity" || storedEngine === "unreal" || storedEngine === "godot") {
+      if (
+        storedEngine === "unity" ||
+        storedEngine === "unreal" ||
+        storedEngine === "godot" ||
+        storedEngine === "bevy"
+      ) {
         setEngineTarget(storedEngine);
       }
     } catch {
@@ -1087,8 +1092,9 @@ export function StudioPage() {
             Generate a validated <code>StudioAssetSpec</code>, run a full persisted <strong>job</strong> (pack + zip +
             index), optionally invoke <strong>ComfyUI</strong> for albedo textures, then import in <strong>Unity</strong>{" "}
             (<code>packages/studio-unity</code>), <strong>Unreal Engine 5</strong> (
-            <code>packages/studio-unreal</code>), or <strong>Godot 4</strong> (
-            <code>packages/studio-godot</code>) using the import-target toggle below. Start with the on-site{" "}
+            <code>packages/studio-unreal</code>), <strong>Godot 4</strong> (
+            <code>packages/studio-godot</code>), or <strong>Bevy 0.19</strong> (
+            <code>packages/studio-bevy</code>) using the import-target toggle below. Start with the on-site{" "}
             <Link to="/docs">documentation hub</Link> (overview, deployment, ComfyUI, Blender, Unity); deep reference:{" "}
             <code className="studio-code-inline">docs/studio/essentials.md</code> and{" "}
             <code className="studio-code-inline">docs/studio/platform-manual.md</code>.
@@ -1378,6 +1384,7 @@ export function StudioPage() {
                     { id: "unity", label: "Unity (URP)" },
                     { id: "unreal", label: "Unreal Engine 5" },
                     { id: "godot", label: "Godot 4" },
+                    { id: "bevy", label: "Bevy 0.19" },
                   ] as { id: StudioEngineTarget; label: string }[]
                 ).map((opt) => (
                   <button
@@ -1404,10 +1411,12 @@ export function StudioPage() {
               </div>
               <span className="studio-engine-toggle-note">
                 {engineTarget === "unreal"
-                  ? "Primary: Unreal (Tools → Import Studio Pack…, packages/studio-unreal). Unity and Godot notes also included."
+                  ? "Primary: Unreal (Tools → Import Studio Pack…, packages/studio-unreal). Unity, Godot, and Bevy notes also included."
                   : engineTarget === "godot"
-                    ? "Primary: Godot 4 (copy Models + Godot/pack_registry.gd, packages/studio-godot). Unity and Unreal notes also included."
-                    : "Primary: Unity URP (Immersive Labs → Import Studio Pack…, packages/studio-unity). Unreal and Godot notes also included."}
+                    ? "Primary: Godot 4 (copy Models + Godot/pack_registry.gd, packages/studio-godot). Unity, Unreal, and Bevy notes also included."
+                    : engineTarget === "bevy"
+                      ? "Primary: Bevy 0.19 (copy Models + Bevy/pack_registry.rs, packages/studio-bevy). Unity, Unreal, and Godot notes also included."
+                      : "Primary: Unity URP (Immersive Labs → Import Studio Pack…, packages/studio-unity). Unreal, Godot, and Bevy notes also included."}
               </span>
             </div>
 

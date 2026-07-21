@@ -60,9 +60,14 @@ export interface StudioAssetSpec {
     import_subfolder: string;
     collider: "box" | "capsule" | "convex" | "none";
   };
+  /** Optional Bevy hints; worker derives these from `unity` when omitted. */
+  bevy?: {
+    import_subfolder: string;
+    collider: "box" | "capsule" | "convex" | "none";
+  };
 }
 
-export type StudioEngineTarget = "unity" | "unreal" | "godot";
+export type StudioEngineTarget = "unity" | "unreal" | "godot" | "bevy";
 
 export interface StudioJobManifest {
   manifest_version: "0.1";

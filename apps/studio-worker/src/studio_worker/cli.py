@@ -419,7 +419,7 @@ def main() -> None:
     p.add_argument(
         "--engine-target",
         default="unity",
-        choices=["unity", "unreal", "godot"],
+        choices=["unity", "unreal", "godot", "bevy"],
         dest="engine_target",
         help="Import target: Unity URP, Unreal Engine 5, or Godot 4 pack (default: unity)",
     )
@@ -503,7 +503,7 @@ def main() -> None:
     j.add_argument(
         "--engine-target",
         default="unity",
-        choices=["unity", "unreal", "godot"],
+        choices=["unity", "unreal", "godot", "bevy"],
         dest="engine_target",
         help="Pack import target for manifest + import notes (default: unity)",
     )

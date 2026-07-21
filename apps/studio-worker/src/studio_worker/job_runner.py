@@ -10,7 +10,11 @@ from studio_worker.job_artifacts import upload_pack_zip_if_configured
 from studio_worker.jobs_store import allocate_job_id, new_job_folder_name, register_job_entry
 from studio_worker.ollama_client import ollama_model
 from studio_worker.pack_diagnostics import build_pack_diagnostics
-from studio_worker.pack_writer import append_godot_diagnostics_notes, write_pack
+from studio_worker.pack_writer import (
+    append_bevy_diagnostics_notes,
+    append_godot_diagnostics_notes,
+    write_pack,
+)
 from studio_worker.paths import job_pack_dir
 from studio_worker.quotas import enforce_quota_before_new_job
 from studio_worker.spec_generate import generate_asset_spec_with_metadata
@@ -252,6 +256,7 @@ def run_studio_job(
         )
         if diagnostics.get("notes"):
             append_godot_diagnostics_notes(out_dir, diagnostics["notes"])
+            append_bevy_diagnostics_notes(out_dir, diagnostics["notes"])
 
         write_pack_attribution(out_dir, spec=spec, manifest=manifest, meta=meta)
 
