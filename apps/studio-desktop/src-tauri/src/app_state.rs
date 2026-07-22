@@ -434,18 +434,23 @@ pub fn repo_root() -> PathBuf {
     }
 }
 
+fn env_key_name(raw: &str) -> &str {
+    // PowerShell Set-Content -Encoding utf8 writes a UTF-8 BOM; strip so the first key matches.
+    raw.trim().trim_start_matches('\u{feff}')
+}
+
 pub fn read_env_value(key: &str) -> Option<String> {
     let path = worker_env_path();
     let file = std::fs::File::open(path).ok()?;
     for line in BufReader::new(file).lines().flatten() {
-        let trimmed = line.trim();
+        let trimmed = line.trim().trim_start_matches('\u{feff}');
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
         let Some((k, v)) = trimmed.split_once('=') else {
             continue;
         };
-        if k.trim() == key {
+        if env_key_name(k) == key {
             return Some(unquote_env_value(v.trim()));
         }
     }
@@ -470,17 +475,18 @@ pub fn upsert_env_value(key: &str, value: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let existing_raw = std::fs::read_to_string(&path).unwrap_or_default();
+    let existing = existing_raw.strip_prefix('\u{feff}').unwrap_or(&existing_raw);
     let mut found = false;
     let mut out: Vec<String> = Vec::new();
     for line in existing.lines() {
-        let trimmed = line.trim();
+        let trimmed = line.trim().trim_start_matches('\u{feff}');
         if trimmed.is_empty() || trimmed.starts_with('#') {
             out.push(line.to_string());
             continue;
         }
         if let Some((k, _)) = trimmed.split_once('=') {
-            if k.trim() == key {
+            if env_key_name(k) == key {
                 out.push(format!("{key}={value}"));
                 found = true;
                 continue;
@@ -605,14 +611,14 @@ pub fn apply_env_local(cmd: &mut Command, root: &Path) {
     };
 
     for line in BufReader::new(file).lines().flatten() {
-        let trimmed = line.trim();
+        let trimmed = line.trim().trim_start_matches('\u{feff}');
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
         let Some((k, v)) = trimmed.split_once('=') else {
             continue;
         };
-        cmd.env(k.trim(), unquote_env_value(v.trim()));
+        cmd.env(env_key_name(k), unquote_env_value(v.trim()));
     }
     if read_env_value("STUDIO_WORKER_DATA_DIR").is_some() {
         cmd.env_remove("STUDIO_REPO_ROOT");

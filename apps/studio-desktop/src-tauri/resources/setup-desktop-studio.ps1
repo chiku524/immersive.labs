@@ -103,7 +103,7 @@ if (Test-Path $EnvFile) {
   }
 }
 
-@"
+$envBody = @"
 STUDIO_WORKER_DATA_DIR=$dataDirUnix
 STUDIO_OLLAMA_URL=http://127.0.0.1:11434
 STUDIO_OLLAMA_MODEL=llama3.2
@@ -122,7 +122,11 @@ STUDIO_COMFY_URL=http://127.0.0.1:8188
 $($comfyLines -join "`n")
 STUDIO_EMBEDDED_QUEUE_WORKER=0
 STUDIO_CORS_ORIGINS=http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:5173,http://localhost:5173
-"@ | Set-Content -Path $EnvFile -Encoding utf8
+"@
+# utf8NoBOM — Windows PowerShell's `utf8` encoding writes a BOM that breaks the first env key
+# (Rust/desktop then never sees STUDIO_WORKER_DATA_DIR and queue workers can miss the job DB).
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($EnvFile, $envBody.TrimEnd() + "`n", $utf8NoBom)
 
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green

@@ -23,11 +23,12 @@ OLLAMA_NUM_PREDICT_MAX = 16384
 
 
 def ollama_base_url() -> str:
-    return os.environ.get("STUDIO_OLLAMA_URL", OLLAMA_URL_DEFAULT).rstrip("/")
+    # strip() clears CRLF leftovers from sourced Windows env files (e.g. `URL\r`).
+    return os.environ.get("STUDIO_OLLAMA_URL", OLLAMA_URL_DEFAULT).strip().rstrip("/")
 
 
 def ollama_model() -> str:
-    return os.environ.get("STUDIO_OLLAMA_MODEL", MODEL_DEFAULT)
+    return os.environ.get("STUDIO_OLLAMA_MODEL", MODEL_DEFAULT).strip()
 
 
 def ollama_read_timeout_s() -> float:
